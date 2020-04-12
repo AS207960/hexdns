@@ -1,6 +1,6 @@
 Django
 django-grpc
-dnspython
+dnslib
 git+https://github.com/TheEnbyperor/django-keycloak-auth
 sentry-sdk
 psycopg2-binary
