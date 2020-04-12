@@ -1,0 +1,7 @@
+Django
+django-grpc
+dnspython
+git+https://github.com/TheEnbyperor/django-keycloak-auth
+sentry-sdk
+psycopg2-binary
+gunicorn

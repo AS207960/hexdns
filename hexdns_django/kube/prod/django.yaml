@@ -1,0 +1,188 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: hexdns-django-static
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "gluster-heketi"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: hexdns-django-media
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "gluster-heketi"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-django-conf
+data:
+  HOST: dns.as207960.net
+  DJANGO_SETTINGS_MODULE: hexdns_django.settings
+  EXTERNAL_URL: "https://dns.as207960.net"
+  SENTRY_ENVIRONMENT: "prod"
+  KEYCLOAK_SERVER_URL: "https://sso.as207960.net/"
+  KEYCLOAK_REALM: master
+  KEYCLOAK_SCOPES: "openid email profile"
+  KEYCLOAK_CLIENT_ID: "hexdns"
+  DB_HOST: "2a0d:1a40:7900::9"
+  DB_NAME: "hexdns"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-django
+  labels:
+    app: hexdns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: django
+  template:
+    metadata:
+      labels:
+        app: hexdns
+        part: django
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+      initContainers:
+        - name: django
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+      containers:
+        - name: gunicorn
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["gunicorn", "-w", "8", "-b", "0.0.0.0:8000", "--forwarded-allow-ips", "*", "--access-logfile", "-", "hexdns_django.wsgi:application"]
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-grpc
+  labels:
+    app: hexdns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: grpc
+  template:
+    metadata:
+      labels:
+        app: hexdns
+        part: grpc
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+      containers:
+        - name: grpc
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["sh", "-c", "python3 manage.py gprcserver -v 1 --traceback"]
+          ports:
+            - containerPort: 5001
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-django
+  labels:
+    app: hexdns
+spec:
+  selector:
+    app: hexdns
+    part: django
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-grpc
+  labels:
+    app: hexdns
+spec:
+  selector:
+    app: hexdns
+    part: grpc
+  ports:
+    - port: 5001
+      targetPort: 5001

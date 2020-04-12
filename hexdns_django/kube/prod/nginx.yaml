@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: cls-prod
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  4;
+
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+
+    events {
+      worker_connections  4096;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+      access_log  /var/log/nginx/access.log  main;
+      sendfile        on;
+      tcp_nopush   on;
+      keepalive_timeout  65;
+      gzip  on;
+      gzip_proxied no_etag;
+      client_max_body_size 0;
+
+      server {
+        listen       80;
+        server_name  2.cardifftec.uk;
+
+        root /data/;
+
+        location / {
+          try_files $uri @proxy_to_app;
+        }
+
+        location @proxy_to_app {
+          proxy_pass      http://django:8000;
+
+          proxy_http_version 1.1;
+
+          proxy_redirect off;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Host $server_name;
+          proxy_set_header X-Forwarded-Proto https;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: cls-prod
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: django-media
+        - name: conf
+          configMap:
+            name: nginx-conf
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - mountPath: "/data/static/"
+              name: static
+            - mountPath: "/data/media/"
+              name: media
+            - mountPath: "/etc/nginx/nginx.conf"
+              name: conf
+              subPath: "nginx.conf"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: cls-prod
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+      name: nginx
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: cls-ingress
+  namespace: cls-prod
+  annotations:
+    certmanager.k8s.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  tls:
+    - hosts:
+        - cardifftec.uk
+      secretName: cls-tls
+  rules:
+  - host: cardifftec.uk
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: nginx
+          servicePort: 80
