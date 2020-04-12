@@ -53,15 +53,18 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         if is_ip6_zone:
             parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
+            parts += ['0'] * (32-len(parts))
             addr = ":".join(
                 ["".join(parts[n : n + 4]) for n in range(0, len(parts), 4)]
             )
         else:
-            addr = ".".join(reversed(list(map(lambda n: n.decode(), qname.label))))
+            parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
+            parts += ['0'] * (4-len(parts))
+            addr = ".".join(parts)
         try:
             addr = ipaddress.ip_address(addr)
         except ValueError:
-            return None, None
+            return None, None, None
 
         zones = models.ReverseDNSZone.objects.order_by("-zone_root_prefix")
         for zone in zones:
@@ -75,7 +78,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             if addr in zone_network:
                 return zone, addr, zone_network
 
-        return None, None
+        return None, None, None
 
     def network_to_apra(self, network: IP_NETWORK) -> DNSLabel:
         if type(network) == ipaddress.IPv6Network:
