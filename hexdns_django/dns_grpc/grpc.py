@@ -420,11 +420,20 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 )
             )
         else:
+            network = self.network_to_apra(zone_network)
             if dns_req.q.qtype == QTYPE.SOA:
                 pass
             elif dns_req.q.qtype == QTYPE.PTR:
                 self.lookup_ptr(dns_res, record_name, zone, query_name)
-            network = self.network_to_apra(zone_network)
+            elif dns_req.q.qtype == QTYPE.NS and query_name == network:
+                dns_res.add_answer(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.NS,
+                        rdata=dnslib.NS("dns1.as207960.net"),
+                        ttl=86400,
+                    )
+                )
             dns_res.add_auth(
                 dnslib.RR(
                     network,
