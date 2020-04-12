@@ -186,9 +186,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         query_name: DNSLabel,
     ):
         records = self.find_records(models.AddressRecord, record_name, zone)
+        addr_found = False
         for record in records:
             address = ipaddress.ip_address(record.address)
             if type(address) == ipaddress.IPv4Address and dns_res.q.qtype == QTYPE.A:
+                addr_found = True
                 dns_res.add_answer(
                     dnslib.RR(
                         query_name,
@@ -198,6 +200,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
                 )
             elif type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA:
+                addr_found = True
                 dns_res.add_answer(
                     dnslib.RR(
                         query_name,
@@ -206,7 +209,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=record.ttl,
                     )
                 )
-        if not len(records):
+        if not addr_found:
             self.lookup_cname(dns_res, record_name, zone, query_name, self.lookup_addr)
 
     def lookup_additional_addr(
@@ -367,6 +370,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         if not zone:
             dns_res.header.rcode = RCODE.NXDOMAIN
             return dns_res
+        dns_res.header.rcode = RCODE.NOERROR
 
         if not is_rdns:
             if dns_req.q.qtype == QTYPE.SOA:
