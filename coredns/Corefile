@@ -1,0 +1,6 @@
+.:5053 {
+    log
+    chaos "HexDns" "noc@as207960.net"
+    grpc . [::1]:50051
+}
+
