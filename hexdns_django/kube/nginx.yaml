@@ -1,8 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nginx-conf
-  namespace: cls-prod
+  name: hexdns-nginx-conf
 data:
   nginx.conf: |
     user  nginx;
@@ -32,8 +31,8 @@ data:
       client_max_body_size 0;
 
       server {
-        listen       80;
-        server_name  2.cardifftec.uk;
+        listen       [::]:80;
+        server_name  dns.as207960.net;
 
         root /data/;
 
@@ -42,7 +41,7 @@ data:
         }
 
         location @proxy_to_app {
-          proxy_pass      http://django:8000;
+          proxy_pass      http://hexdns-django:8000;
 
           proxy_http_version 1.1;
 
@@ -59,35 +58,36 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx
-  namespace: cls-prod
+  name: hexdns-nginx
   labels:
-    app: nginx
+    app: hexdns
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx
+      app: hexdns
+      part: nginx
   template:
     metadata:
       labels:
-        app: nginx
+        app: hexdns
+        part: nginx
     spec:
       volumes:
         - name: static
           persistentVolumeClaim:
-            claimName: django-static
+            claimName: hexdns-django-static
         - name: media
           persistentVolumeClaim:
-            claimName: django-media
+            claimName: hexdns-django-media
         - name: conf
           configMap:
-            name: nginx-conf
+            name: hexdns-nginx-conf
       containers:
         - name: nginx
           image: nginx
           ports:
-            - containerPort: 8000
+            - containerPort: 80
           volumeMounts:
             - mountPath: "/data/static/"
               name: static
@@ -100,13 +100,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: cls-prod
-  name: nginx
+  name: hexdns-nginx
   labels:
-    app: nginx
+    app: hexdns
 spec:
   selector:
-    app: nginx
+    app: hexdns
+    part: nginx
   ports:
     - port: 80
       targetPort: 80
@@ -115,21 +115,20 @@ spec:
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  name: cls-ingress
-  namespace: cls-prod
+  name: hexdns-ingress
   annotations:
-    certmanager.k8s.io/cluster-issuer: "letsencrypt-prod"
+#    certmanager.k8s.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
-  tls:
-    - hosts:
-        - cardifftec.uk
-      secretName: cls-tls
+#  tls:
+#    - hosts:
+#        - cardifftec.uk
+#      secretName: cls-tls
   rules:
-  - host: cardifftec.uk
+  - host: dns.as207960.net
     http:
       paths:
       - path: /
         backend:
-          serviceName: nginx
+          serviceName: hexdns-nginx
           servicePort: 80

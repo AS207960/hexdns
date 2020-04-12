@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hexdns-coredns
+  labels:
+    app: hexdns
+spec:
+  selector:
+    matchLabels:
+      app: hexdns
+      part: coredns
+  template:
+    metadata:
+      labels:
+        app: hexdns
+        part: coredns
+    spec:
+      tolerations:
+        - key: as207960.net/edge-cache
+          effect: NoSchedule
+      containers:
+        - name: coredns
+          image: coredns/coredns
+          args: ["-conf", "/conf/Corefile"]
+          ports:
+            - containerPort: 53
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: conf
+              mountPath: /conf/
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /health
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              port: 8181
+              path: /ready
+            initialDelaySeconds: 3
+            periodSeconds: 3
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: conf
+          configMap:
+            name: hexdns-coredns-conf
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hexdns-coredns-conf
+data:
+  Corefile: |
+    .:53 {
+        health
+        ready
+        log
+        errors
+        any
+        cancel
+        cache 30 {
+          serve_stale
+        }
+        chaos "HexDns" "noc@as207960.net"
+        grpc . [{$HEXDNS_GRPC_SERVICE_HOST}]:50051
+        loadbalance round_robin
+        nsid {$POD_NAME}
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: coredns
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp

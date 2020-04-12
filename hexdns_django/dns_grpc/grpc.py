@@ -164,6 +164,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
         if cname_record:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -189,6 +190,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for record in records:
             address = ipaddress.ip_address(record.address)
             if type(address) == ipaddress.IPv4Address and dns_res.q.qtype == QTYPE.A:
+                dns_res.header.rcode = RCODE.NOERROR
                 dns_res.add_answer(
                     dnslib.RR(
                         query_name,
@@ -197,9 +199,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=record.ttl,
                     )
                 )
-            elif (
-                type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA
-            ):
+            elif type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA:
+                dns_res.header.rcode = RCODE.NOERROR
                 dns_res.add_answer(
                     dnslib.RR(
                         query_name,
@@ -246,6 +247,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.MXRecord, record_name, zone)
         for record in records:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -266,6 +268,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.NSRecord, record_name, zone)
         for record in records:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -286,6 +289,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.TXTRecord, record_name, zone)
         for record in records:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -306,6 +310,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.SRVRecord, record_name, zone)
         for record in records:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -328,6 +333,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_reverse_records(models.PTRRecord, addr, zone)
         for record in records:
+            dns_res.header.rcode = RCODE.NOERROR
             dns_res.add_answer(
                 dnslib.RR(
                     query_name,
@@ -341,6 +347,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 address=str(addr), auto_reverse=True
             )
             for record in address_records:
+                dns_res.header.rcode = RCODE.NOERROR
                 dns_res.add_answer(
                     dnslib.RR(
                         query_name,

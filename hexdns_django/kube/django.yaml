@@ -88,7 +88,7 @@ spec:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["gunicorn", "-w", "8", "-b", "0.0.0.0:8000", "--forwarded-allow-ips", "*", "--access-logfile", "-", "hexdns_django.wsgi:application"]
+          command: ["gunicorn", "-w", "8", "-b", "[::]:8000", "--forwarded-allow-ips", "*", "--access-logfile", "-", "hexdns_django.wsgi:application"]
           ports:
             - containerPort: 8000
           volumeMounts:
@@ -139,7 +139,7 @@ spec:
           imagePullPolicy: Always
           command: ["sh", "-c", "python3 manage.py grpcserver -v 1 --traceback"]
           ports:
-            - containerPort: 5001
+            - containerPort: 50051
           volumeMounts:
             - mountPath: "/app/static/"
               name: static
@@ -182,5 +182,5 @@ spec:
     app: hexdns
     part: grpc
   ports:
-    - port: 5001
-      targetPort: 5001
+    - port: 50051
+      targetPort: 50051
