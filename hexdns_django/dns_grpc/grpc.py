@@ -278,6 +278,23 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ttl=record.ttl,
                 )
             )
+        if record_name == "@":
+            dns_res.add_answer(
+                dnslib.RR(
+                    query_name,
+                    QTYPE.NS,
+                    rdata=dnslib.NS("ns1.as207960.net"),
+                    ttl=86400,
+                )
+            )
+            dns_res.add_answer(
+                dnslib.RR(
+                    query_name,
+                    QTYPE.NS,
+                    rdata=dnslib.NS("ns2.as207960.net"),
+                    ttl=86400,
+                )
+            )
         if not len(records):
             self.lookup_cname(dns_res, record_name, zone, query_name, self.lookup_ns)
 
@@ -467,6 +484,14 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         query_name,
                         QTYPE.NS,
                         rdata=dnslib.NS("ns1.as207960.net"),
+                        ttl=86400,
+                    )
+                )
+                dns_res.add_answer(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.NS,
+                        rdata=dnslib.NS("ns2.as207960.net"),
                         ttl=86400,
                     )
                 )
