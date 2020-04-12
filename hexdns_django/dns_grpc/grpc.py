@@ -377,7 +377,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         if not is_rdns:
             if dns_req.q.qtype == QTYPE.SOA:
-                pass
+                dns_res.add_answer(
+                    dnslib.RR(
+                        zone.zone_root,
+                        QTYPE.SOA,
+                        rdata=dnslib.SOA(
+                            "ns1.as207960.net",
+                            "noc.as207960.net",
+                            (
+                                int(zone.last_modified.timestamp()),
+                                86400,
+                                7200,
+                                3600000,
+                                172800,
+                            ),
+                        ),
+                        ttl=86400,
+                    )
+                )
+                return dns_res
             elif dns_req.q.qtype in [QTYPE.A, QTYPE.AAAA]:
                 self.lookup_addr(dns_res, record_name, zone, query_name)
             elif dns_req.q.qtype == QTYPE.MX:
@@ -422,7 +440,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         else:
             network = self.network_to_apra(zone_network)
             if dns_req.q.qtype == QTYPE.SOA:
-                pass
+                dns_res.add_answer(
+                    dnslib.RR(
+                        network,
+                        QTYPE.SOA,
+                        rdata=dnslib.SOA(
+                            "ns1.as207960.net",
+                            "noc.as207960.net",
+                            (
+                                int(zone.last_modified.timestamp()),
+                                86400,
+                                7200,
+                                3600000,
+                                172800,
+                            ),
+                        ),
+                        ttl=86400,
+                    )
+                )
+                return dns_res
             elif dns_req.q.qtype == QTYPE.PTR:
                 self.lookup_ptr(dns_res, record_name, zone, query_name)
             elif dns_req.q.qtype == QTYPE.NS and query_name == network:
@@ -430,7 +466,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     dnslib.RR(
                         query_name,
                         QTYPE.NS,
-                        rdata=dnslib.NS("dns1.as207960.net"),
+                        rdata=dnslib.NS("ns1.as207960.net"),
                         ttl=86400,
                     )
                 )

@@ -75,7 +75,9 @@ data:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hexdns-coredns
+  name: hexdns-coredns-udp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns"
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
@@ -87,3 +89,21 @@ spec:
       targetPort: 53
       protocol: UDP
       name: dns-udp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns-tcp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: coredns
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp
