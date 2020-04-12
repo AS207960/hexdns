@@ -137,7 +137,7 @@ spec:
         - name: grpc
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py gprcserver -v 1 --traceback"]
+          command: ["sh", "-c", "python3 manage.py grpcserver -v 1 --traceback"]
           ports:
             - containerPort: 5001
           volumeMounts:
