@@ -2,9 +2,8 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: hexdns-django-static
-  annotations:
-    volume.beta.kubernetes.io/storage-class: "gluster-heketi"
 spec:
+  storageClassName: standard
   accessModes:
     - ReadWriteMany
   resources:
@@ -15,9 +14,8 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: hexdns-django-media
-  annotations:
-    volume.beta.kubernetes.io/storage-class: "gluster-heketi"
 spec:
+  storageClassName: standard
   accessModes:
     - ReadWriteMany
   resources:
@@ -37,7 +35,7 @@ data:
   KEYCLOAK_REALM: master
   KEYCLOAK_SCOPES: "openid email profile"
   KEYCLOAK_CLIENT_ID: "hexdns"
-  DB_HOST: "2a0d:1a40:7900::9"
+  DB_HOST: "postgres"
   DB_NAME: "hexdns"
 ---
 apiVersion: apps/v1

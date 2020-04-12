@@ -61,7 +61,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="reversednszonerecord",
             name="record_address",
-            field=models.GenericIPAddressField(default="@"),
+            field=models.GenericIPAddressField(default=""),
             preserve_default=False,
         ),
     ]
