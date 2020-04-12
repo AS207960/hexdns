@@ -6,3 +6,4 @@ sentry-sdk
 psycopg2-binary
 gunicorn
 grpcio
+protobuf
