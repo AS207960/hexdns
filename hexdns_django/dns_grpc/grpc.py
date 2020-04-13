@@ -381,6 +381,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return dns_res
 
         query_name = dns_req.q.qname
+        query_name = DNSLabel(list(map(lambda n: n.decode().lower().encode(), query_name.label)))
+        print(query_name)
         is_rdns = self.is_rdns(query_name)
 
         if is_rdns:
