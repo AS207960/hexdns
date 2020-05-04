@@ -121,7 +121,29 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         zone: models.DNSZone,
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
+        print(search_name, zone)
         return model.objects.filter(record_name=search_name, zone=zone)
+
+    def any_records(
+        self,
+        rname: DNSLabel,
+        zone: models.DNSZone,
+    ):
+        search_name = ".".join(map(lambda n: n.decode(), rname.label))
+        if models.AddressRecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        elif models.CNAMERecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        elif models.MXRecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        elif models.NSRecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        elif models.TXTRecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        elif models.SRVRecord.objects.filter(record_name=search_name, zone=zone).count():
+            return True
+        else:
+            return False
 
     def find_reverse_records(
         self,
@@ -155,7 +177,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 )
                 self.lookup_additional_addr(dns_res, ns)
         if not ns_found:
-            dns_res.header.rcode = RCODE.NXDOMAIN
+            if not self.any_records(record_name, zone):
+                dns_res.header.rcode = RCODE.NXDOMAIN
 
     def lookup_cname(
         self,
