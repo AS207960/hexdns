@@ -53,13 +53,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         if is_ip6_zone:
             parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
-            parts += ['0'] * (32-len(parts))
+            parts += ["0"] * (32 - len(parts))
             addr = ":".join(
                 ["".join(parts[n : n + 4]) for n in range(0, len(parts), 4)]
             )
         else:
             parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
-            parts += ['0'] * (4-len(parts))
+            parts += ["0"] * (4 - len(parts))
             addr = ".".join(parts)
         try:
             addr = ipaddress.ip_address(addr)
@@ -125,22 +125,28 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         return model.objects.filter(record_name=search_name, zone=zone)
 
     def any_records(
-        self,
-        rname: DNSLabel,
-        zone: models.DNSZone,
+        self, rname: DNSLabel, zone: models.DNSZone,
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
-        if models.AddressRecord.objects.filter(record_name=search_name, zone=zone).count():
+        if models.AddressRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
             return True
-        elif models.CNAMERecord.objects.filter(record_name=search_name, zone=zone).count():
+        elif models.CNAMERecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
             return True
         elif models.MXRecord.objects.filter(record_name=search_name, zone=zone).count():
             return True
         elif models.NSRecord.objects.filter(record_name=search_name, zone=zone).count():
             return True
-        elif models.TXTRecord.objects.filter(record_name=search_name, zone=zone).count():
+        elif models.TXTRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
             return True
-        elif models.SRVRecord.objects.filter(record_name=search_name, zone=zone).count():
+        elif models.SRVRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
             return True
         else:
             return False
@@ -225,7 +231,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=record.ttl,
                     )
                 )
-            elif type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA:
+            elif (
+                type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA
+            ):
                 addr_found = True
                 dns_res.add_answer(
                     dnslib.RR(
@@ -404,7 +412,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return dns_res
 
         query_name = dns_req.q.qname
-        query_name = DNSLabel(list(map(lambda n: n.decode().lower().encode(), query_name.label)))
+        query_name = DNSLabel(
+            list(map(lambda n: n.decode().lower().encode(), query_name.label))
+        )
         print(query_name)
         is_rdns = self.is_rdns(query_name)
 

@@ -23,7 +23,7 @@ sentry_sdk.init(
     environment=os.getenv("SENTRY_ENVIRONMENT", "dev"),
     release=os.getenv("RELEASE", None),
     integrations=[DjangoIntegration()],
-    send_default_pii=True
+    send_default_pii=True,
 )
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -45,7 +45,7 @@ ALLOWED_HOSTS = [os.getenv("HOST", "dns.as207960.net")]
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
-    'django_keycloak_auth',
+    "django_keycloak_auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
@@ -100,7 +100,7 @@ GRPCSERVER = {
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
+    "default": {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": os.getenv("DB_HOST", "localhost"),
         "NAME": os.getenv("DB_NAME", "hexdns"),
