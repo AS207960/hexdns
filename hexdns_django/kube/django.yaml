@@ -47,8 +47,8 @@ metadata:
 data:
   pubkey.pem: |
     -----BEGIN PUBLIC KEY-----
-    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7Om4PyPdLoqb1HW3iNDTCYO1e7hm
-    KlT13ucRxbdsTZKsW3BtL+Ky3XME+UA5zUJxIrnOngsi9r0WCl8+mBLPFw==
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUIh8VQuVXbUQwCjV4d+ptxKCvtbI
+    6XcAdf9qnL1f21663JotyeXU/sNF6GUz5jutm1nmcrRbKS8DDGRz0fzoHA==
     -----END PUBLIC KEY-----
 ---
 apiVersion: apps/v1

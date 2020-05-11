@@ -21,7 +21,7 @@ def make_zone_digest(zone_name: str):
     buffer.encode_name(dnslib.DNSLabel(zone_name))
     rd.pack(buffer)
     digest = hashlib.sha256(buffer.data).hexdigest()
-    tag = grpc.make_key_tag(settings.DNSSEC_PUBKEY)
+    tag = grpc.make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
     return digest, tag
 
 
