@@ -294,20 +294,19 @@ rrsig = RRSIG.RRSIG(
     86400,
     1589140827,
     1589227827,
-    53494,
-    dns.name.from_text("a.magicalcodewit.ch."),
+    24530,
+    dns.name.from_text("as207960.net"),
     base64.b64decode(
-        "cY1XrRFSp6j+9jKlY1cVkJY5zb7OolPYRFdZ1TwAIm6gETbMG81xTZ3f5EpMrElrzhwC5i7k8QZ/cMz3ZQf8bg=="
+        "vpmy2VEl8r1GjvkiG8ih6wT9E0dqIYJLEhHTCqe1DzaM60buOGWk+8/L1S6//goaKvxo3bLHAeLIV15A3gaYPw=="
     ),
 )
 rrset = (
-    dns.name.from_text("a.magicalcodewit.ch."),
+    dns.name.from_text("as207960.net"),
     dns.rdataset.from_text(
         dns.rdataclass.IN,
-        dns.rdatatype.DNSKEY,
+        dns.rdatatype.SOA,
         86400,
-        "257 3 13 7Om4PyPdLoqb1HW3iNDTCYO1e7hmKlT13ucRxbdsTZKsW3BtL+Ky3XME +UA5zUJxIrnOngsi9r0WCl8+mBLPFw==",
-        "256 3 13 h+2dAQTZ/NJxoLdVOfVivfsQyCXALyr9iogGIq22yJyIm8CfIZI4S51Q b9qIHar5vhc3NvLjUfVVdmxzX6RIXg==",
+        "ns1.as207960.net. noc.as207960.net. 1589210034 86400 7200 3600000 172800",
     ),
 )
 

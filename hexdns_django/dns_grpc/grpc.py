@@ -869,7 +869,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             rdlength_ptr = buffer.offset
                             buffer.pack("!H", 0)
                             start = buffer.offset
-                            r.rdata.pack(buffer)
+                            if isinstance(r.rdata, dnslib.SOA):
+                                buffer.encode_name_nocompress(r.rdata.mname)
+                                buffer.encode_name_nocompress(r.rdata.rname)
+                                buffer.pack("!IIIII", *r.rdata.times)
+                            else:
+                                r.rdata.pack(buffer)
                             end = buffer.offset
                             buffer.update(rdlength_ptr, "!H", end - start)
                             return buffer.data
@@ -877,6 +882,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         for rr in sorted(map(rrdata_key, rrs)):
                             data.extend(rr)
 
+                        print(data)
                         sig = decode_dss_signature(
                             priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
