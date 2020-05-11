@@ -635,7 +635,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         if record_name == DNSLabel("@"):
             if isinstance(zone, models.DNSZone):
-                zone_root = (zone.zone_root,)
+                zone_root = zone.zone_root
             elif isinstance(zone, models.ReverseDNSZone):
                 zone_network = ipaddress.ip_network(
                     (zone.zone_root_address, zone.zone_root_prefix)
@@ -882,7 +882,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         for rr in sorted(map(rrdata_key, rrs)):
                             data.extend(rr)
 
-                        print(data)
                         sig = decode_dss_signature(
                             priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
