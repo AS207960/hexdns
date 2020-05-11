@@ -24,6 +24,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
+IP4_APRA = DNSLabel("in-addr.arpa.")
+IP6_APRA = DNSLabel("ip6.arpa.")
+IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
+IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
 
 def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
@@ -46,15 +50,46 @@ def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
     return tag
 
 
+def network_to_apra(network: IP_NETWORK) -> DNSLabel:
+    if type(network) == ipaddress.IPv6Network:
+        return DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(
+                        reversed(
+                            network.network_address.exploded.replace(":", "")[
+                            : (network.prefixlen + 3) // 4
+                            ]
+                        )
+                    )
+                    + ["ip6", "arpa"],
+                    )
+            )
+        )
+    elif type(network) == ipaddress.IPv4Network:
+        return DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(
+                        reversed(
+                            network.network_address.exploded.split(".")[
+                            : (network.prefixlen + 7) // 8
+                            ]
+                        )
+                    )
+                    + ["in-addr", "arpa"],
+                    )
+            )
+        )
+
+
 def grpc_hook(server):
     dns_pb2_grpc.add_DnsServiceServicer_to_server(DnsServiceServicer(), server)
 
 
 class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
-    IP4_APRA = DNSLabel("in-addr.arpa.")
-    IP6_APRA = DNSLabel("ip6.arpa.")
-    IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
-    IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
     def __init__(self):
         with open(settings.DNSSEC_KEY_LOCATION, "rb") as f:
@@ -127,40 +162,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return zone, addr, zone_network
 
         return None, None, None
-
-    def network_to_apra(self, network: IP_NETWORK) -> DNSLabel:
-        if type(network) == ipaddress.IPv6Network:
-            return DNSLabel(
-                list(
-                    map(
-                        lambda l: l.encode(),
-                        list(
-                            reversed(
-                                network.network_address.exploded.replace(":", "")[
-                                    : (network.prefixlen + 3) // 4
-                                ]
-                            )
-                        )
-                        + ["ip6", "arpa"],
-                    )
-                )
-            )
-        elif type(network) == ipaddress.IPv4Network:
-            return DNSLabel(
-                list(
-                    map(
-                        lambda l: l.encode(),
-                        list(
-                            reversed(
-                                network.network_address.exploded.split(".")[
-                                    : (network.prefixlen + 7) // 8
-                                ]
-                            )
-                        )
-                        + ["in-addr", "arpa"],
-                    )
-                )
-            )
 
     def find_records(
         self,
@@ -640,7 +641,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 zone_network = ipaddress.ip_network(
                     (zone.zone_root_address, zone.zone_root_prefix)
                 )
-                zone_root = self.network_to_apra(zone_network)
+                zone_root = network_to_apra(zone_network)
             else:
                 return
 
@@ -776,7 +777,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             zone_network = ipaddress.ip_network(
                 (zone.zone_root_address, zone.zone_root_prefix)
             )
-            zone_root = self.network_to_apra(zone_network)
+            zone_root = network_to_apra(zone_network)
         else:
             return
         if not len(dns_res.rr) and not len(dns_res.auth):
@@ -1009,7 +1010,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             else:
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
         else:
-            network = self.network_to_apra(zone_network)
+            network = network_to_apra(zone_network)
             record_name_label = query_name.stripSuffix(network)
             if len(record_name_label.label) == 0:
                 record_name_label = DNSLabel("@")

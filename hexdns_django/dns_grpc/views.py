@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.conf import settings
 import dnslib
 import hashlib
+import ipaddress
 from . import models, forms, grpc
 
 
@@ -61,7 +62,17 @@ def edit_rzone(request, zone_id):
     if user_zone.user != request.user:
         raise PermissionDenied
 
-    return render(request, "dns_grpc/rzone.html", {"zone": user_zone})
+    zone_network = ipaddress.ip_network(
+        (user_zone.zone_root_address, user_zone.zone_root_prefix)
+    )
+    zone_name = grpc.network_to_apra(zone_network)
+    dnssec_digest, dnssec_tag = make_zone_digest(zone_name.label)
+
+    return render(
+        request,
+        "dns_grpc/rzone.html",
+        {"zone": user_zone, "dnssec_tag": dnssec_tag, "dnssec_digest": dnssec_digest}
+    )
 
 
 @login_required
