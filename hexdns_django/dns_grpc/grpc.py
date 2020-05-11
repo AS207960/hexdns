@@ -301,7 +301,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 func(dns_res, record_name, zone, cname_record.alias, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_addr(
         self,
@@ -980,6 +979,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             ttl=record.ttl,
                         )
                     )
+                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
         else:
