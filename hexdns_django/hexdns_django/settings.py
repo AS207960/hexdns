@@ -14,6 +14,9 @@ import os
 import json
 import logging
 import sentry_sdk
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from sentry_sdk.integrations.django import DjangoIntegration
 
 logging.basicConfig(level=logging.INFO)
@@ -157,3 +160,13 @@ OIDC_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET")
 OIDC_SCOPES = os.getenv("KEYCLOAK_SCOPES")
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
+
+DNSSEC_KEY_LOCATION = os.getenv("DNSSEC_KEY_LOCATION")
+DNSSEC_PUBKEY_LOCATION = os.getenv("DNSSEC_PUBKEY_LOCATION")
+
+with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
+    pub_key_data = f.read()
+
+DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
+if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
+    raise Exception("Only EC public keys supported")
