@@ -1,0 +1,46 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <div class="container my-3">
+        <h1>Edit {{ zone.zone_root_address }}/{{ zone.zone_root_prefix }}</h1>
+        <div class="row">
+            <div class="col">
+                <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
+            </div>
+        </div>
+        <hr>
+        <h2>PTR records <a href="{% url 'create_r_ptr_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record address</th>
+                    <th>Pointer</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.ptrrecord_set.all %}
+                    {% for record in zone.ptrrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_address }}</td>
+                            <td>{{ record.pointer }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_r_ptr_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_r_ptr_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

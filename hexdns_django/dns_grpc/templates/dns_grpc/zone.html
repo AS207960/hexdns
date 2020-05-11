@@ -1,0 +1,399 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <div class="container my-3">
+        <h1>Edit {{ zone.zone_root }}</h1>
+        <div class="row">
+            <div class="col">
+                <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
+            </div>
+        </div>
+        <hr>
+        <h2>DNSSEC</h2>
+        <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
+        <b>DS digest:</b> {{ dnssec_digest }}<br/>
+        <hr>
+        <h2>Address records <a href="{% url 'create_address_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Address</th>
+                    <th>TTL</th>
+                    <th>Auto reverse</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.addressrecord_set.all %}
+                    {% for record in zone.addressrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.address }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td>
+                                {% if record.auto_reverse %}
+                                    Yes
+                                {% else %}
+                                    No
+                                {% endif %}
+                            </td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_address_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_address_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>CNAME records <a href="{% url 'create_cname_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Alias</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.cnamerecord_set.all %}
+                    {% for record in zone.cnamerecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.alias }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_cname_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_cname_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>MX records <a href="{% url 'create_mx_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Exchange</th>
+                    <th>Priority</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.mxrecord_set.all %}
+                    {% for record in zone.mxrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.exchange }}</td>
+                            <td>{{ record.priority }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_mx_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_mx_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>NS records <a href="{% url 'create_ns_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Name server</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.nsrecord_set.all %}
+                    {% for record in zone.nsrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.nameserver }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_ns_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_ns_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>TXT records <a href="{% url 'create_txt_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Data</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.txtrecord_set.all %}
+                    {% for record in zone.txtrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.data }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_txt_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_txt_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>SRV records <a href="{% url 'create_srv_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Priority</th>
+                    <th>Weight</th>
+                    <th>Port</th>
+                    <th>Target</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.srvrecord_set.all %}
+                    {% for record in zone.srvrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.priority }}</td>
+                            <td>{{ record.weight }}</td>
+                            <td>{{ record.port }}</td>
+                            <td>{{ record.target }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_srv_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_srv_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>CAA records <a href="{% url 'create_caa_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Flag</th>
+                    <th>Tag</th>
+                    <th>Value</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.caarecord_set.all %}
+                    {% for record in zone.caarecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.flag }}</td>
+                            <td>{{ record.tag  }}</td>
+                            <td>{{ record.value }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_caa_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_caa_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>NAPTR records <a href="{% url 'create_naptr_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Preference</th>
+                    <th>Flags</th>
+                    <th>Service</th>
+                    <th>Regexp</th>
+                    <th>Replacement</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.naptrrecord_set.all %}
+                    {% for record in zone.naptrrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.preference }}</td>
+                            <td>{{ record.flags }}</td>
+                            <td>{{ record.service }}</td>
+                            <td>{{ record.regexp }}</td>
+                            <td>{{ record.replacement }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_naptr_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_naptr_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>SSHFP records <a href="{% url 'create_sshfp_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Host key</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.sshfprecord_set.all %}
+                    {% for record in zone.sshfprecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.host_key }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_sshfp_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_sshfp_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr>
+        <h2>DS records <a href="{% url 'create_ds_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Record name</th>
+                    <th>Key tag</th>
+                    <th>Algorithm</th>
+                    <th>Digest type</th>
+                    <th>Digest</th>
+                    <th>TTL</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if zone.dsrecord_set.all %}
+                    {% for record in zone.dsrecord_set.all %}
+                        <tr>
+                            <td>{{ record.record_name }}</td>
+                            <td>{{ record.key_tag }}</td>
+                            <td>{{ record.algorithm }}</td>
+                            <td>{{ record.digest_type }}</td>
+                            <td>{{ record.digest }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td style="width: 1px;">
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_ds_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
+                                    <a href="{% url 'delete_ds_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7">No records</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

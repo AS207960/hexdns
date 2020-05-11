@@ -59,7 +59,7 @@ data:
     .:53 {
         health
         ready
-        log
+        log . "{\"remote\": \"{remote}\", \"port\": {port}, \"id\": {>id}, \"proto\": \"{proto}\", \"duration\": \"{duration}\", \"question\": {\"size\": {size}, \"type\": \"{type}\", \"class\": \"{class}\", \"name\": \"{name}\", \"dnssec_ok\": {>do}, \"bufsize\": {>bufsize}, \"opcode\": {>opcode}}, \"response\": {\"code\": \"{rcode}\", \"size\": {rsize}, \"flags\": \"{>rflags}\"}}"
         errors
         any
         cancel

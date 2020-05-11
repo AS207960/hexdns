@@ -1,0 +1,8 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <h1>{{ title }}</h1>
+        {% crispy form form.helper %}
+    </div>
+{% endblock %}

@@ -7,3 +7,6 @@ psycopg2-binary
 gunicorn
 grpcio
 protobuf
+django-crispy-forms
+sshpubkeys
+cryptography

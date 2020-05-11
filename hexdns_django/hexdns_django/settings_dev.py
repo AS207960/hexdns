@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import json
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,11 +37,12 @@ ALLOWED_HOSTS = []
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
-    'django_keycloak_auth',
+    "django_keycloak_auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "crispy_forms",
     "dns_grpc",
     "django_grpc",
 ]
@@ -138,3 +142,15 @@ KEYCLOAK_REALM = keycloak_conf["realm"]
 OIDC_CLIENT_ID = keycloak_conf["client_id"]
 OIDC_CLIENT_SECRET = keycloak_conf["client_secret"]
 OIDC_SCOPES = keycloak_conf["scopes"]
+
+CRISPY_TEMPLATE_PACK = "bootstrap4"
+
+DNSSEC_KEY_LOCATION = "secrets/k.pem"
+DNSSEC_PUBKEY_LOCATION = "secrets/p.pem"
+
+with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
+    pub_key_data = f.read()
+
+DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
+if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
+    raise Exception("Only EC public keys supported")

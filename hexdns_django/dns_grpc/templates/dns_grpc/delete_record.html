@@ -1,0 +1,18 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <div class="container my-3">
+        <div class="jumbotron">
+            <h1 class="display-4">{{ title }}</h1>
+            <b>Record name: </b> {{ record.record_name }}
+            <hr class="my-4">
+            <p>Are you sure you want to delete this record?</p>
+            <form action="" method="post">
+                {% csrf_token %}
+                <a class="btn btn-primary btn-md" href="{% url 'edit_zone' record.zone.id %}" role="button">Cancel</a>
+                <button type="submit" name="delete" value="true" class="btn btn-danger">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+{% endblock %}⏎ 
