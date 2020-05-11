@@ -286,7 +286,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         is_dnssec: bool,
         func,
     ):
-        print(record_name, zone)
         cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
         if cname_record:
             dns_res.add_answer(
@@ -302,6 +301,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 func(dns_res, record_name, zone, cname_record.alias, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
+        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_addr(
         self,
@@ -786,43 +786,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 names.extend(query_name.label)
                 if dns_res.header.rcode == RCODE.NXDOMAIN:
                     dns_res.header.rcode = RCODE.NOERROR
-                    dns_res.add_auth(
-                        dnslib.RR(
-                            query_name,
-                            QTYPE.NSEC,
-                            rdata=dnslib.NSEC(
-                                dnslib.DNSLabel(names), ["RRSIG", "NSEC"]
-                            ),
-                            ttl=86400,
-                        )
+                dns_res.add_auth(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.NSEC,
+                        rdata=dnslib.NSEC(
+                            dnslib.DNSLabel(names), ["RRSIG", "NSEC"]
+                        ),
+                        ttl=86400,
                     )
-                else:
-                    dns_res.add_auth(
-                        dnslib.RR(
-                            query_name,
-                            QTYPE.NSEC,
-                            rdata=dnslib.NSEC(
-                                dnslib.DNSLabel(names),
-                                [
-                                    "A",
-                                    "NS",
-                                    "SOA",
-                                    "MX",
-                                    "TXT",
-                                    "AAAA",
-                                    "SRV",
-                                    "SSHFP",
-                                    "RRSIG",
-                                    "NSEC",
-                                    "DNSKEY",
-                                    "HIP",
-                                    "CDS",
-                                    "CDNSKEY",
-                                ],
-                            ),
-                            ttl=86400,
-                        )
-                    )
+                )
             dns_res.add_auth(
                 dnslib.RR(
                     zone_root,
@@ -893,7 +866,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         def rrdata_key(r):
                             buffer = dnslib.DNSBuffer()
                             buffer.encode_name_nocompress(r.rname)
-                            buffer.pack("!HHI", r.rtype, r.rclass, r.ttl)
+                            buffer.pack("!HHI", r.rtype, r.rclass, 86400)
                             rdlength_ptr = buffer.offset
                             buffer.pack("!H", 0)
                             start = buffer.offset
