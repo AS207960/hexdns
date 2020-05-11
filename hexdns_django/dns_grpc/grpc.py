@@ -7,6 +7,7 @@ import typing
 import traceback
 import struct
 import hashlib
+import sentry_sdk
 from dnslib import QTYPE, RCODE, OPCODE
 from dnslib.label import DNSLabel
 from django.db.models.functions import Length
@@ -22,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 )
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-NAMESERVERS = ["b.magicalcodewit.ch"]
+NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
 
 
 def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
@@ -284,6 +285,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         is_dnssec: bool,
         func,
     ):
+        print(record_name, zone)
         cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
         if cname_record:
             dns_res.add_answer(
@@ -296,7 +298,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
             zone, record_name = self.find_zone(DNSLabel(cname_record.alias))
             if zone:
-                func(dns_res, record_name, zone, cname_record.alias)
+                func(dns_res, record_name, zone, cname_record.alias, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
@@ -1063,7 +1065,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         try:
             dns_res = self.handle_query(dns_req)
-        except:
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
             traceback.print_exc()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
