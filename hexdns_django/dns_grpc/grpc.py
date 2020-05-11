@@ -104,9 +104,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         self.priv_key = priv_key
 
     def is_rdns(self, qname: DNSLabel) -> bool:
-        if qname.matchSuffix(self.IP4_APRA):
+        if qname.matchSuffix(IP4_APRA):
             return True
-        elif qname.matchSuffix(self.IP6_APRA):
+        elif qname.matchSuffix(IP6_APRA):
             return True
         else:
             return False
@@ -127,11 +127,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     def find_rzone(
         self, qname: DNSLabel
     ) -> (typing.Optional[models.ReverseDNSZone], typing.Optional[IP_ADDR]):
-        is_ip6_zone = qname.matchSuffix(self.IP6_APRA)
+        is_ip6_zone = qname.matchSuffix(IP6_APRA)
         qname = (
-            qname.stripSuffix(self.IP6_APRA)
+            qname.stripSuffix(IP6_APRA)
             if is_ip6_zone
-            else qname.stripSuffix(self.IP4_APRA)
+            else qname.stripSuffix(IP4_APRA)
         )
 
         if is_ip6_zone:

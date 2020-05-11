@@ -37,6 +37,19 @@ data:
   KEYCLOAK_CLIENT_ID: "hexdns"
   DB_HOST: "postgres"
   DB_NAME: "hexdns"
+  DNSSEC_PUBKEY_LOCATION: "/pubkey/pubkey.pem"
+  DNSSEC_KEY_LOCATION: "/privkey/privkey.pem"
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-key-pub
+data:
+  pubkey.pem: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7Om4PyPdLoqb1HW3iNDTCYO1e7hm
+    KlT13ucRxbdsTZKsW3BtL+Ky3XME+UA5zUJxIrnOngsi9r0WCl8+mBLPFw==
+    -----END PUBLIC KEY-----
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -63,16 +76,22 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: hexdns-django-media
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
       initContainers:
         - name: django
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
+          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate "]
+          #command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
           volumeMounts:
             - mountPath: "/app/static/"
               name: static
             - mountPath: "/app/media/"
               name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -96,6 +115,8 @@ spec:
               name: static
             - mountPath: "/app/media/"
               name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -133,11 +154,17 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: hexdns-django-media
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: privkey
+          secret:
+            secretName: hexdns-key-priv
       containers:
         - name: grpc
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py grpcserver -v 1 --traceback"]
+          command: ["sh", "-c", "python3 manage.py grpcserver -v 2 --traceback"]
           ports:
             - containerPort: 50051
           volumeMounts:
@@ -145,6 +172,10 @@ spec:
               name: static
             - mountPath: "/app/media/"
               name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/privkey/"
+              name: privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
