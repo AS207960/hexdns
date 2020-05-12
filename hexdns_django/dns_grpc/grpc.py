@@ -864,23 +864,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
                         def rrdata_key(r):
                             buffer = dnslib.DNSBuffer()
+                            rd_buffer = dnslib.DNSBuffer()
                             buffer.encode_name_nocompress(r.rname)
                             buffer.pack("!HHI", r.rtype, r.rclass, 86400)
                             rdlength_ptr = buffer.offset
                             buffer.pack("!H", 0)
                             start = buffer.offset
                             if isinstance(r.rdata, dnslib.SOA):
-                                buffer.encode_name_nocompress(r.rdata.mname)
-                                buffer.encode_name_nocompress(r.rdata.rname)
-                                buffer.pack("!IIIII", *r.rdata.times)
+                                rd_buffer.encode_name_nocompress(r.rdata.mname)
+                                rd_buffer.encode_name_nocompress(r.rdata.rname)
+                                rd_buffer.pack("!IIIII", *r.rdata.times)
                             else:
-                                r.rdata.pack(buffer)
+                                r.rdata.pack(rd_buffer)
+                            buffer.append(rd_buffer.data)
                             end = buffer.offset
                             buffer.update(rdlength_ptr, "!H", end - start)
-                            return buffer.data
+                            return buffer.data, rd_buffer.data
 
-                        for rr in sorted(map(rrdata_key, rrs)):
-                            data.extend(rr)
+                        for rr in sorted(map(rrdata_key, rrs), key=lambda r: r[1]):
+                            data.extend(rr[0])
 
                         sig = decode_dss_signature(
                             priv_key.sign(data, ec.ECDSA(hashes.SHA256()))

@@ -290,23 +290,24 @@ rrsig = RRSIG.RRSIG(
     dns.rdatatype.RRSIG,
     dns.rdatatype.DNSKEY,
     13,
-    3,
+    34,
     86400,
     1589140827,
     1589227827,
-    24530,
-    dns.name.from_text("as207960.net"),
+    41076,
+    dns.name.from_text("0.0.9.7.0.4.a.1.d.0.a.2.ip6.arpa"),
     base64.b64decode(
-        "vpmy2VEl8r1GjvkiG8ih6wT9E0dqIYJLEhHTCqe1DzaM60buOGWk+8/L1S6//goaKvxo3bLHAeLIV15A3gaYPw=="
+        "J1vv5lBk4tEb4DMOrv1vFKrPNdE8KgFkS5+qIgeN/6/W9VpFq+0einMAL53YI2kiS1YrpWJm7UqrJq/0WlMFtQ=="
     ),
 )
 rrset = (
-    dns.name.from_text("as207960.net"),
+    dns.name.from_text("3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.9.7.0.4.a.1.d.0.a.2.ip6.arpa"),
     dns.rdataset.from_text(
         dns.rdataclass.IN,
-        dns.rdatatype.SOA,
+        dns.rdatatype.PTR,
         86400,
-        "ns1.as207960.net. noc.as207960.net. 1589210034 86400 7200 3600000 172800",
+        "catgirls.with.buttplugs.are.cute.cdf1.as207960.net.",
+        "q-station.cdf1.as207960.net."
     ),
 )
 
