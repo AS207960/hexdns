@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'xff.middleware.XForwardedForMiddleware',
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -170,3 +171,5 @@ with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
 DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
 if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
+
+XFF_TRUSTED_PROXY_DEPTH = 2
