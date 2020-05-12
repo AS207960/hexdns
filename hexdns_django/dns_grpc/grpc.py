@@ -1013,6 +1013,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=86400,
                     )
                 )
+                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
                 return dns_res
             elif dns_req.q.qtype == QTYPE.PTR:
                 self.lookup_ptr(dns_res, record_name, zone, query_name, is_dnssec)
@@ -1031,6 +1032,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     dns_res.add_answer(
                         dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
                     )
+                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
