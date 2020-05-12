@@ -1004,11 +1004,11 @@ def update_ip(request):
             return HttpResponseBadRequest()
 
     if isinstance(client_ip, ipaddress.IPv4Address):
-        if client_ip == dyn_obj.current_ipv4:
+        if str(client_ip) == dyn_obj.current_ipv4:
             return HttpResponse(f"nochg {dyn_obj.current_ipv4}")
         dyn_obj.current_ipv4 = str(client_ip)
     elif isinstance(client_ip, ipaddress.IPv6Address):
-        if client_ip == dyn_obj.current_ipv6:
+        if str(client_ip) == dyn_obj.current_ipv6:
             return HttpResponse(f"nochg {dyn_obj.current_ipv4}")
         dyn_obj.current_ipv6 = str(client_ip)
 
