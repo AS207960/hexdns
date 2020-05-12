@@ -355,7 +355,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         dnslib.RR(
                             query_name,
                             QTYPE.AAAA,
-                            rdata=dnslib.A(record.current_ipv4),
+                            rdata=dnslib.AAAA(record.current_ipv6),
                             ttl=record.ttl,
                         )
                     )
@@ -411,7 +411,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             dnslib.RR(
                                 query_name,
                                 QTYPE.AAAA,
-                                rdata=dnslib.A(record.current_ipv4),
+                                rdata=dnslib.AAAA(record.current_ipv6),
                                 ttl=record.ttl,
                             )
                         )
