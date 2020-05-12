@@ -180,6 +180,10 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             record_name=search_name, zone=zone
         ).count():
             return True
+        elif models.DynamicAddressRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
         elif models.CNAMERecord.objects.filter(
             record_name=search_name, zone=zone
         ).count():
@@ -193,6 +197,22 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         ).count():
             return True
         elif models.SRVRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.CAARecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.NAPTRRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.SSHFPRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.DSRecord.objects.filter(
             record_name=search_name, zone=zone
         ).count():
             return True
@@ -808,6 +828,28 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res.header.rcode = RCODE.NXDOMAIN
         self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
+    @staticmethod
+    def encode_type_bitmap_window(rrlist):
+        windows = {}
+        out = bytearray()
+
+        for rr in rrlist:
+            v = getattr(dnslib.QTYPE, rr)
+            w = (v & 0xFF00) >> 8
+            if w in windows:
+                windows[w].append(v & 0xFF)
+            else:
+                windows[w] = [v & 0xFF]
+
+        for window, rrs in sorted(windows.items(), key=lambda w: w[0]):
+            bitmap = bytearray([0]*32)
+            for rr in rrs:
+                bitmap[rr//8] |= 1 << (7 - rr % 8)
+            while bitmap[-1] == 0:
+                bitmap = bitmap[:-1]
+            out.extend(struct.pack("BB", window, len(bitmap)) + bitmap)
+        return out
+
     def sign_rrset(
         self,
         dns_res: dnslib.DNSRecord,
@@ -832,16 +874,37 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 names.extend(query_name.label)
                 if dns_res.header.rcode == RCODE.NXDOMAIN:
                     dns_res.header.rcode = RCODE.NOERROR
-                dns_res.add_auth(
-                    dnslib.RR(
-                        query_name,
-                        QTYPE.NSEC,
-                        rdata=dnslib.NSEC(
-                            dnslib.DNSLabel(names), ["RRSIG", "NSEC"]
-                        ),
-                        ttl=86400,
+                    dns_res.add_auth(
+                        dnslib.RR(
+                            query_name,
+                            QTYPE.NSEC,
+                            rdata=dnslib.NSEC(
+                                dnslib.DNSLabel(names), ["RRSIG", "NSEC"]
+                            ),
+                            ttl=86400,
+                        )
                     )
-                )
+                else:
+                    qtypes = [
+                        'A', 'NS', 'SOA', 'HINFO', 'MX', 'TXT', 'AAAA', 'LOC', 'SRV', 'CERT', 'SSHFP', 'RRSIG', 'NSEC',
+                        'DNSKEY', 'TLSA', 'HIP', 'CDS', 'CDNSKEY', 'OPENPGPKEY', 'SPF', 'CAA', 'PTR'
+                    ]
+                    try:
+                        qtypes.remove(dnslib.QTYPE[dns_res.q.qtype])
+                    except ValueError:
+                        pass
+                    bitmap = self.encode_type_bitmap_window(qtypes)
+                    buf = dnslib.DNSBuffer()
+                    buf.encode_name_nocompress(dnslib.DNSLabel(names))
+                    buf.append(bitmap)
+                    dns_res.add_auth(
+                        dnslib.RR(
+                            query_name,
+                            QTYPE.NSEC,
+                            rdata=dnslib.RD(buf.data),
+                            ttl=86400,
+                        )
+                    )
             dns_res.add_auth(
                 dnslib.RR(
                     zone_root,
@@ -1035,6 +1098,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
+                self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
         else:
             network = network_to_apra(zone_network)
@@ -1081,6 +1145,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
+                self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
         return dns_res
