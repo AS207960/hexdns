@@ -11,6 +11,11 @@ urlpatterns = [
         name="create_address_record",
     ),
     path(
+        "zone/<uuid:zone_id>/new_dynamic_address/",
+        views.create_dynamic_address_record,
+        name="create_dynamic_address_record",
+    ),
+    path(
         "zone/<uuid:zone_id>/new_cname/",
         views.create_cname_record,
         name="create_cname_record",
@@ -58,6 +63,16 @@ urlpatterns = [
         "records/address/<uuid:record_id>/delete/",
         views.delete_address_record,
         name="delete_address_record",
+    ),
+    path(
+        "records/dynamic_address/<uuid:record_id>/",
+        views.edit_dynamic_address_record,
+        name="edit_dynamic_address_record",
+    ),
+    path(
+        "records/dynamic_address/<uuid:record_id>/delete/",
+        views.delete_dynamic_address_record,
+        name="delete_dynamic_address_record",
     ),
     path(
         "records/cname/<uuid:record_id>/",
@@ -147,4 +162,6 @@ urlpatterns = [
         views.delete_r_ptr_record,
         name="delete_r_ptr_record",
     ),
+    path("checkip", views.check_ip, name="check_ip"),
+    path("nic/update", views.update_ip, name="update_ip"),
 ]

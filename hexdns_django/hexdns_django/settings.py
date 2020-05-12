@@ -173,3 +173,4 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
 
 XFF_TRUSTED_PROXY_DEPTH = 2
+XFF_STRICT = True
