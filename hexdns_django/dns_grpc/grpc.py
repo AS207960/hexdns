@@ -337,6 +337,29 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
                 )
         if not addr_found:
+            records = self.find_records(models.DynamicAddressRecord, record_name, zone)
+            for record in records:
+                if dns_res.q.qtype == QTYPE.A and record.current_ipv4:
+                    addr_found = True
+                    dns_res.add_answer(
+                        dnslib.RR(
+                            query_name,
+                            QTYPE.A,
+                            rdata=dnslib.A(record.current_ipv4),
+                            ttl=record.ttl,
+                        )
+                    )
+                elif dns_res.q.qtype == QTYPE.AAAA and record.current_ipv6:
+                    addr_found = True
+                    dns_res.add_answer(
+                        dnslib.RR(
+                            query_name,
+                            QTYPE.AAAA,
+                            rdata=dnslib.A(record.current_ipv4),
+                            ttl=record.ttl,
+                        )
+                    )
+        if not addr_found:
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_addr
             )
@@ -347,10 +370,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         zone, record_name = self.find_zone(query_name)
         if zone and record_name:
+            addr_found = False
             records = self.find_records(models.AddressRecord, record_name, zone)
             for record in records:
                 address = ipaddress.ip_address(record.address)
                 if type(address) == ipaddress.IPv4Address:
+                    addr_found = True
                     dns_res.add_ar(
                         dnslib.RR(
                             query_name,
@@ -360,6 +385,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
                     )
                 elif type(address) == ipaddress.IPv6Address:
+                    addr_found = True
                     dns_res.add_ar(
                         dnslib.RR(
                             query_name,
@@ -368,6 +394,27 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             ttl=record.ttl,
                         )
                     )
+            if not addr_found:
+                records = self.find_records(models.DynamicAddressRecord, record_name, zone)
+                for record in records:
+                    if dns_res.q.qtype == QTYPE.A and record.current_ipv4:
+                        dns_res.add_ar(
+                            dnslib.RR(
+                                query_name,
+                                QTYPE.A,
+                                rdata=dnslib.A(record.current_ipv4),
+                                ttl=record.ttl,
+                            )
+                        )
+                    elif dns_res.q.qtype == QTYPE.AAAA and record.current_ipv6:
+                        dns_res.add_ar(
+                            dnslib.RR(
+                                query_name,
+                                QTYPE.AAAA,
+                                rdata=dnslib.A(record.current_ipv4),
+                                ttl=record.ttl,
+                            )
+                        )
 
     def lookup_mx(
         self,
