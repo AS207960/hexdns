@@ -3,6 +3,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.conf import settings
 from cryptography.hazmat.backends import default_backend
@@ -142,6 +143,32 @@ def edit_zone(request, zone_id):
         "dns_grpc/zone.html",
         {"zone": user_zone, "dnssec_tag": dnssec_tag, "dnssec_digest": dnssec_digest},
     )
+
+
+@login_required
+@require_POST
+def delete_zone(request, zone_id):
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    client_token = django_keycloak_auth.clients.get_access_token()
+    user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
+                      + models.ReverseDNSZone.objects.filter(user=request.user).count() \
+                      - 1
+    r = requests.post(
+        f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
+            "usage": user_zone_count
+        }, headers={
+            "Authorization": f"Bearer {client_token}"
+        }
+    )
+    r.raise_for_status()
+
+    user_zone.delete()
+
+    return redirect('zones')
 
 
 @login_required

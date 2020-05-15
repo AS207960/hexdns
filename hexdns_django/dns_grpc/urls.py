@@ -6,6 +6,7 @@ urlpatterns = [
     path("reverse/", views.rzones, name="rzones"),
     path("create_zone/", views.create_zone, name="create_zone"),
     path("zone/<uuid:zone_id>/", views.edit_zone, name="edit_zone"),
+    path("delete_zone/<uuid:zone_id>/", views.delete_zone, name="delete_zone"),
     path(
         "zone/<uuid:zone_id>/new_address/",
         views.create_address_record,

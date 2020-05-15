@@ -39,7 +39,7 @@ data:
   DB_NAME: "hexdns"
   DNSSEC_PUBKEY_LOCATION: "/pubkey/pubkey.pem"
   DNSSEC_KEY_LOCATION: "/privkey/privkey.pem"
-  BILLING_URL: "http://billing-nginx/"
+  BILLING_URL: "https://billing.as207960.net"
   BILLING_PLAN_ID: "8db7eda0-4c84-45e4-b2d8-1438625daa92"
 ---
 kind: ConfigMap
