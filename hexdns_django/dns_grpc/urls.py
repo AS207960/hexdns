@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("", views.zones, name="zones"),
     path("reverse/", views.rzones, name="rzones"),
+    path("create_zone/", views.create_zone, name="create_zone"),
     path("zone/<uuid:zone_id>/", views.edit_zone, name="edit_zone"),
     path(
         "zone/<uuid:zone_id>/new_address/",

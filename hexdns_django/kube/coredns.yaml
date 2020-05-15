@@ -63,7 +63,10 @@ data:
         errors
         any
         cancel
-        cache 30
+        cache 86400 {
+          denial 9984 30
+          prefetch 1 60m
+        }
         chaos "HexDns" "noc@as207960.net"
         grpc . [{$HEXDNS_GRPC_SERVICE_HOST}]:50051
         loadbalance round_robin

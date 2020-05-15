@@ -174,3 +174,6 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
 
 XFF_TRUSTED_PROXY_DEPTH = 2
 XFF_STRICT = True
+
+BILLING_URL = os.getenv("BILLING_URL")
+BILLING_PLAN_ID = os.getenv("BILLING_PLAN_ID")

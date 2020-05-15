@@ -5,12 +5,17 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.conf import settings
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 import dnslib
 import hashlib
 import uuid
 import base64
 import ipaddress
 import secrets
+import requests
+import django_keycloak_auth.clients
 from . import models, forms, grpc
 
 
@@ -42,6 +47,85 @@ def rzones(request):
     user_zones = models.ReverseDNSZone.objects.filter(user=request.user)
 
     return render(request, "dns_grpc/rzones.html", {"zones": user_zones})
+
+
+@login_required
+def create_zone(request):
+    if request.method == "POST":
+        form = forms.ZoneForm(request.POST)
+        if form.is_valid():
+            valid_zone = True
+            zone_root = dnslib.DNSLabel(form.cleaned_data['zone_root'].lower())
+            other_zones = models.DNSZone.objects.all()
+            for zone in other_zones:
+                other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
+                if zone_root.matchSuffix(other_zone_root):
+                    form.errors['zone_root'] = ("Same or more generic zone already exists",)
+                    valid_zone = False
+                    break
+
+            if valid_zone:
+                success = False
+                client_token = django_keycloak_auth.clients.get_access_token()
+                user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
+                                  + models.ReverseDNSZone.objects.filter(user=request.user).count()\
+                                  + 1
+                if not request.user.account.subscription_id:
+                    r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{request.user.username}/", json={
+                        "plan_id": settings.BILLING_PLAN_ID,
+                        "initial_usage": user_zone_count
+                    }, headers={
+                        "Authorization": f"Bearer {client_token}"
+                    })
+                    if r.status_code == 404:
+                        form.errors['__all__'] = ('Please to go to billing.as207960.net to setup your account.',)
+                    elif r.status_code == 402:
+                        form.errors['__all__'] =\
+                            ('Unable to charge your account. Please to go to billing.as207960.net to top-up.',)
+                    elif r.status_code == 200:
+                        subscription_id = r.json()["id"]
+                        request.user.account.subscription_id = subscription_id
+                        request.user.save()
+                        success = True
+                    else:
+                        form.errors['__all__'] = ('There was an unexpected error',)
+                else:
+                    r = requests.post(
+                        f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
+                            "usage": user_zone_count
+                        }, headers={
+                            "Authorization": f"Bearer {client_token}"
+                        }
+                    )
+                    if r.status_code == 402:
+                        form.errors['__all__'] = \
+                            ('Unable to charge your account. Please to go to billing.as207960.net to top-up.',)
+                    elif r.status_code == 200:
+                        success = True
+                    else:
+                        form.errors['__all__'] = ('There was an unexpected error',)
+
+                if success:
+                    priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
+                    priv_key_bytes = priv_key.private_bytes(
+                        encoding=Encoding.PEM,
+                        format=PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=NoEncryption()
+                    ).decode()
+                    zone_obj = models.DNSZone(
+                        zone_root=str(zone_root),
+                        last_modified=timezone.now(),
+                        user=request.user,
+                        zsk_private=priv_key_bytes
+                    )
+                    zone_obj.save()
+                    return redirect('edit_zone', zone_obj.id)
+    else:
+        form = forms.ZoneForm()
+
+    return render(request, "dns_grpc/create_zone.html", {
+        "form": form
+    })
 
 
 @login_required

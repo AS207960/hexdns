@@ -153,3 +153,6 @@ with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
 DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
 if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
+
+BILLING_URL = "http://localhost:8001"
+BILLING_PLAN_ID = "0021a973-35c2-4f92-b1d0-167b97717bae"

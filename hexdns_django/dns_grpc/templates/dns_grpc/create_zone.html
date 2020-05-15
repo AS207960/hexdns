@@ -1,0 +1,11 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <div class="jumbotron">
+            <h1 class="display-4">Create a zone</h1>
+            <hr class="my-4">
+            {% crispy form form.helper %}
+        </div>
+    </div>
+{% endblock %}

@@ -5,8 +5,25 @@ import ipaddress
 import sshpubkeys
 import base64
 import binascii
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
+
+
+class Account(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    subscription_id = models.UUIDField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.user)
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created or not hasattr(instance, "account"):
+        Account.objects.create(user=instance)
+    instance.account.save()
 
 
 class DNSZone(models.Model):

@@ -288,26 +288,31 @@ origin = None
 rrsig = RRSIG.RRSIG(
     dns.rdataclass.IN,
     dns.rdatatype.RRSIG,
-    dns.rdatatype.DNSKEY,
+    dns.rdatatype.AAAA,
     13,
     34,
     86400,
     1589140827,
     1589227827,
-    41076,
-    dns.name.from_text("0.0.9.7.0.4.a.1.d.0.a.2.ip6.arpa"),
+    24530,
+    dns.name.from_text("as207960.net"),
     base64.b64decode(
-        "J1vv5lBk4tEb4DMOrv1vFKrPNdE8KgFkS5+qIgeN/6/W9VpFq+0einMAL53YI2kiS1YrpWJm7UqrJq/0WlMFtQ=="
+        "LPTFeCiXqEhgCNoSFWv6wIVlqSLJqVBFPEYa2fg+A8eMeAOZ28wgQrTM Mp34j8E3gC6oaXP8u+ZNNYE4iu20qA=="
     ),
 )
 rrset = (
-    dns.name.from_text("3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.9.7.0.4.a.1.d.0.a.2.ip6.arpa"),
+    dns.name.from_text("core1.lon1.as207960.net"),
     dns.rdataset.from_text(
         dns.rdataclass.IN,
-        dns.rdatatype.PTR,
+        dns.rdatatype.AAAA,
         86400,
-        "catgirls.with.buttplugs.are.cute.cdf1.as207960.net.",
-        "q-station.cdf1.as207960.net."
+        "2a0d:1a40:7900:ffff::6",
+        "2a0d:1a40:7900:ffff::e",
+        "2a0d:1a40:7900:ffff::1",
+        "2a0d:1a40:7900:2::1",
+        "2001:7f8:da:0:6::1",
+        "2a0d:1a40:7900:2::1",
+        "2a0d:1a40:7900:ffff::9"
     ),
 )
 
