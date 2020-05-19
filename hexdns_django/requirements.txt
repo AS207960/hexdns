@@ -11,3 +11,4 @@ django-crispy-forms
 sshpubkeys
 cryptography
 django-xff
+publicsuffixlist

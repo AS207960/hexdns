@@ -73,7 +73,7 @@ class DNSZoneRecord(models.Model):
     record_name = models.CharField(
         max_length=255, default="@", verbose_name="Record name (@ for zone root)"
     )
-    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)")
+    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
 
     class Meta:
         abstract = True

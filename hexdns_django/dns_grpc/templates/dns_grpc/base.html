@@ -49,6 +49,40 @@
     {% endblock %}
 </main>
 
+<div class="cyber"></div>
+<style>
+    @keyframes backgroundScroll {
+        from {
+            background-position: 0 0;
+        }
+        to {
+            background-position: -277px 0;
+        }
+    }
+
+    .cyber {
+        overflow: hidden;
+        width: 100%;
+        position: relative;
+        height: 200px;
+    }
+    .cyber::after {
+        content: " ";
+        background-image: url(/static/dns_grpc/img/cyber_plain.png);
+        background-repeat: repeat-x;
+        background-size: contain;
+        height: 100px;
+        animation: backgroundScroll 10s linear infinite;
+        transform: rotate(2deg) translateY(-75%);
+        margin-top: 20px;
+        width: 102%;
+        display: block;
+        top: 50%;
+        left: -5px;
+        position: absolute;
+    }
+</style>
+
 <footer class="footer mt-auto py-3">
     <div class="container">
         <span class="text-muted"><a href="https://as207960.net/contact.html">Contact Us</a></span> |

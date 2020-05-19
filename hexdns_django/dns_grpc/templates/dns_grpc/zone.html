@@ -7,12 +7,7 @@
                 <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
             </div>
             <div class="col">
-                <form action="{% url 'delete_zone' zone.id %}" method="post">
-                    {% csrf_token %}
-                    <button class="btn btn-danger" type="submit">
-                        Delete
-                    </button>
-                </form>
+                <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">Delete</a>
             </div>
         </div>
         <hr>

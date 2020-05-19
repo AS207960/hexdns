@@ -9,6 +9,7 @@ from django.conf import settings
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+from publicsuffixlist import PublicSuffixList
 import dnslib
 import hashlib
 import uuid
@@ -18,6 +19,8 @@ import secrets
 import requests
 import django_keycloak_auth.clients
 from . import models, forms, grpc
+
+psl = PublicSuffixList()
 
 
 def make_zone_digest(zone_name: str):
@@ -56,14 +59,19 @@ def create_zone(request):
         form = forms.ZoneForm(request.POST)
         if form.is_valid():
             valid_zone = True
-            zone_root = dnslib.DNSLabel(form.cleaned_data['zone_root'].lower())
+            zone_root_txt = form.cleaned_data['zone_root'].lower()
+            zone_root = dnslib.DNSLabel(zone_root_txt)
             other_zones = models.DNSZone.objects.all()
-            for zone in other_zones:
-                other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
-                if zone_root.matchSuffix(other_zone_root):
-                    form.errors['zone_root'] = ("Same or more generic zone already exists",)
-                    valid_zone = False
-                    break
+            if not psl.is_private(zone_root_txt):
+                form.errors['zone_root'] = ("Zone not a publicly registrable domain",)
+                valid_zone = False
+            else:
+                for zone in other_zones:
+                    other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
+                    if zone_root.matchSuffix(other_zone_root):
+                        form.errors['zone_root'] = ("Same or more generic zone already exists",)
+                        valid_zone = False
+                        break
 
             if valid_zone:
                 success = False
@@ -146,29 +154,33 @@ def edit_zone(request, zone_id):
 
 
 @login_required
-@require_POST
 def delete_zone(request, zone_id):
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
     if user_zone.user != request.user:
         raise PermissionDenied
 
-    client_token = django_keycloak_auth.clients.get_access_token()
-    user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
-                      + models.ReverseDNSZone.objects.filter(user=request.user).count() \
-                      - 1
-    r = requests.post(
-        f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
-            "usage": user_zone_count
-        }, headers={
-            "Authorization": f"Bearer {client_token}"
-        }
-    )
-    r.raise_for_status()
+    if request.method == "POST" and request.POST.get("delete") == "true":
+        client_token = django_keycloak_auth.clients.get_access_token()
+        user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
+                          + models.ReverseDNSZone.objects.filter(user=request.user).count() \
+                          - 1
+        r = requests.post(
+            f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
+                "usage": user_zone_count
+            }, headers={
+                "Authorization": f"Bearer {client_token}"
+            }
+        )
+        r.raise_for_status()
 
-    user_zone.delete()
+        user_zone.delete()
 
-    return redirect('zones')
+        return redirect('zones')
+    else:
+        return render(request, "dns_grpc/delete_zone.html", {
+            "zone": user_zone
+        })
 
 
 @login_required
