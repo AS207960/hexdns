@@ -19,7 +19,14 @@ class Command(BaseCommand):
                 print(f"Cant validate {zone}: {e}")
                 continue
 
-            if res.header.rcode != dnslib.RCODE.NOERROR:
+            if res.header.rcode == dnslib.RCODE.NXDOMAIN:
+                print(f"{zone} does not exist")
+                if zone.active:
+                    print(f"Setting {zone} to inactive")
+                    zone.active = False
+                    zone.save()
+                continue
+            elif res.header.rcode != dnslib.RCODE.NOERROR:
                 print(f"Error response querying {zone}")
                 continue
 

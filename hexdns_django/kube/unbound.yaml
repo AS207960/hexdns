@@ -62,11 +62,11 @@ spec:
     app: hexdns
     part: unbound
   ports:
-    - port: 53
+    - port: 5053
       targetPort: 5053
       protocol: UDP
       name: dns-udp
-    - port: 53
+    - port: 5053
       targetPort: 5053
       protocol: TCP
       name: dns-tcp

@@ -42,7 +42,7 @@ data:
   BILLING_URL: "https://billing.as207960.net"
   BILLING_PLAN_ID: "8db7eda0-4c84-45e4-b2d8-1438625daa92"
   RESOLVER_ADDR: "hexdns-unbound"
-  RESOLVER_PORT: "53"
+  RESOLVER_PORT: "5053"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -87,8 +87,7 @@ spec:
         - name: django
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate "]
-          #command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
+          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
           volumeMounts:
             - mountPath: "/app/static/"
               name: static
@@ -132,6 +131,51 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hexdns-validate-ns
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+            - name: static
+              persistentVolumeClaim:
+                claimName: hexdns-django-static
+            - name: media
+              persistentVolumeClaim:
+                claimName: hexdns-django-media
+            - name: pubkey
+              configMap:
+                name: hexdns-key-pub
+          containers:
+            - name: django
+              image: as207960/hexdns-django:(version)
+              imagePullPolicy: Always
+              command: ["sh", "-c", "python3 manage.py validate-ns"]
+              volumeMounts:
+                - mountPath: "/app/static/"
+                  name: static
+                - mountPath: "/app/media/"
+                  name: media
+                - mountPath: "/pubkey/"
+                  name: pubkey
+              envFrom:
+                - configMapRef:
+                    name: hexdns-django-conf
+                - secretRef:
+                    name: hexdns-db-creds
+                  prefix: "DB_"
+                - secretRef:
+                    name: hexdns-django-secret
+                - secretRef:
+                    name: hexdns-keycloak
+                  prefix: "KEYCLOAK_"
+          restartPolicy: OnFailure
 ---
 apiVersion: apps/v1
 kind: Deployment
