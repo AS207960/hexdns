@@ -1145,7 +1145,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
-                self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
         return dns_res
