@@ -34,6 +34,8 @@ class DNSZone(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
     zsk_private = models.TextField(blank=True, null=True)
+    charged = models.BooleanField(default=True, blank=True)
+    active = models.BooleanField(default=False, blank=True)
 
     class Meta:
         verbose_name = "DNS Zone"
@@ -52,6 +54,8 @@ class ReverseDNSZone(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
     zsk_private = models.TextField(blank=True, null=True)
+    charged = models.BooleanField(default=True, blank=True)
+    active = models.BooleanField(default=True, blank=True)
 
     class Meta:
         verbose_name = "Reverse DNS Zone"

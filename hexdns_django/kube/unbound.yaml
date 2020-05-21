@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hexdns-unbound-conf
+data:
+  unbound.conf: |
+    server:
+    	interface: 0.0.0.0@5053
+    	interface: ::@5053
+        cache-max-ttl: 10
+        cache-max-negative-ttl: 10
+    	prefer-ip6: yes
+    	do-daemonize: no
+    	access-control: ::/0 allow
+    	auto-trust-anchor-file: /var/run/unbound/root.key
+    	logfile: ""
+    	verbosity: 1
+    	statistics-interval: 600
+    	statistics-cumulative: yes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-unbound
+  labels:
+    app: hexdns
+    part: unbound
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: unbound
+  template:
+    metadata:
+      labels:
+        app: hexdns
+        part: unbound
+    spec:
+      volumes:
+        - name: conf
+          configMap:
+            name: hexdns-unbound-conf
+      containers:
+        - name: unbound
+          image: klutchell/unbound
+          ports:
+            - containerPort: 5053
+          volumeMounts:
+            - mountPath: "/opt/unbound/etc/unbound"
+              name: conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-unbound
+  labels:
+    app: hexdns
+    part: unbound
+spec:
+  selector:
+    app: hexdns
+    part: unbound
+  ports:
+    - port: 53
+      targetPort: 5053
+      protocol: UDP
+      name: dns-udp
+    - port: 53
+      targetPort: 5053
+      protocol: TCP
+      name: dns-tcp

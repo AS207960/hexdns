@@ -39,6 +39,45 @@ def make_zone_digest(zone_name: str):
     return digest, tag
 
 
+def log_usage(user, extra=0):
+    client_token = django_keycloak_auth.clients.get_access_token()
+    user_zone_count = models.DNSZone.objects.filter(user=user, charged=True).count() \
+                      + models.ReverseDNSZone.objects.filter(user=user, charged=True).count() \
+                      + extra
+    if not user.account.subscription_id:
+        r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{user.username}/", json={
+            "plan_id": settings.BILLING_PLAN_ID,
+            "initial_usage": user_zone_count
+        }, headers={
+            "Authorization": f"Bearer {client_token}"
+        })
+        if r.status_code == 404:
+            return 'Please to go to billing.as207960.net to setup your account.'
+        elif r.status_code == 402:
+            return 'Unable to charge your account. Please to go to billing.as207960.net to top-up.'
+        elif r.status_code == 200:
+            subscription_id = r.json()["id"]
+            user.account.subscription_id = subscription_id
+            user.save()
+            return None
+        else:
+            return 'There was an unexpected error'
+    else:
+        r = requests.post(
+            f"{settings.BILLING_URL}/log_usage/{user.account.subscription_id}/", json={
+                "usage": user_zone_count
+            }, headers={
+                "Authorization": f"Bearer {client_token}"
+            }
+        )
+        if r.status_code == 402:
+            return 'Unable to charge your account. Please to go to billing.as207960.net to top-up.'
+        elif r.status_code == 200:
+            return None
+        else:
+            return 'There was an unexpected error'
+
+
 @login_required
 def zones(request):
     user_zones = models.DNSZone.objects.filter(user=request.user)
@@ -74,47 +113,10 @@ def create_zone(request):
                         break
 
             if valid_zone:
-                success = False
-                client_token = django_keycloak_auth.clients.get_access_token()
-                user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
-                                  + models.ReverseDNSZone.objects.filter(user=request.user).count()\
-                                  + 1
-                if not request.user.account.subscription_id:
-                    r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{request.user.username}/", json={
-                        "plan_id": settings.BILLING_PLAN_ID,
-                        "initial_usage": user_zone_count
-                    }, headers={
-                        "Authorization": f"Bearer {client_token}"
-                    })
-                    if r.status_code == 404:
-                        form.errors['__all__'] = ('Please to go to billing.as207960.net to setup your account.',)
-                    elif r.status_code == 402:
-                        form.errors['__all__'] =\
-                            ('Unable to charge your account. Please to go to billing.as207960.net to top-up.',)
-                    elif r.status_code == 200:
-                        subscription_id = r.json()["id"]
-                        request.user.account.subscription_id = subscription_id
-                        request.user.save()
-                        success = True
-                    else:
-                        form.errors['__all__'] = ('There was an unexpected error',)
+                error = log_usage(request.user, extra=1)
+                if error:
+                    form.errors['__all__'] = (error,)
                 else:
-                    r = requests.post(
-                        f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
-                            "usage": user_zone_count
-                        }, headers={
-                            "Authorization": f"Bearer {client_token}"
-                        }
-                    )
-                    if r.status_code == 402:
-                        form.errors['__all__'] = \
-                            ('Unable to charge your account. Please to go to billing.as207960.net to top-up.',)
-                    elif r.status_code == 200:
-                        success = True
-                    else:
-                        form.errors['__all__'] = ('There was an unexpected error',)
-
-                if success:
                     priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
                     priv_key_bytes = priv_key.private_bytes(
                         encoding=Encoding.PEM,
@@ -161,21 +163,8 @@ def delete_zone(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
-        client_token = django_keycloak_auth.clients.get_access_token()
-        user_zone_count = models.DNSZone.objects.filter(user=request.user).count() \
-                          + models.ReverseDNSZone.objects.filter(user=request.user).count() \
-                          - 1
-        r = requests.post(
-            f"{settings.BILLING_URL}/log_usage/{request.user.account.subscription_id}/", json={
-                "usage": user_zone_count
-            }, headers={
-                "Authorization": f"Bearer {client_token}"
-            }
-        )
-        r.raise_for_status()
-
         user_zone.delete()
-
+        log_usage(request.user)
         return redirect('zones')
     else:
         return render(request, "dns_grpc/delete_zone.html", {

@@ -41,6 +41,8 @@ data:
   DNSSEC_KEY_LOCATION: "/privkey/privkey.pem"
   BILLING_URL: "https://billing.as207960.net"
   BILLING_PLAN_ID: "8db7eda0-4c84-45e4-b2d8-1438625daa92"
+  RESOLVER_ADDR: "hexdns-unbound"
+  RESOLVER_PORT: "53"
 ---
 kind: ConfigMap
 apiVersion: v1

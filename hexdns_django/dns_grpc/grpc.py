@@ -114,7 +114,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     def find_zone(
         self, qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
-        zones = models.DNSZone.objects.order_by(Length("zone_root").desc())
+        zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
         for zone in zones:
             zone_root = DNSLabel(zone.zone_root)
             if qname.matchSuffix(zone_root):
@@ -149,7 +149,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         except ValueError:
             return None, None, None
 
-        zones = models.ReverseDNSZone.objects.order_by("-zone_root_prefix")
+        zones = models.ReverseDNSZone.objects.filter(active=True).order_by("-zone_root_prefix")
         for zone in zones:
             try:
                 zone_network = ipaddress.ip_network(
@@ -810,7 +810,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
         if not len(records):
             address_records = models.AddressRecord.objects.filter(
-                address=str(addr), auto_reverse=True
+                address=str(addr), auto_reverse=True, zone__user=zone.user
             )
             if address_records:
                 for record in address_records:
