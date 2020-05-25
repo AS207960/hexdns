@@ -26,17 +26,19 @@ def lookup_ns(label, server, port=53):
 def query_authoritative_ns(domain):
     dns_name = dnslib.DNSLabel(domain)
     ns = lookup_ns(".", settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT)
+    use_ns = random.choice(ns)
 
     last = False
     depth = 1
     while not last:
         cur_dns_name = dnslib.DNSLabel(dns_name.label[-depth:])
 
-        use_ns = random.choice(ns)
         ns = lookup_ns(cur_dns_name, str(use_ns.rdata.label))
 
         if not ns:
             return None
+
+        use_ns = random.choice(ns)
 
         if use_ns.rname == dns_name:
             break
