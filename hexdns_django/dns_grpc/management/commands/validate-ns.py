@@ -2,14 +2,16 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 from dns_grpc import models
 import random
+import retry
 import dnslib
 
 WANTED_NS = [dnslib.DNSLabel('ns1.as207960.net'), dnslib.DNSLabel('ns2.as207960.net')]
 
 
+@retry.retry(tries=5)
 def lookup_ns(label, server, port=53):
     question = dnslib.DNSRecord(q=dnslib.DNSQuestion(label, dnslib.QTYPE.NS))
-    res_pkt = question.send(server, port=port, ipv6=True, tcp=False)
+    res_pkt = question.send(server, port=port, ipv6=True, tcp=False, timeout=5)
     res = dnslib.DNSRecord.parse(res_pkt)
 
     name_servers = list(
