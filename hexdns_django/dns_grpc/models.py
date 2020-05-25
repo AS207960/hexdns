@@ -37,6 +37,10 @@ class DNSZone(models.Model):
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
 
+    def save(self, *args, **kwargs):
+        self.zone_root = self.zone_root.lower()
+        return super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "DNS Zone"
         verbose_name_plural = "DNS Zones"
@@ -78,6 +82,10 @@ class DNSZoneRecord(models.Model):
         max_length=255, default="@", verbose_name="Record name (@ for zone root)"
     )
     ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
+
+    def save(self, *args, **kwargs):
+        self.record_name = self.record_name.lower()
+        return super().save(*args, **kwargs)
 
     class Meta:
         abstract = True
@@ -122,6 +130,10 @@ class DynamicAddressRecord(DNSZoneRecord):
 class CNAMERecord(DNSZoneRecord):
     alias = models.CharField(max_length=255)
 
+    def save(self, *args, **kwargs):
+        self.alias = self.alias.lower()
+        return super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "CNAME record"
         verbose_name_plural = "CNAME records"
@@ -131,6 +143,10 @@ class MXRecord(DNSZoneRecord):
     exchange = models.CharField(max_length=255)
     priority = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
 
+    def save(self, *args, **kwargs):
+        self.exchange = self.exchange.lower()
+        return super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "MX record"
         verbose_name_plural = "MX records"
@@ -138,6 +154,10 @@ class MXRecord(DNSZoneRecord):
 
 class NSRecord(DNSZoneRecord):
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
+
+    def save(self, *args, **kwargs):
+        self.nameserver = self.nameserver.lower()
+        return super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "NS record"
@@ -250,6 +270,10 @@ class DSRecord(DNSZoneRecord):
 
 class PTRRecord(ReverseDNSZoneRecord):
     pointer = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        self.pointer = self.pointer.lower()
+        return super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "PTR record"

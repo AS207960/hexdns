@@ -157,5 +157,5 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
 BILLING_URL = "http://localhost:8001"
 BILLING_PLAN_ID = "0021a973-35c2-4f92-b1d0-167b97717bae"
 
-RESOLVER_ADDR = "localhost"
-RESOLVER_PORT = 5053
+RESOLVER_ADDR = "2a0d:1a40:7900::2"
+RESOLVER_PORT = 53

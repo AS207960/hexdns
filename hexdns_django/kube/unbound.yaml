@@ -5,18 +5,19 @@ metadata:
 data:
   unbound.conf: |
     server:
-    	interface: 0.0.0.0@5053
-    	interface: ::@5053
+        interface: 0.0.0.0@5053
+        interface: ::@5053
         cache-max-ttl: 10
         cache-max-negative-ttl: 10
-    	prefer-ip6: yes
-    	do-daemonize: no
-    	access-control: ::/0 allow
-    	auto-trust-anchor-file: /var/run/unbound/root.key
-    	logfile: ""
-    	verbosity: 1
-    	statistics-interval: 600
-    	statistics-cumulative: yes
+        prefer-ip6: yes
+        do-daemonize: no
+        access-control: ::/0 allow
+        auto-trust-anchor-file: /var/run/unbound/root.key
+        logfile: ""
+        verbosity: 1
+        statistics-interval: 600
+        statistics-cumulative: yes
+        target-fetch-policy: "0 0 0 0 0"
 ---
 apiVersion: apps/v1
 kind: Deployment

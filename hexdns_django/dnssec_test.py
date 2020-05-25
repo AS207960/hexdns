@@ -288,31 +288,33 @@ origin = None
 rrsig = RRSIG.RRSIG(
     dns.rdataclass.IN,
     dns.rdatatype.RRSIG,
-    dns.rdatatype.AAAA,
+    dns.rdatatype.TXT,
     13,
-    34,
+    2,
     86400,
     1589140827,
     1589227827,
-    24530,
+    27915,
     dns.name.from_text("as207960.net"),
     base64.b64decode(
-        "LPTFeCiXqEhgCNoSFWv6wIVlqSLJqVBFPEYa2fg+A8eMeAOZ28wgQrTM Mp34j8E3gC6oaXP8u+ZNNYE4iu20qA=="
+        "+FXGY67R1eMKyZMyDyQ34T2NYaA2G+7V3Fox4Phy0fpLAqKqoKbyl1DY tHmF2Y/Wi1PtUYk4tqd1qN4vykSqnA=="
     ),
 )
 rrset = (
-    dns.name.from_text("core1.lon1.as207960.net"),
+    dns.name.from_text("as207960.net"),
     dns.rdataset.from_text(
         dns.rdataclass.IN,
-        dns.rdatatype.AAAA,
+        dns.rdatatype.TXT,
         86400,
-        "2a0d:1a40:7900:ffff::6",
-        "2a0d:1a40:7900:ffff::e",
-        "2a0d:1a40:7900:ffff::1",
-        "2a0d:1a40:7900:2::1",
-        "2001:7f8:da:0:6::1",
-        "2a0d:1a40:7900:2::1",
-        "2a0d:1a40:7900:ffff::9"
+        "google-site-verification=keqxKlQ0NFtdgVlt1B9NVoKWS8E9IO2Qt3hj7BZtqMg",
+        "pypclsbty3fvcr0763031vxjd3wxskcc",
+        "stripe-verification=d7d1e49932b77f788338a4b461fe44fbdd959a898d5a4ec0a407438a7e06036b",
+        "google-site-verification=nagZt4p5DwHDYZvhjNYPAKkdWoEb7l8D_IkZxZETlUU",
+        "\"v=spf1 mx a:mail.misell.cymru include:mail.registrar.eu ip4:109.234.108.151 ip4:109.234.108.152 include:_spf.mailrelay.rrpproxy.net include:a3.pm -all\"",
+        "google-site-verification=usKgXuF61ZrEHEbnT25ZlgLm9F9QK3NoyQxdR2zlid8",
+        "google-site-verification=uCpYrVgtQ-iKYUPsdVUucMGHqreabI2hUo77kR62mJc",
+        "google-site-verification=usKgXuF61ZrEHEbnT25ZlgLm9F9QK3NoyQxdR2zlid8",
+        "\"v=spf1 mx include:_spf.google.com include:mail.registrar.eu ip4:109.234.108.151 ip4:109.234.108.152 include:_spf.mailrelay.rrpproxy.net include:a3.pm -all\"",
     ),
 )
 
