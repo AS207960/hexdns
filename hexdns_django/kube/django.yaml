@@ -87,7 +87,8 @@ spec:
         - name: django
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
+          command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate"]
+          #command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
           volumeMounts:
             - mountPath: "/app/static/"
               name: static

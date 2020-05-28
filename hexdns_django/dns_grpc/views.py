@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.conf import settings
+from django.utils.safestring import mark_safe
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -52,9 +53,11 @@ def log_usage(user, extra=0):
             "Authorization": f"Bearer {client_token}"
         })
         if r.status_code == 404:
-            return 'Please to go to billing.as207960.net to setup your account.'
+            return ('Unable to charge yoru account. '
+                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">set-up</a> your account.')
         elif r.status_code == 402:
-            return 'Unable to charge your account. Please to go to billing.as207960.net to top-up.'
+            return ('Unable to charge your account. '
+                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> your account.')
         elif r.status_code == 200:
             subscription_id = r.json()["id"]
             user.account.subscription_id = subscription_id
@@ -71,7 +74,8 @@ def log_usage(user, extra=0):
             }
         )
         if r.status_code == 402:
-            return 'Unable to charge your account. Please to go to billing.as207960.net to top-up.'
+            return ('Unable to charge your account. '
+                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> your account.')
         elif r.status_code == 200:
             return None
         else:
