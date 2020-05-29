@@ -16,7 +16,9 @@ spec:
         part: coredns
     spec:
       tolerations:
-        - key: as207960.net/edge-cache
+        - key: special
+          operator: Equal
+          value: edge
           effect: NoSchedule
       containers:
         - name: coredns

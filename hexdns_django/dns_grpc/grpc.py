@@ -994,7 +994,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         for rr in sorted(map(rrdata_key, rrs), key=lambda r: r[1]):
                             data.extend(rr[0])
 
-                        print(data)
+                        #print(data)
                         sig = decode_dss_signature(
                             priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
