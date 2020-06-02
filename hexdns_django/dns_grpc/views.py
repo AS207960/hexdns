@@ -410,7 +410,7 @@ def delete_cname_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete NS record", "record": user_record,},
+        {"title": "Delete CNAME record", "record": user_record,},
     )
 
 
@@ -481,7 +481,7 @@ def delete_mx_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete NS record", "record": user_record,},
+        {"title": "Delete MX record", "record": user_record,},
     )
 
 
@@ -694,7 +694,7 @@ def delete_srv_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete NAPTR record", "record": user_record,},
+        {"title": "Delete SRV record", "record": user_record,},
     )
 
 
