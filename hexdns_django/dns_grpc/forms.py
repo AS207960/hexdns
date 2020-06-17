@@ -238,3 +238,23 @@ class ReversePTRRecordForm(forms.ModelForm):
         model = models.PTRRecord
         fields = "__all__"
         exclude = ("id", "zone")
+
+
+class ZoneImportForm(forms.Form):
+    zone_data = forms.CharField(widget=forms.Textarea())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-2"
+        self.helper.field_class = "col-lg-10"
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.layout.HTML("""
+                <div class="alert alert-info" role="alert">
+                    Paste a full or partial zone file in RFC 1035 format. We'll ignore any record types we don't support.
+                </div>
+            """),
+            "zone_data",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Import"))

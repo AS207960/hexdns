@@ -6,6 +6,7 @@ urlpatterns = [
     path("reverse/", views.rzones, name="rzones"),
     path("create_zone/", views.create_zone, name="create_zone"),
     path("zone/<uuid:zone_id>/", views.edit_zone, name="edit_zone"),
+    path("zone/<uuid:zone_id>/import_zone_file/", views.import_zone_file, name="import_zone_file"),
     path("delete_zone/<uuid:zone_id>/", views.delete_zone, name="delete_zone"),
     path(
         "zone/<uuid:zone_id>/new_address/",
@@ -119,7 +120,7 @@ urlpatterns = [
     ),
     path(
         "records/caa/<uuid:record_id>/delete/",
-        views.delete_naptr_record,
+        views.delete_caa_record,
         name="delete_caa_record",
     ),
     path(

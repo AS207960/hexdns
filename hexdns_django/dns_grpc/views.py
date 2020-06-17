@@ -1053,6 +1053,127 @@ def delete_r_ptr_record(request, record_id):
     )
 
 
+@login_required
+def import_zone_file(request, zone_id):
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if zone_obj.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        import_form = forms.ZoneImportForm(request.POST)
+        if import_form.is_valid():
+            zone_data = import_form.cleaned_data["zone_data"]
+            suffix = dnslib.DNSLabel(zone_obj.zone_root)
+            p = dnslib.ZoneParser(zone_data, origin=suffix)
+            try:
+                records = list(p)
+            except (dnslib.DNSError, ValueError) as e:
+                import_form.errors["zone_data"] = (f"Invalid zone file: {str(e)}",)
+            else:
+                for record in records:
+                    if record.rclass != dnslib.CLASS.IN:
+                        continue
+                    record_name = record.rname.stripSuffix(suffix)
+                    if len(record_name.label) == 0:
+                        record_name = dnslib.DNSLabel("@")
+                    if record.rtype == dnslib.QTYPE.A:
+                        r = models.AddressRecord(
+                            zone=zone_obj,
+                            address="%d.%d.%d.%d" % record.rdata.data,
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1],
+                            auto_reverse=False
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.AAAA:
+                        d = list(map(lambda e: f"{e:02x}", record.rdata.data))
+                        r = models.AddressRecord(
+                            zone=zone_obj,
+                            address=":".join(["".join(d[n:n+2]) for n in range(0, len(d), 2)]),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1],
+                            auto_reverse=False
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.CNAME:
+                        r = models.CNAMERecord(
+                            zone=zone_obj,
+                            alias=str(record.rdata.label),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.MX:
+                        r = models.MXRecord(
+                            zone=zone_obj,
+                            exchange=str(record.rdata.label),
+                            priority=record.rdata.preference,
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
+                        r = models.NSRecord(
+                            zone=zone_obj,
+                            nameserver=str(record.rdata.label),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.TXT:
+                        r = models.TXTRecord(
+                            zone=zone_obj,
+                            data="".join(d.decode() for d in record.rdata.data),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.SRV:
+                        r = models.SRVRecord(
+                            zone=zone_obj,
+                            priority=record.rdata.priority,
+                            weight=record.rdata.weight,
+                            port=record.rdata.port,
+                            target=str(record.rdata.target),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.CAA:
+                        r = models.CAARecord(
+                            zone=zone_obj,
+                            flag=record.rdata.flags,
+                            tag=record.rdata.tag,
+                            value=record.rdata.value,
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.NAPTR:
+                        r = models.NAPTRRecord(
+                            zone=zone_obj,
+                            order=record.rdata.order,
+                            preference=record.rdata.preference,
+                            flags=record.rdata.flags.decode(),
+                            service=record.rdata.service.decode(),
+                            regexp=record.rdata.regexp.decode(),
+                            replacement=str(record.rdata.replacement),
+                            ttl=record.ttl,
+                            record_name=str(record_name)[:-1]
+                        )
+                        r.save()
+                return redirect('edit_zone', zone_id)
+    else:
+        import_form = forms.ZoneImportForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Zone file import", "form": import_form},
+    )
+
+
 def get_ip(request):
     net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/96")
     addr = ipaddress.ip_address(request.META['REMOTE_ADDR'])

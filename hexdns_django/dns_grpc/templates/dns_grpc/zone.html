@@ -18,7 +18,10 @@
                 <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
             </div>
             <div class="col">
-                <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">Delete</a>
+                <div class="btn-group">
+                    <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">Delete</a>
+                    <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone file</a>
+                </div>
             </div>
         </div>
         <hr>
