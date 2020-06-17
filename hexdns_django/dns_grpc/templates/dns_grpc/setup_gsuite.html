@@ -1,0 +1,18 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <div class="container my-3">
+        <div class="jumbotron">
+            <h1 class="display-4">Setup MX for G Suite&trade;</h1>
+            <b>Zone name: </b> {{ zone.zone_root }}
+            <hr class="my-4">
+            <p>This will remove all current MX records and replace them with those for G Suite&trade;</p>
+            <form action="" method="post">
+                {% csrf_token %}
+                <a class="btn btn-secondary btn-md" href="{% url 'edit_zone' zone.id %}" role="button">Cancel</a>
+                <button type="submit" name="setup" value="true" class="btn btn-primary">
+                    Setup
+                </button>
+            </form>
+        </div>
+    </div>
+{% endblock %}⏎ 

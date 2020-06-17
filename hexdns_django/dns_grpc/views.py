@@ -1218,6 +1218,39 @@ def generate_dmarc(request, zone_id):
     )
 
 
+@login_required
+def setup_gsuite(request, zone_id):
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if zone_obj.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("setup") == "true":
+        zone_obj.mxrecord_set.filter(record_name="@").delete()
+        for r in (
+            ("aspmx.l.google.com", 1),
+            ("alt1.aspmx.l.google.com", 5),
+            ("alt2.aspmx.l.google.com", 5),
+            ("alt3.aspmx.l.google.com", 10),
+            ("alt4.aspmx.l.google.com", 10),
+        ):
+            mx = models.MXRecord(
+                zone=zone_obj,
+                record_name="@",
+                ttl=3600,
+                exchange=r[0],
+                priority=r[1]
+            )
+            mx.save()
+        return redirect('edit_zone', zone_obj.id)
+
+    return render(
+        request,
+        "dns_grpc/setup_gsuite.html",
+        {"zone": zone_obj},
+    )
+
+
 def get_ip(request):
     net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/96")
     addr = ipaddress.ip_address(request.META['REMOTE_ADDR'])
