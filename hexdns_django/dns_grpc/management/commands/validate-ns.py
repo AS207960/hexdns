@@ -57,7 +57,7 @@ class Command(BaseCommand):
         for zone in models.DNSZone.objects.all():
             try:
                 ns = query_authoritative_ns(zone.zone_root)
-            except dnslib.DNSError as e:
+            except (dnslib.DNSError, OSError) as e:
                 print(f"Cant validate {zone}: {e}")
                 continue
 

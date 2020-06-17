@@ -139,6 +139,8 @@ metadata:
   name: hexdns-validate-ns
 spec:
   schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
   jobTemplate:
     spec:
       template:

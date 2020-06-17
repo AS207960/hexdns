@@ -227,8 +227,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         return model.objects.filter(record_address=str(addr), zone=zone)
 
-    def make_resp(self, res: dnslib.DNSRecord) -> dns_pb2.DnsPacket:
-        return dns_pb2.DnsPacket(msg=bytes(res.pack()))
+    def make_resp(self, res: typing.Union[dnslib.DNSRecord, bytes]) -> dns_pb2.DnsPacket:
+        if isinstance(res, dnslib.DNSRecord):
+            return dns_pb2.DnsPacket(msg=bytes(res.pack()))
+        else:
+            return dns_pb2.DnsPacket(msg=bytes(res))
 
     def lookup_referral(
         self,
@@ -292,7 +295,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                                 ttl=86400,
                             )
                         )
-                self.lookup_additional_addr(dns_res, ns, is_dnssec)
+                self.lookup_additional_addr(dns_res, ns)
         if not ns_found:
             if not self.any_records(record_name, zone):
                 dns_res.header.rcode = RCODE.NXDOMAIN
@@ -383,10 +386,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_addr
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_additional_addr(
-        self, dns_res: dnslib.DNSRecord, query_name: DNSLabel, is_dnssec: bool,
+        self, dns_res: dnslib.DNSRecord, query_name: DNSLabel
     ):
         zone, record_name = self.find_zone(query_name)
         if zone and record_name:
@@ -458,7 +460,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_mx
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_ns(
         self,
@@ -487,7 +488,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_ns
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_txt(
         self,
@@ -516,7 +516,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_txt
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_srv(
         self,
@@ -542,7 +541,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_srv
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_caa(
         self,
@@ -568,7 +566,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_caa
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_naptr(
         self,
@@ -599,7 +596,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_naptr
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_sshfp(
         self,
@@ -640,7 +636,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_sshfp
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_dnskey(
         self,
@@ -688,9 +683,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=86400,
                     )
                 )
-            self.sign_rrset(
-                dns_res, zone, query_name, is_dnssec, self.priv_key, flags=257
-            )
 
     def lookup_cds(
         self,
@@ -730,7 +722,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             dns_res.add_answer(
                 dnslib.RR(query_name, QTYPE.CDS, rdata=dnslib.RD(ds_data), ttl=86400)
             )
-            self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_cdnskey(
         self,
@@ -757,7 +748,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ttl=86400,
                 )
             )
-            self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_ds(
         self,
@@ -788,7 +778,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_ds
             )
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     def lookup_ptr(
         self,
@@ -826,7 +815,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     )
             else:
                 dns_res.header.rcode = RCODE.NXDOMAIN
-        self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
     @staticmethod
     def encode_type_bitmap_window(rrlist):
@@ -1028,128 +1016,180 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 0,
             )
         )
+        is_axfr = dns_req.q.qtype == QTYPE.AXFR
 
-        if is_rdns:
-            zone, record_name, zone_network = self.find_rzone(query_name)
-        else:
-            zone, record_name = self.find_zone(query_name)
-        if not zone:
-            dns_res.header.rcode = RCODE.NXDOMAIN
-            return dns_res
-        dns_res.header.rcode = RCODE.NOERROR
-
-        if not is_rdns:
-            if dns_req.q.qtype == QTYPE.SOA:
-                dns_res.add_answer(
-                    dnslib.RR(
-                        zone.zone_root,
-                        QTYPE.SOA,
-                        rdata=dnslib.SOA(
-                            NAMESERVERS[0],
-                            "noc.as207960.net",
-                            (
-                                int(zone.last_modified.timestamp()),
-                                86400,
-                                7200,
-                                3600000,
-                                172800,
-                            ),
-                        ),
-                        ttl=86400,
-                    )
-                )
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+        if not is_axfr:
+            if is_rdns:
+                zone, record_name, zone_network = self.find_rzone(query_name)
+            else:
+                zone, record_name = self.find_zone(query_name)
+            if not zone:
+                dns_res.header.rcode = RCODE.NXDOMAIN
                 return dns_res
-            elif dns_req.q.qtype in [QTYPE.A, QTYPE.AAAA]:
-                self.lookup_addr(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.MX:
-                self.lookup_mx(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.NS:
-                self.lookup_ns(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.TXT:
-                self.lookup_txt(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.SRV:
-                self.lookup_srv(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.CAA:
-                self.lookup_caa(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.NAPTR:
-                self.lookup_naptr(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.SSHFP:
-                self.lookup_sshfp(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.DNSKEY:
-                self.lookup_dnskey(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.CDS:
-                self.lookup_cds(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.CDNSKEY:
-                self.lookup_cdnskey(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.DS:
-                self.lookup_ds(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.CNAME:
-                record = self.find_records(
-                    models.CNAMERecord, record_name, zone
-                ).first()
-                if record:
+            dns_res.header.rcode = RCODE.NOERROR
+
+            if not is_rdns:
+                if dns_req.q.qtype == QTYPE.SOA:
                     dns_res.add_answer(
                         dnslib.RR(
-                            query_name,
-                            QTYPE.CNAME,
-                            rdata=dnslib.CNAME(record.alias),
-                            ttl=record.ttl,
+                            zone.zone_root,
+                            QTYPE.SOA,
+                            rdata=dnslib.SOA(
+                                NAMESERVERS[0],
+                                "noc.as207960.net",
+                                (
+                                    int(zone.last_modified.timestamp()),
+                                    86400,
+                                    7200,
+                                    3600000,
+                                    172800,
+                                ),
+                            ),
+                            ttl=86400,
                         )
                     )
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                    return dns_res
+                elif dns_req.q.qtype in [QTYPE.A, QTYPE.AAAA]:
+                    self.lookup_addr(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.MX:
+                    self.lookup_mx(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.NS:
+                    self.lookup_ns(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.TXT:
+                    self.lookup_txt(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.SRV:
+                    self.lookup_srv(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.CAA:
+                    self.lookup_caa(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.NAPTR:
+                    self.lookup_naptr(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.SSHFP:
+                    self.lookup_sshfp(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.DNSKEY:
+                    self.lookup_dnskey(dns_res, record_name, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.CDS:
+                    self.lookup_cds(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.CDNSKEY:
+                    self.lookup_cdnskey(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.DS:
+                    self.lookup_ds(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.CNAME:
+                    record = self.find_records(
+                        models.CNAMERecord, record_name, zone
+                    ).first()
+                    if record:
+                        dns_res.add_answer(
+                            dnslib.RR(
+                                query_name,
+                                QTYPE.CNAME,
+                                rdata=dnslib.CNAME(record.alias),
+                                ttl=record.ttl,
+                            )
+                        )
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                else:
+                    self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
-                self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
-        else:
-            network = network_to_apra(zone_network)
-            record_name_label = query_name.stripSuffix(network)
-            if len(record_name_label.label) == 0:
-                record_name_label = DNSLabel("@")
-            if dns_req.q.qtype == QTYPE.SOA:
-                dns_res.add_answer(
-                    dnslib.RR(
-                        network,
-                        QTYPE.SOA,
-                        rdata=dnslib.SOA(
-                            NAMESERVERS[0],
-                            "noc.as207960.net",
-                            (
-                                int(zone.last_modified.timestamp()),
-                                86400,
-                                7200,
-                                3600000,
-                                172800,
-                            ),
-                        ),
-                        ttl=86400,
-                    )
-                )
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
-                return dns_res
-            elif dns_req.q.qtype == QTYPE.PTR:
-                self.lookup_ptr(dns_res, record_name, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.DNSKEY:
-                self.lookup_dnskey(
-                    dns_res, record_name_label, zone, query_name, is_dnssec
-                )
-            elif dns_req.q.qtype == QTYPE.CDS:
-                self.lookup_cds(dns_res, record_name_label, zone, query_name, is_dnssec)
-            elif dns_req.q.qtype == QTYPE.CDNSKEY:
-                self.lookup_cdnskey(
-                    dns_res, record_name_label, zone, query_name, is_dnssec
-                )
-            elif dns_req.q.qtype == QTYPE.NS and query_name == network:
-                for ns in NAMESERVERS:
+                network = network_to_apra(zone_network)
+                record_name_label = query_name.stripSuffix(network)
+                if len(record_name_label.label) == 0:
+                    record_name_label = DNSLabel("@")
+                if dns_req.q.qtype == QTYPE.SOA:
                     dns_res.add_answer(
-                        dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
+                        dnslib.RR(
+                            network,
+                            QTYPE.SOA,
+                            rdata=dnslib.SOA(
+                                NAMESERVERS[0],
+                                "noc.as207960.net",
+                                (
+                                    int(zone.last_modified.timestamp()),
+                                    86400,
+                                    7200,
+                                    3600000,
+                                    172800,
+                                ),
+                            ),
+                            ttl=86400,
+                        )
                     )
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
-            else:
-                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                    return dns_res
+                elif dns_req.q.qtype == QTYPE.PTR:
+                    self.lookup_ptr(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.DNSKEY:
+                    self.lookup_dnskey(
+                        dns_res, record_name_label, zone, query_name, is_dnssec
+                    )
+                elif dns_req.q.qtype == QTYPE.CDS:
+                    self.lookup_cds(dns_res, record_name_label, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.CDNSKEY:
+                    self.lookup_cdnskey(
+                        dns_res, record_name_label, zone, query_name, is_dnssec
+                    )
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.NS and query_name == network:
+                    for ns in NAMESERVERS:
+                        dns_res.add_answer(
+                            dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
+                        )
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                else:
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
-        dns_res.add_ar(dnslib.EDNS0(query_name, flags="do" if is_dnssec else "", version=1))
-        return dns_res
+            dns_res.add_ar(dnslib.EDNS0(query_name, flags="do" if is_dnssec else "", version=1))
+            return dns_res
+        else:
+            zone = None
+            zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+            for z in zones:
+                zone_root = DNSLabel(z.zone_root)
+                if query_name == zone_root:
+                    zone = z
+            if not zone:
+                dns_res.header.rcode = RCODE.REFUSED
+                return dns_res
+
+            out = bytearray()
+            soa_dns_res = dns_req.reply()
+            soa_dns_res.add_answer(
+                dnslib.RR(
+                    zone.zone_root,
+                    QTYPE.SOA,
+                    rdata=dnslib.SOA(
+                        NAMESERVERS[0],
+                        "noc.as207960.net",
+                        (
+                            int(zone.last_modified.timestamp()),
+                            86400,
+                            7200,
+                            3600000,
+                            172800,
+                        ),
+                    ),
+                    ttl=86400,
+                )
+            )
+            # self.sign_rrset(soa_dns_res, zone, query_name, is_dnssec)
+            out.extend(soa_dns_res.pack())
+            out.extend(dns_res.pack())
+            out.extend(soa_dns_res.pack())
+            return out
 
     def Query(self, request: dns_pb2.DnsPacket, context):
         try:
@@ -1166,5 +1206,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             traceback.print_exc()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
+            raise e
 
-        return self.make_resp(dns_res)
+        res = self.make_resp(dns_res)
+        # print(res)
+        return res
