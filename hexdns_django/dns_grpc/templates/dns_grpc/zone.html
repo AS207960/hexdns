@@ -29,7 +29,13 @@
         <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
         <b>DS digest:</b> {{ dnssec_digest }}<br/>
         <hr>
-        <h2>Address records <a href="{% url 'create_address_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <h2>
+            Address records
+            <div class="btn-group">
+                <a href="{% url 'create_address_record' zone.id %}" class="btn btn-success">New</a>
+                <a href="{% url 'setup_github_pages' zone.id %}" class="btn btn-primary">Setup for GitHub pages</a>
+            </div>
+        </h2>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="thead-dark">

@@ -1251,6 +1251,41 @@ def setup_gsuite(request, zone_id):
     )
 
 
+@login_required
+def setup_github_pages(request, zone_id):
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if zone_obj.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        gen_form = forms.GithubPagesForm(request.POST)
+        if gen_form.is_valid():
+            zone_obj.addressrecord_set.filter(record_name=gen_form.cleaned_data['record_name']).delete()
+            for a in (
+                "185.199.108.153",
+                "185.199.109.153",
+                "185.199.110.153",
+                "185.199.111.153"
+            ):
+                addr = models.AddressRecord(
+                    zone=zone_obj,
+                    address=a,
+                    record_name=gen_form.cleaned_data['record_name'],
+                    ttl=3600,
+                )
+                addr.save()
+            return redirect('edit_zone', zone_obj.id)
+    else:
+        gen_form = forms.GithubPagesForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Setup for GitHub Pages", "form": gen_form},
+    )
+
+
 def get_ip(request):
     net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/96")
     addr = ipaddress.ip_address(request.META['REMOTE_ADDR'])

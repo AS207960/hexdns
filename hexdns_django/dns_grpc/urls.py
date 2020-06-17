@@ -9,6 +9,7 @@ urlpatterns = [
     path("zone/<uuid:zone_id>/import_zone_file/", views.import_zone_file, name="import_zone_file"),
     path("zone/<uuid:zone_id>/generate_dmarc/", views.generate_dmarc, name="generate_dmarc"),
     path("zone/<uuid:zone_id>/setup_gsutie/", views.setup_gsuite, name="setup_gsuite"),
+    path("zone/<uuid:zone_id>/setup_github_pages/", views.setup_github_pages, name="setup_github_pages"),
     path("delete_zone/<uuid:zone_id>/", views.delete_zone, name="delete_zone"),
     path(
         "zone/<uuid:zone_id>/new_address/",
