@@ -1174,6 +1174,50 @@ def import_zone_file(request, zone_id):
     )
 
 
+@login_required
+def generate_dmarc(request, zone_id):
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if zone_obj.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        gen_form = forms.DMARCForm(request.POST)
+        if gen_form.is_valid():
+            dmarc_data = f"v=DMARC1; p={gen_form.cleaned_data['policy']}"
+            if gen_form.cleaned_data['subdomain_policy']:
+                dmarc_data += f"; sp={gen_form.cleaned_data['subdomain_policy']}"
+            if gen_form.cleaned_data['percentage']:
+                dmarc_data += f"; pct={gen_form.cleaned_data['percentage']}"
+            if gen_form.cleaned_data['dkim_alignment']:
+                dmarc_data += f"; adkim={gen_form.cleaned_data['dkim_alignment']}"
+            if gen_form.cleaned_data['spf_alignment']:
+                dmarc_data += f"; aspf={gen_form.cleaned_data['spf_alignment']}"
+            if gen_form.cleaned_data['report_interval']:
+                dmarc_data += f"; ri={gen_form.cleaned_data['report_interval']}"
+            if gen_form.cleaned_data['aggregate_feedback']:
+                dmarc_data += f"; rua={gen_form.cleaned_data['aggregate_feedback']}"
+            if gen_form.cleaned_data['failure_feedback']:
+                dmarc_data += f"; ruf={gen_form.cleaned_data['failure_feedback']}"
+
+            r = models.TXTRecord(
+                zone=zone_obj,
+                data=dmarc_data,
+                ttl=86400,
+                record_name="_dmarc"
+            )
+            r.save()
+            return redirect('edit_zone', zone_id)
+    else:
+        gen_form = forms.DMARCForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "DMARC Generate", "form": gen_form},
+    )
+
+
 def get_ip(request):
     net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/96")
     addr = ipaddress.ip_address(request.META['REMOTE_ADDR'])

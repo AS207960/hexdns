@@ -258,3 +258,53 @@ class ZoneImportForm(forms.Form):
             "zone_data",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Import"))
+
+
+class DMARCForm(forms.Form):
+    policy = forms.ChoiceField(choices=(
+        ("none", "No action"),
+        ("quarantine", "Quarantine on fail"),
+        ("reject", "Reject on fail")
+    ))
+    subdomain_policy = forms.ChoiceField(choices=(
+        (None, "---"),
+        ("none", "No action"),
+        ("quarantine", "Quarantine on fail"),
+        ("reject", "Reject on fail")
+    ), required=False)
+    percentage = forms.IntegerField(
+        min_value=0, max_value=100, label="Percentage of messages to apply policy to", required=False
+    )
+    dkim_alignment = forms.ChoiceField(choices=(
+        ("r", "Relaxed"),
+        ("s", "Strict")
+    ), label="DKIM alignment mode")
+    spf_alignment = forms.ChoiceField(choices=(
+        ("r", "Relaxed"),
+        ("s", "Strict")
+    ), label="SPF alignment mode")
+    report_interval = forms.IntegerField(min_value=0, label="Reporting interval (seconds)", required=False)
+    aggregate_feedback = forms.CharField(
+        label="Aggregate feedback URIs (example: mailto:dmarc@example.com)", required=False
+    )
+    failure_feedback = forms.CharField(
+        label="Failure information URIs (example: mailto:dmarc@example.com)", required=False
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-3"
+        self.helper.field_class = "col-lg-9"
+        self.helper.layout = crispy_forms.layout.Layout(
+            "policy",
+            "subdomain_policy",
+            "percentage",
+            "dkim_alignment",
+            "spf_alignment",
+            "report_interval",
+            "aggregate_feedback",
+            "failure_feedback"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Generate"))
