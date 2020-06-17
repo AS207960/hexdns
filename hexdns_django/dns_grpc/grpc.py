@@ -683,6 +683,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         ttl=86400,
                     )
                 )
+            self.sign_rrset(
+                dns_res, zone, query_name, is_dnssec, self.priv_key, flags=257
+            )
 
     def lookup_cds(
         self,
