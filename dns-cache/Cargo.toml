@@ -1,0 +1,24 @@
+[package]
+name = "dns-cache"
+description = "AS207960 Rust DNS Cache"
+version = "0.1.0"
+authors = ["Q <q@as207960.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+trust-dns-server = "0.19"
+trust-dns-proto = "0.19"
+trust-dns-client = "0.19"
+tokio = { version = "0.2", features = ["macros", "io-util", "rt-core", "rt-threaded", "tcp", "udp", "dns", "stream", "sync"] }
+log = "0.4"
+pretty_env_logger = "0.4"
+futures = "0.3"
+prost = "0.6"
+tonic = "0.2"
+lru = "0.5"
+clap = "2"
+
+[build-dependencies]
+tonic-build = { version = "0.2" }
