@@ -1155,7 +1155,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 else:
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
-            dns_res.add_ar(dnslib.EDNS0(query_name, flags="do" if is_dnssec else "", version=1))
+            dns_res.add_ar(dnslib.EDNS0(dnslib.DNSLabel("."), flags="do" if is_dnssec else "", version=1))
             return dns_res
         else:
             zone = None
