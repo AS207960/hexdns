@@ -1,25 +1,25 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-from django.utils import timezone
-from django.conf import settings
-from django.utils.safestring import mark_safe
+import base64
+import hashlib
+import ipaddress
+import secrets
+import uuid
+
+import django_keycloak_auth.clients
+import dnslib
+import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from publicsuffixlist import PublicSuffixList
-import dnslib
-import hashlib
-import uuid
-import base64
-import ipaddress
-import secrets
-import requests
-import django_keycloak_auth.clients
-from . import models, forms, grpc
+
+from . import forms, grpc, models
 
 psl = PublicSuffixList()
 
@@ -43,6 +43,7 @@ def make_zone_digest(zone_name: str):
 def log_usage(user, extra=0):
     client_token = django_keycloak_auth.clients.get_access_token()
     user_zone_count = models.DNSZone.objects.filter(user=user, charged=True).count() \
+                      + models.SecondaryDNSZone.objects.filter(user=user, charged=True).count() \
                       + models.ReverseDNSZone.objects.filter(user=user, charged=True).count() \
                       + extra
     if not user.account.subscription_id:
@@ -54,10 +55,12 @@ def log_usage(user, extra=0):
         })
         if r.status_code == 404:
             return ('Unable to charge yoru account. '
-                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">set-up</a> your account.')
+                    'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">set-up</a> '
+                    'your account.')
         elif r.status_code == 402:
             return ('Unable to charge your account. '
-                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> your account.')
+                    'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> '
+                    'your account.')
         elif r.status_code == 200:
             subscription_id = r.json()["id"]
             user.account.subscription_id = subscription_id
@@ -75,7 +78,8 @@ def log_usage(user, extra=0):
         )
         if r.status_code == 402:
             return ('Unable to charge your account. '
-                   'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> your account.')
+                    'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> '
+                    'your account.')
         elif r.status_code == 200:
             return None
         else:
@@ -97,26 +101,34 @@ def rzones(request):
 
 
 @login_required
+def szones(request):
+    user_zones = models.SecondaryDNSZone.objects.filter(user=request.user)
+
+    return render(request, "dns_grpc/szones.html", {"zones": user_zones})
+
+
+def valid_zone(zone_root_txt):
+    zone_root = dnslib.DNSLabel(zone_root_txt)
+    other_zones = list(models.DNSZone.objects.all()) + list(models.SecondaryDNSZone.objects.all())
+    if not psl.is_private(zone_root_txt):
+        return "Zone not a publicly registrable domain"
+    else:
+        for zone in other_zones:
+            other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
+            if zone_root.matchSuffix(other_zone_root):
+                return "Same or more generic zone already exists"
+
+
+@login_required
 def create_zone(request):
     if request.method == "POST":
         form = forms.ZoneForm(request.POST)
         if form.is_valid():
-            valid_zone = True
             zone_root_txt = form.cleaned_data['zone_root'].lower()
-            zone_root = dnslib.DNSLabel(zone_root_txt)
-            other_zones = models.DNSZone.objects.all()
-            if not psl.is_private(zone_root_txt):
-                form.errors['zone_root'] = ("Zone not a publicly registrable domain",)
-                valid_zone = False
+            zone_error = valid_zone(zone_root_txt)
+            if zone_error:
+                form.errors['zone_root'] = zone_error
             else:
-                for zone in other_zones:
-                    other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
-                    if zone_root.matchSuffix(other_zone_root):
-                        form.errors['zone_root'] = ("Same or more generic zone already exists",)
-                        valid_zone = False
-                        break
-
-            if valid_zone:
                 error = log_usage(request.user, extra=1)
                 if error:
                     form.errors['__all__'] = (error,)
@@ -128,7 +140,7 @@ def create_zone(request):
                         encryption_algorithm=NoEncryption()
                     ).decode()
                     zone_obj = models.DNSZone(
-                        zone_root=str(zone_root),
+                        zone_root=zone_root_txt,
                         last_modified=timezone.now(),
                         user=request.user,
                         zsk_private=priv_key_bytes
@@ -197,6 +209,97 @@ def edit_rzone(request, zone_id):
 
 
 @login_required
+def create_szone(request):
+    if request.method == "POST":
+        form = forms.SecondaryZoneForm(request.POST)
+        if form.is_valid():
+            zone_root_txt = form.cleaned_data['zone_root'].lower()
+            primary_server = form.cleaned_data['primary_server'].lower()
+            zone_error = valid_zone(zone_root_txt)
+            if zone_error:
+                form.errors['zone_root'] = zone_error
+            else:
+                error = log_usage(request.user, extra=1)
+                if error:
+                    form.errors['__all__'] = (error,)
+                else:
+                    zone_obj = models.SecondaryDNSZone(
+                        zone_root=zone_root_txt,
+                        user=request.user,
+                        primary=primary_server
+                    )
+                    zone_obj.save()
+                    return redirect('edit_szone', zone_obj.id)
+    else:
+        form = forms.SecondaryZoneForm()
+
+    return render(request, "dns_grpc/create_zone.html", {
+        "form": form
+    })
+
+
+@login_required
+def view_szone(request, zone_id):
+    user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    return render(
+        request,
+        "dns_grpc/szone.html",
+        {"zone": user_zone}
+    )
+
+
+@login_required
+def edit_szone(request, zone_id):
+    user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        form = forms.SecondaryZoneForm(request.POST, initial={
+            "zone_root": user_zone.zone_root,
+            "primary_server": user_zone.primary
+        })
+        form.fields['zone_root'].disabled = True
+        if form.is_valid():
+            primary_server = form.cleaned_data['primary_server'].lower()
+            user_zone.primary = primary_server
+            user_zone.save()
+            return redirect('view_szone', user_zone.id)
+    else:
+        form = forms.SecondaryZoneForm(initial={
+            "zone_root": user_zone.zone_root,
+            "primary_server": user_zone.primary
+        })
+        form.fields['zone_root'].disabled = True
+
+    return render(request, "dns_grpc/edit_szone.html", {
+        "form": form
+    })
+
+
+@login_required
+def delete_szone(request, zone_id):
+    user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("delete") == "true":
+        user_zone.delete()
+        log_usage(request.user)
+        return redirect('szones')
+    else:
+        return render(request, "dns_grpc/delete_szone.html", {
+            "zone": user_zone
+        })
+
+
+@login_required
 def create_address_record(request, zone_id):
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
@@ -218,7 +321,7 @@ def create_address_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create address record", "form": record_form,},
+        {"title": "Create address record", "form": record_form, },
     )
 
 
@@ -242,7 +345,7 @@ def edit_address_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit address record", "form": record_form,},
+        {"title": "Edit address record", "form": record_form, },
     )
 
 
@@ -263,7 +366,7 @@ def delete_address_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete address record", "record": user_record,},
+        {"title": "Delete address record", "record": user_record, },
     )
 
 
@@ -365,7 +468,7 @@ def create_cname_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create CNAME record", "form": record_form,},
+        {"title": "Create CNAME record", "form": record_form, },
     )
 
 
@@ -389,7 +492,7 @@ def edit_cname_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit CNAME record", "form": record_form,},
+        {"title": "Edit CNAME record", "form": record_form, },
     )
 
 
@@ -410,7 +513,7 @@ def delete_cname_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete CNAME record", "record": user_record,},
+        {"title": "Delete CNAME record", "record": user_record, },
     )
 
 
@@ -436,7 +539,7 @@ def create_mx_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create MX record", "form": record_form,},
+        {"title": "Create MX record", "form": record_form, },
     )
 
 
@@ -460,7 +563,7 @@ def edit_mx_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit MX record", "form": record_form,},
+        {"title": "Edit MX record", "form": record_form, },
     )
 
 
@@ -481,7 +584,7 @@ def delete_mx_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete MX record", "record": user_record,},
+        {"title": "Delete MX record", "record": user_record, },
     )
 
 
@@ -507,7 +610,7 @@ def create_ns_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create NS record", "form": record_form,},
+        {"title": "Create NS record", "form": record_form, },
     )
 
 
@@ -531,7 +634,7 @@ def edit_ns_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit NS record", "form": record_form,},
+        {"title": "Edit NS record", "form": record_form, },
     )
 
 
@@ -552,7 +655,7 @@ def delete_ns_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete NS record", "record": user_record,},
+        {"title": "Delete NS record", "record": user_record, },
     )
 
 
@@ -578,7 +681,7 @@ def create_txt_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create TXT record", "form": record_form,},
+        {"title": "Create TXT record", "form": record_form, },
     )
 
 
@@ -602,7 +705,7 @@ def edit_txt_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit TXT record", "form": record_form,},
+        {"title": "Edit TXT record", "form": record_form, },
     )
 
 
@@ -623,7 +726,7 @@ def delete_txt_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete TXT record", "record": user_record,},
+        {"title": "Delete TXT record", "record": user_record, },
     )
 
 
@@ -649,7 +752,7 @@ def create_srv_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create SRV record", "form": record_form,},
+        {"title": "Create SRV record", "form": record_form, },
     )
 
 
@@ -673,7 +776,7 @@ def edit_srv_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit SRV record", "form": record_form,},
+        {"title": "Edit SRV record", "form": record_form, },
     )
 
 
@@ -694,7 +797,7 @@ def delete_srv_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete SRV record", "record": user_record,},
+        {"title": "Delete SRV record", "record": user_record, },
     )
 
 
@@ -720,7 +823,7 @@ def create_caa_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create CAA record", "form": record_form,},
+        {"title": "Create CAA record", "form": record_form, },
     )
 
 
@@ -744,7 +847,7 @@ def edit_caa_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit CAA record", "form": record_form,},
+        {"title": "Edit CAA record", "form": record_form, },
     )
 
 
@@ -765,7 +868,7 @@ def delete_caa_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete CAA record", "record": user_record,},
+        {"title": "Delete CAA record", "record": user_record, },
     )
 
 
@@ -791,7 +894,7 @@ def create_naptr_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create NAPTR record", "form": record_form,},
+        {"title": "Create NAPTR record", "form": record_form, },
     )
 
 
@@ -815,7 +918,7 @@ def edit_naptr_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit NAPTR record", "form": record_form,},
+        {"title": "Edit NAPTR record", "form": record_form, },
     )
 
 
@@ -836,7 +939,7 @@ def delete_naptr_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete NAPTR record", "record": user_record,},
+        {"title": "Delete NAPTR record", "record": user_record, },
     )
 
 
@@ -862,7 +965,7 @@ def create_sshfp_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create SSHFP record", "form": record_form,},
+        {"title": "Create SSHFP record", "form": record_form, },
     )
 
 
@@ -886,7 +989,7 @@ def edit_sshfp_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit SSHFP record", "form": record_form,},
+        {"title": "Edit SSHFP record", "form": record_form, },
     )
 
 
@@ -907,7 +1010,7 @@ def delete_sshfp_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete SSHFP record", "record": user_record,},
+        {"title": "Delete SSHFP record", "record": user_record, },
     )
 
 
@@ -933,7 +1036,7 @@ def create_ds_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create DS record", "form": record_form,},
+        {"title": "Create DS record", "form": record_form, },
     )
 
 
@@ -957,7 +1060,7 @@ def edit_ds_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit DS record", "form": record_form,},
+        {"title": "Edit DS record", "form": record_form, },
     )
 
 
@@ -978,7 +1081,7 @@ def delete_ds_record(request, record_id):
     return render(
         request,
         "dns_grpc/delete_record.html",
-        {"title": "Delete DS record", "record": user_record,},
+        {"title": "Delete DS record", "record": user_record, },
     )
 
 
@@ -1004,7 +1107,7 @@ def create_r_ptr_record(request, zone_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Create PTR record", "form": record_form,},
+        {"title": "Create PTR record", "form": record_form, },
     )
 
 
@@ -1028,7 +1131,7 @@ def edit_r_ptr_record(request, record_id):
     return render(
         request,
         "dns_grpc/edit_record.html",
-        {"title": "Edit PTR record", "form": record_form,},
+        {"title": "Edit PTR record", "form": record_form, },
     )
 
 
@@ -1090,7 +1193,7 @@ def import_zone_file(request, zone_id):
                         d = list(map(lambda e: f"{e:02x}", record.rdata.data))
                         r = models.AddressRecord(
                             zone=zone_obj,
-                            address=":".join(["".join(d[n:n+2]) for n in range(0, len(d), 2)]),
+                            address=":".join(["".join(d[n:n + 2]) for n in range(0, len(d), 2)]),
                             ttl=record.ttl,
                             record_name=str(record_name)[:-1],
                             auto_reverse=False
@@ -1228,11 +1331,11 @@ def setup_gsuite(request, zone_id):
     if request.method == "POST" and request.POST.get("setup") == "true":
         zone_obj.mxrecord_set.filter(record_name="@").delete()
         for r in (
-            ("aspmx.l.google.com", 1),
-            ("alt1.aspmx.l.google.com", 5),
-            ("alt2.aspmx.l.google.com", 5),
-            ("alt3.aspmx.l.google.com", 10),
-            ("alt4.aspmx.l.google.com", 10),
+                ("aspmx.l.google.com", 1),
+                ("alt1.aspmx.l.google.com", 5),
+                ("alt2.aspmx.l.google.com", 5),
+                ("alt3.aspmx.l.google.com", 10),
+                ("alt4.aspmx.l.google.com", 10),
         ):
             mx = models.MXRecord(
                 zone=zone_obj,
@@ -1263,10 +1366,10 @@ def setup_github_pages(request, zone_id):
         if gen_form.is_valid():
             zone_obj.addressrecord_set.filter(record_name=gen_form.cleaned_data['record_name']).delete()
             for a in (
-                "185.199.108.153",
-                "185.199.109.153",
-                "185.199.110.153",
-                "185.199.111.153"
+                    "185.199.108.153",
+                    "185.199.109.153",
+                    "185.199.110.153",
+                    "185.199.111.153"
             ):
                 addr = models.AddressRecord(
                     zone=zone_obj,

@@ -4,6 +4,7 @@ import uuid
 import ipaddress
 import sshpubkeys
 import base64
+import dnslib
 import binascii
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -75,6 +76,51 @@ class ReverseDNSZone(models.Model):
         return f"{self.zone_root_address}/{self.zone_root_prefix}"
 
 
+class SecondaryDNSZone(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    zone_root = models.CharField(max_length=255)
+    serial = models.PositiveIntegerField(null=True)
+    primary = models.CharField(max_length=255)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    charged = models.BooleanField(default=True, blank=True)
+    active = models.BooleanField(default=False, blank=True)
+    error = models.BooleanField(default=False, blank=True)
+
+    def save(self, *args, **kwargs):
+        self.zone_root = self.zone_root.lower()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Secondary DNS Zone"
+        verbose_name_plural = "Secondary DNS Zones"
+
+    def __str__(self):
+        return self.zone_root
+
+
+class SecondaryDNSZoneRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    zone = models.ForeignKey(SecondaryDNSZone, on_delete=models.CASCADE)
+    record_name = models.CharField(max_length=255)
+    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)")
+    rtype = models.PositiveSmallIntegerField()
+    rdata = models.BinaryField()
+
+    class Meta:
+        verbose_name = "Secondary DNS Zone Record"
+        verbose_name_plural = "Secondary DNS Zones Record"
+        ordering = ('record_name', 'rtype')
+
+    def __str__(self):
+        return f"{self.record_name} IN {self.rtype_name} {self.ttl}"
+
+    @property
+    def rtype_name(self):
+        return dnslib.QTYPE.get(self.rtype)
+
+
 class DNSZoneRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
@@ -98,7 +144,7 @@ class ReverseDNSZoneRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
     record_address = models.GenericIPAddressField()
-    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)")
+    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
 
     class Meta:
         abstract = True

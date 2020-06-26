@@ -11,6 +11,7 @@ import sentry_sdk
 from dnslib import QTYPE, RCODE, OPCODE
 from dnslib.label import DNSLabel
 from django.db.models.functions import Length
+from django.db.models import Q
 from django.conf import settings
 from django.utils import timezone
 from cryptography.hazmat.backends import default_backend
@@ -122,6 +123,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 if len(record_name.label) == 0:
                     record_name = DNSLabel("@")
                 return zone, record_name
+        return None, None
+
+    def find_secondary_zone(
+        self, qname: DNSLabel
+    ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
+        zones = models.SecondaryDNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        for zone in zones:
+            zone_root = DNSLabel(zone.zone_root)
+            if qname.matchSuffix(zone_root):
+                return zone, qname
         return None, None
 
     def find_rzone(
@@ -985,7 +996,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         for rr in sorted(map(rrdata_key, rrs), key=lambda r: r[1]):
                             data.extend(rr[0])
 
-                        #print(data)
+                        # print(data)
                         sig = decode_dss_signature(
                             priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
@@ -997,6 +1008,171 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             sign_section(dns_res.rr, dns_res.add_answer, priv_key, sign_ns=True)
             sign_section(dns_res.auth, dns_res.add_auth, priv_key)
             sign_section(dns_res.ar, dns_res.add_ar, priv_key)
+
+    def handle_secondary(
+        self,
+        dns_res: dnslib.DNSRecord,
+        record_name: DNSLabel,
+        zone: models.SecondaryDNSZone,
+        query_name: DNSLabel,
+        is_dnssec: bool,
+    ):
+        def lookup_referral(record_name: DNSLabel):
+            nameservers = zone.secondarydnszonerecord_set.filter(
+                rtype=int(dnslib.QTYPE.NS)
+            ).order_by(Length("record_name").desc())
+            ns_found = False
+            for nameserver in nameservers:
+                if record_name.matchSuffix(nameserver.record_name):
+                    ns_found = True
+                    try:
+                        buffer = dnslib.DNSBuffer(nameserver.rdata)
+                        ns = dnslib.NS.parse(buffer, len(nameserver.rdata)).label
+                    except (dnslib.DNSError, ValueError):
+                        ns = None
+                    dns_res.add_auth(
+                        dnslib.RR(
+                            nameserver.record_name,
+                            QTYPE.NS,
+                            rdata=dnslib.RD(nameserver.rdata),
+                            ttl=nameserver.ttl,
+                        )
+                    )
+                    if is_dnssec:
+                        ds_records = zone.secondarydnszonerecord_set.filter(
+                            record_name=str(record_name),
+                            rtype=int(QTYPE.DS)
+                        )
+                        for record in ds_records:
+                            dns_res.add_auth(
+                                dnslib.RR(
+                                    nameserver.record_name,
+                                    QTYPE.DS,
+                                    rdata=dnslib.RD(record.rdata),
+                                    ttl=record.ttl,
+                                )
+                            )
+                        if not len(ds_records):
+                            nsec_records = zone.secondarydnszonerecord_set.filter(
+                                record_name=str(record_name),
+                                rtype=int(QTYPE.NSEC)
+                            )
+                            for record in nsec_records:
+                                dns_res.add_answer(dnslib.RR(
+                                    query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(record.rdata)
+                                ))
+                    if ns:
+                        additional_records = zone.secondarydnszonerecord_set.filter(
+                            record_name=str(ns),
+                        ).filter(
+                            Q(rtype=int(dnslib.QTYPE.A)) | Q(rtype=int(dnslib.QTYPE.AAAA)),
+                        )
+                        for ar in additional_records:
+                            dns_res.add_ar(
+                                dnslib.RR(
+                                    ar.record_name,
+                                    ar.rtype,
+                                    rdata=dnslib.RD(ar.rdata),
+                                    ttl=ar.ttl,
+                                )
+                            )
+            if not ns_found:
+                if zone.secondarydnszonerecord_set.filter(
+                    record_name=str(record_name),
+                ).count() == 0:
+                    dns_res.header.rcode = RCODE.NXDOMAIN
+
+        def lookup_cname(record_name: DNSLabel):
+            cname_record = zone.secondarydnszonerecord_set.filter(
+                record_name=str(record_name),
+                rtype=int(QTYPE.CNAME)
+            ).first()
+            if cname_record:
+                dns_res.add_answer(dnslib.RR(
+                    query_name, QTYPE.CNAME, ttl=cname_record.ttl, rdata=dnslib.RD(cname_record.rdata)
+                ))
+                try:
+                    buffer = dnslib.DNSBuffer(cname_record.rdata)
+                    lookup_record(dnslib.CNAME.parse(buffer, len(cname_record.rdata)).label)
+                except (dnslib.DNSError, ValueError):
+                    pass
+            else:
+                lookup_referral(record_name)
+
+        def lookup_record(record_name: DNSLabel):
+            records = zone.secondarydnszonerecord_set.filter(
+                record_name=str(record_name),
+                rtype=int(dns_res.q.qtype)
+            )
+            for record in records:
+                dns_res.add_answer(dnslib.RR(query_name, record.rtype, ttl=record.ttl, rdata=dnslib.RD(record.rdata)))
+            if not len(records):
+                lookup_cname(record_name)
+
+        lookup_record(record_name)
+
+        if is_dnssec:
+            if dns_res.header.rcode == RCODE.NXDOMAIN:
+                nsec_records = zone.secondarydnszonerecord_set.filter(
+                    rtype=int(QTYPE.NSEC)
+                ).order_by('record_name')
+                prev = None
+                for o in nsec_records:
+                    if o.record_name >= record_name:
+                        break
+                    prev = o
+                if prev:
+                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=prev.ttl, rdata=dnslib.RD(prev.rdata)))
+            if not len(dns_res.a):
+                records = zone.secondarydnszonerecord_set.filter(
+                    record_name=str(record_name),
+                    rtype=int(QTYPE.NSEC)
+                )
+                for record in records:
+                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(record.rdata)))
+            covered_rtype = {}
+            rrsig_records = {}
+            for a in dns_res.a:
+                covered_rtype[a.rname] = []
+            for a in dns_res.auth:
+                covered_rtype[a.rname] = []
+            for a in dns_res.ar:
+                covered_rtype[a.rname] = []
+            for rname in covered_rtype.keys():
+                records = zone.secondarydnszonerecord_set.filter(
+                    record_name=str(rname.rname),
+                    rtype=int(dnslib.QTYPE.RRSIG)
+                )
+                out_records = {}
+                for r in records:
+                    try:
+                        buffer = dnslib.DNSBuffer(r.rdata)
+                        rrsig = dnslib.RRSIG.parse(buffer, len(r.rdata))
+                        out_records[rrsig.covered] = r
+                    except (dnslib.DNSError, ValueError):
+                        pass
+                rrsig_records[rname] = out_records
+            for a in dns_res.a:
+                if a.rtype not in covered_rtype[a.rname]:
+                    rrsig = rrsig_records[a.rname].get(a.rtype)
+                    if rrsig:
+                        dns_res.add_answer(
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                        )
+            for a in dns_res.auth:
+                if a.rtype not in covered_rtype[a.rname]:
+                    rrsig = rrsig_records[a.rname].get(a.rtype)
+                    if rrsig:
+                        dns_res.add_auth(
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                        )
+            for a in dns_res.ar:
+                if a.rtype not in covered_rtype[a.rname]:
+                    rrsig = rrsig_records[a.rname].get(a.rtype)
+                    if rrsig:
+                        dns_res.add_ar(
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                        )
 
     def handle_query(self, dns_req: dnslib.DNSRecord):
         dns_res = dns_req.reply()
@@ -1027,7 +1203,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             else:
                 zone, record_name = self.find_zone(query_name)
             if not zone:
-                dns_res.header.rcode = RCODE.NXDOMAIN
+                zone, record_name = self.find_secondary_zone(query_name)
+                if not zone:
+                    dns_res.header.rcode = RCODE.NXDOMAIN
+                    return dns_res
+                self.handle_secondary(dns_res, record_name, zone, query_name, is_dnssec)
                 return dns_res
             dns_res.header.rcode = RCODE.NOERROR
 

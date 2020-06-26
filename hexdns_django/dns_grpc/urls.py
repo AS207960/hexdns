@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("", views.zones, name="zones"),
     path("reverse/", views.rzones, name="rzones"),
+    path("secondary/", views.szones, name="szones"),
     path("create_zone/", views.create_zone, name="create_zone"),
     path("zone/<uuid:zone_id>/", views.edit_zone, name="edit_zone"),
     path("zone/<uuid:zone_id>/import_zone_file/", views.import_zone_file, name="import_zone_file"),
@@ -168,6 +169,10 @@ urlpatterns = [
         views.delete_r_ptr_record,
         name="delete_r_ptr_record",
     ),
+    path("create_szone/", views.create_szone, name="new_szone"),
+    path("szone/<uuid:zone_id>/", views.view_szone, name="view_szone"),
+    path("szone/<uuid:zone_id>/edit/", views.edit_szone, name="edit_szone"),
+    path("delete_szone/<uuid:zone_id>/", views.delete_szone, name="delete_szone"),
     path("checkip", views.check_ip, name="check_ip"),
     path("nic/update", views.update_ip, name="update_ip"),
 ]

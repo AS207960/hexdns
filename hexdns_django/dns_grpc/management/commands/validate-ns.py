@@ -54,7 +54,7 @@ class Command(BaseCommand):
     help = 'Checks that every zone is pointed to us'
 
     def handle(self, *args, **options):
-        for zone in models.DNSZone.objects.all():
+        for zone in list(models.DNSZone.objects.all()) + list(models.SecondaryDNSZone.objects.all()):
             try:
                 ns = query_authoritative_ns(zone.zone_root)
             except (dnslib.DNSError, OSError) as e:

@@ -2,6 +2,8 @@ from django.contrib import admin
 from . import models
 
 admin.site.register(models.DNSZone)
+admin.site.register(models.SecondaryDNSZone)
+admin.site.register(models.SecondaryDNSZoneRecord)
 admin.site.register(models.ReverseDNSZone)
 admin.site.register(models.AddressRecord)
 admin.site.register(models.CNAMERecord)
@@ -14,3 +16,4 @@ admin.site.register(models.NAPTRRecord)
 admin.site.register(models.SSHFPRecord)
 admin.site.register(models.DSRecord)
 admin.site.register(models.PTRRecord)
+admin.site.register(models.Account)
