@@ -173,6 +173,18 @@ class DynamicAddressRecord(DNSZoneRecord):
     password = models.CharField(max_length=255)
 
 
+class ANAMERecord(DNSZoneRecord):
+    alias = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        self.alias = self.alias.lower()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "ANAME record"
+        verbose_name_plural = "ANAME records"
+
+
 class CNAMERecord(DNSZoneRecord):
     alias = models.CharField(max_length=255)
 

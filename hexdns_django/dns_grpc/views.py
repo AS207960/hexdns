@@ -447,6 +447,77 @@ def delete_dynamic_address_record(request, record_id):
 
 
 @login_required
+def create_aname_record(request, zone_id):
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ANAMERecordForm(request.POST)
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            instance.zone = user_zone
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.ANAMERecordForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create ANAME record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_aname_record(request, record_id):
+    user_record = get_object_or_404(models.ANAMERecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ANAMERecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.ANAMERecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit ANAME record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_aname_record(request, record_id):
+    user_record = get_object_or_404(models.ANAMERecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_record.html",
+        {"title": "Delete ANAME record", "record": user_record, },
+    )
+
+
+@login_required
 def create_cname_record(request, zone_id):
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 

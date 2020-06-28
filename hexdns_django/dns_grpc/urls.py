@@ -23,6 +23,11 @@ urlpatterns = [
         name="create_dynamic_address_record",
     ),
     path(
+        "zone/<uuid:zone_id>/new_aname/",
+        views.create_aname_record,
+        name="create_aname_record",
+    ),
+    path(
         "zone/<uuid:zone_id>/new_cname/",
         views.create_cname_record,
         name="create_cname_record",
@@ -80,6 +85,16 @@ urlpatterns = [
         "records/dynamic_address/<uuid:record_id>/delete/",
         views.delete_dynamic_address_record,
         name="delete_dynamic_address_record",
+    ),
+    path(
+        "records/aname/<uuid:record_id>/",
+        views.edit_aname_record,
+        name="edit_aname_record",
+    ),
+    path(
+        "records/aname/<uuid:record_id>/delete/",
+        views.delete_aname_record,
+        name="delete_aname_record",
     ),
     path(
         "records/cname/<uuid:record_id>/",

@@ -70,6 +70,22 @@ class DynamicAddressRecordForm(forms.ModelForm):
         exclude = ("zone", "current_ipv4", "current_ipv6")
 
 
+class ANAMERecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout("record_name", "alias", "ttl",)
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.ANAMERecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
 class CNAMERecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

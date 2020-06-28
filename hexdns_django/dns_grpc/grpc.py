@@ -394,6 +394,21 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
                     )
         if not addr_found:
+            records = self.find_records(models.ANAMERecord, record_name, zone)
+            for record in records:
+                question = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dns_res.q.qtype))
+                res_pkt = question.send(
+                    settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=False, timeout=5
+                )
+                res = dnslib.DNSRecord.parse(res_pkt)
+                for rr in res.rr:
+                    dns_res.add_answer(dnslib.RR(
+                        query_name,
+                        dns_res.q.qtype,
+                        rdata=rr.rdata,
+                        ttl=record.ttl
+                    ))
+        if not addr_found:
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_addr
             )
