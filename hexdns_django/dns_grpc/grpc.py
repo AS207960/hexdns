@@ -973,8 +973,28 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     if rtype == QTYPE.NS and not sign_ns:
                         continue
                     for label, rrs in rrs.items():
-                        if not label.matchSuffix(DNSLabel(zone_root)):
-                            continue
+                        if label.matchSuffix(DNSLabel(zone_root)):
+                            this_priv_key = priv_key
+                            this_zone_root = zone_root
+                            this_key_tag = key_tag
+                        else:
+                            this_zone, _ = self.find_zone(label)
+                            if not this_zone:
+                                continue
+                            this_zone_root = this_zone.zone_root
+                            if this_zone.zsk_private:
+                                this_priv_key = load_pem_private_key(
+                                    this_zone.zsk_private.encode(),
+                                    password=None,
+                                    backend=default_backend(),
+                                )
+                                if not issubclass(type(this_priv_key), EllipticCurvePrivateKey):
+                                    raise Exception("Only EC private keys supported")
+                            else:
+                                continue
+
+                            this_pub_key = priv_key.public_key()
+                            this_key_tag = make_key_tag(this_pub_key, flags=flags)
 
                         rrsig = dnslib.RRSIG(
                             covered=rtype,
@@ -983,8 +1003,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             orig_ttl=86400,
                             sig_inc=now_ts,
                             sig_exp=now_ts + 87000,
-                            key_tag=key_tag,
-                            name=zone_root,
+                            key_tag=this_key_tag,
+                            name=this_zone_root,
                             sig=b"",
                         )
                         data = bytearray()
@@ -1016,7 +1036,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
                         # print(data)
                         sig = decode_dss_signature(
-                            priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
+                            this_priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
                         rrsig.sig = sig[0].to_bytes(32, byteorder="big") + sig[
                             1
