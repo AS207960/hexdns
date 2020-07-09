@@ -56,7 +56,7 @@ def log_usage(user, extra=0):
         })
         if r.status_code == 404:
             return mark_safe(
-                'Unable to charge yoru account. '
+                'Unable to charge your account. '
                 'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">set-up</a> '
                 'your account.'
             )

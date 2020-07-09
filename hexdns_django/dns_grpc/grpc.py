@@ -973,6 +973,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     if rtype == QTYPE.NS and not sign_ns:
                         continue
                     for label, rrs in rrs.items():
+                        if not label.matchSuffix(DNSLabel(zone_root)):
+                            continue
+
                         rrsig = dnslib.RRSIG(
                             covered=rtype,
                             algorithm=13,

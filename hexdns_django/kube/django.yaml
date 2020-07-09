@@ -69,6 +69,8 @@ spec:
       part: django
   template:
     metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
       labels:
         app: hexdns
         part: django
@@ -144,6 +146,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          annotations:
+            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
         spec:
           volumes:
             - name: static
@@ -191,6 +196,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          annotations:
+            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
         spec:
           volumes:
             - name: static
@@ -241,6 +249,8 @@ spec:
       part: grpc
   template:
     metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
       labels:
         app: hexdns
         part: grpc
