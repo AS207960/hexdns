@@ -993,7 +993,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             else:
                                 continue
 
-                            this_pub_key = priv_key.public_key()
+                            this_pub_key = this_priv_key.public_key()
                             this_key_tag = make_key_tag(this_pub_key, flags=flags)
 
                         rrsig = dnslib.RRSIG(
