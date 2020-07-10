@@ -1016,7 +1016,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             buffer = dnslib.DNSBuffer()
                             rd_buffer = dnslib.DNSBuffer()
                             buffer.encode_name_nocompress(r.rname)
-                            buffer.pack("!HHI", r.rtype, r.rclass, 86400)
+                            buffer.pack("!HHI", r.rtype, r.rclass, r.ttl)
                             rdlength_ptr = buffer.offset
                             buffer.pack("!H", 0)
                             start = buffer.offset
