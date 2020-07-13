@@ -269,6 +269,24 @@ class ReversePTRRecordForm(forms.ModelForm):
         exclude = ("id", "zone")
 
 
+class ReverseNSRecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout(
+            "record_address", "record_prefix", "nameserver", "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.ReverseNSRecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
 class ZoneImportForm(forms.Form):
     zone_data = forms.CharField(widget=forms.Textarea())
 

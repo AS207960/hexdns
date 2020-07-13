@@ -1225,13 +1225,85 @@ def delete_r_ptr_record(request, record_id):
             user_record.zone.last_modified = timezone.now()
             user_record.zone.save()
             user_record.delete()
-            return redirect("edit_zone", user_record.zone.id)
+            return redirect("edit_rzone", user_record.zone.id)
 
     return render(
         request,
         "dns_grpc/delete_rrecord.html",
         {"title": "Delete PTR record", "record": user_record},
     )
+
+
+@login_required
+def create_r_ns_record(request, zone_id):
+    user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ReverseNSRecordForm(
+            request.POST, instance=models.ReverseNSRecord(zone=user_zone)
+        )
+        if record_form.is_valid():
+            record_form.save()
+            user_zone.last_modified = timezone.now()
+            user_zone.save()
+            return redirect("edit_rzone", user_zone.id)
+    else:
+        record_form = forms.ReverseNSRecordForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create NS record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_r_ns_record(request, record_id):
+    user_record = get_object_or_404(models.ReverseNSRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ReverseNSRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_rzone", user_record.zone.id)
+    else:
+        record_form = forms.ReverseNSRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit NS record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_r_ns_record(request, record_id):
+    user_record = get_object_or_404(models.ReverseNSRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_rzone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_rrecord.html",
+        {"title": "Delete NS record", "record": user_record},
+    )
+
 
 
 @login_required

@@ -1,7 +1,27 @@
 {% extends 'dns_grpc/base.html' %}
 {% block content %}
-    <div class="container my-3">
-        <h1>View {{ zone.zone_root }}</h1>
+    <section class="stripe my-5">
+        <div class="container py-3">
+            <div class="jumbotron my-0">
+                <h1>View {{ zone.zone_root }}</h1>
+                <div class="row">
+                    <div class="col">
+                        <b>Zone serial:</b> {% if zone.serial %}{{ zone.serial }}{% else %}N/A{% endif %}
+                    </div>
+                    <div class="col">
+                        <b>Zone primary:</b> {{ zone.primary }}
+                    </div>
+                    <div class="col">
+                        <div class="btn-group">
+                            <a href="{% url 'edit_szone' zone.id %}" class="btn btn-primary">&#x1f58a; Edit</a>
+                            <a href="{% url 'delete_szone' zone.id %}" class="btn btn-danger">&#x1f5d1; Delete</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div class="container my-3 {% if not zone.error and zone.active %}pt-3 pt-md-5{% endif %}">
         {% if zone.error %}
             <div class="alert alert-danger" role="alert">
                 <h4 class="alert-heading">Transfer failed</h4>
@@ -23,21 +43,6 @@
                 </p>
             </div>
         {% endif %}
-        <div class="row">
-            <div class="col">
-                <b>Zone serial:</b> {% if zone.serial %}{{ zone.serial }}{% else %}N/A{% endif %}
-            </div>
-            <div class="col">
-                <b>Zone primary:</b> {{ zone.primary }}
-            </div>
-            <div class="col">
-                <div class="btn-group">
-                    <a href="{% url 'edit_szone' zone.id %}" class="btn btn-primary">Edit</a>
-                    <a href="{% url 'delete_szone' zone.id %}" class="btn btn-danger">Delete</a>
-                </div>
-            </div>
-        </div>
-        <hr>
         <h2>
             Records
         </h2>

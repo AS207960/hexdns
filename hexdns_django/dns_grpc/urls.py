@@ -175,6 +175,11 @@ urlpatterns = [
         name="create_r_ptr_record",
     ),
     path(
+        "rzone/<uuid:zone_id>/new_ns/",
+        views.create_r_ns_record,
+        name="create_r_ns_record",
+    ),
+    path(
         "rrecords/ptr/<uuid:record_id>/",
         views.edit_r_ptr_record,
         name="edit_r_ptr_record",
@@ -183,6 +188,16 @@ urlpatterns = [
         "rrecords/ptr/<uuid:record_id>/delete/",
         views.delete_r_ptr_record,
         name="delete_r_ptr_record",
+    ),
+    path(
+        "rrecords/ns/<uuid:record_id>/",
+        views.edit_r_ns_record,
+        name="edit_r_ns_record",
+    ),
+    path(
+        "rrecords/ns/<uuid:record_id>/delete/",
+        views.delete_r_ns_record,
+        name="delete_r_ns_record",
     ),
     path("create_szone/", views.create_szone, name="new_szone"),
     path("szone/<uuid:zone_id>/", views.view_szone, name="view_szone"),

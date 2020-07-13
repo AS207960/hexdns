@@ -162,15 +162,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         zones = models.ReverseDNSZone.objects.filter(active=True).order_by("-zone_root_prefix")
         for zone in zones:
-            try:
-                zone_network = ipaddress.ip_network(
-                    (zone.zone_root_address, zone.zone_root_prefix)
-                )
-            except ValueError:
+            zone_network = zone.network
+            if not zone_network:
                 continue
 
             if addr in zone_network:
-                return zone, addr, zone_network
+                return zone, addr
 
         return None, None, None
 
@@ -808,6 +805,101 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_ds
             )
 
+    def lookup_reverse_referral(
+        self,
+        dns_res: dnslib.DNSRecord,
+        addr: IP_ADDR,
+        zone: models.ReverseDNSZone,
+        is_dnssec: bool,
+    ):
+        nameservers = models.ReverseNSRecord.objects.order_by('-record_prefix').filter(zone=zone)
+        ns_found = False
+        for nameserver in nameservers:
+            network = nameserver.network
+            if addr in network:
+                ns_found = True
+                ns = DNSLabel(nameserver.nameserver)
+                dns_res.add_auth(
+                    dnslib.RR(
+                        network_to_apra(network),
+                        QTYPE.NS,
+                        rdata=dnslib.NS(ns),
+                        ttl=nameserver.ttl,
+                    )
+                )
+                # if is_dnssec:
+                #     records = self.find_records(
+                #         models.DSRecord, DNSLabel(nameserver.record_name), zone
+                #     )
+                #     for record in records:
+                #         ds_data = bytearray(
+                #             struct.pack(
+                #                 "!HBB",
+                #                 record.key_tag,
+                #                 record.algorithm,
+                #                 record.digest_type,
+                #             )
+                #         )
+                #         digest_data = record.digest_bin
+                #         if not digest_data:
+                #             dns_res.header.rcode = RCODE.SERVFAIL
+                #             return
+                #         ds_data.extend(digest_data)
+                #         dns_res.add_auth(
+                #             dnslib.RR(
+                #                 f"{nameserver.record_name}.{zone.zone_root}",
+                #                 QTYPE.DS,
+                #                 rdata=dnslib.RD(ds_data),
+                #                 ttl=record.ttl,
+                #             )
+                #         )
+                #     if not len(records):
+                #         query_name = dnslib.DNSLabel(f"{nameserver.record_name}.{zone.zone_root}")
+                #         names = dnslib.DNSLabel(f"{nameserver.record_name}\x00.{zone.zone_root}")
+                #         dns_res.add_auth(
+                #             dnslib.RR(
+                #                 query_name,
+                #                 QTYPE.NSEC,
+                #                 rdata=dnslib.NSEC(
+                #                     dnslib.DNSLabel(names), ["NS", "RRSIG", "NSEC"]
+                #                 ),
+                #                 ttl=86400,
+                #             )
+                #         )
+        if not ns_found:
+            dns_res.header.rcode = RCODE.NXDOMAIN
+
+    def lookup_reverse_ns(
+            self,
+            dns_res: dnslib.DNSRecord,
+            addr: IP_ADDR,
+            zone: models.ReverseDNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
+    ):
+        found = False
+        for record in models.ReverseNSRecord.objects.filter(zone=zone):
+            if query_name == network_to_apra(record.network):
+                found = True
+                dns_res.add_answer(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.NS,
+                        rdata=dnslib.NS(record.nameserver),
+                        ttl=record.ttl,
+                    )
+                )
+        if query_name == network_to_apra(zone.network):
+            found = True
+            for ns in NAMESERVERS:
+                dns_res.add_answer(
+                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
+                )
+        if not found:
+            self.lookup_reverse_referral(
+                dns_res, addr, zone, is_dnssec
+            )
+
     def lookup_ptr(
         self,
         dns_res: dnslib.DNSRecord,
@@ -843,7 +935,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
                     )
             else:
-                dns_res.header.rcode = RCODE.NXDOMAIN
+                self.lookup_reverse_referral(
+                    dns_res, addr, zone, is_dnssec
+                )
 
     @staticmethod
     def encode_type_bitmap_window(rrlist):
@@ -1237,7 +1331,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         if not is_axfr:
             if is_rdns:
-                zone, record_name, zone_network = self.find_rzone(query_name)
+                zone, record_name = self.find_rzone(query_name)
             else:
                 zone, record_name = self.find_zone(query_name)
             if not zone:
@@ -1324,7 +1418,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     self.lookup_cname(dns_res, record_name, zone, query_name, is_dnssec, (lambda _0, _1, _2, _3, _4: None))
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             else:
-                network = network_to_apra(zone_network)
+                network = network_to_apra(zone.network)
                 record_name_label = query_name.stripSuffix(network)
                 if len(record_name_label.label) == 0:
                     record_name_label = DNSLabel("@")
@@ -1364,11 +1458,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         dns_res, record_name_label, zone, query_name, is_dnssec
                     )
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
-                elif dns_req.q.qtype == QTYPE.NS and query_name == network:
-                    for ns in NAMESERVERS:
-                        dns_res.add_answer(
-                            dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
-                        )
+                elif dns_req.q.qtype == QTYPE.NS:
+                    self.lookup_reverse_ns(dns_res, record_name, zone, query_name, is_dnssec)
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
                 else:
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
@@ -1423,6 +1514,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         try:
             dns_res = self.handle_query(dns_req)
         except Exception as e:
+            print(e)
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
             dns_res = dns_req.reply()

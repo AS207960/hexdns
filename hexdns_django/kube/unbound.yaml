@@ -34,6 +34,8 @@ spec:
       part: unbound
   template:
     metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
       labels:
         app: hexdns
         part: unbound

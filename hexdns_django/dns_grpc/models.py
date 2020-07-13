@@ -72,6 +72,15 @@ class ReverseDNSZone(models.Model):
         except ValueError as e:
             raise ValidationError(str(e))
 
+    @property
+    def network(self):
+        try:
+            return ipaddress.ip_network(
+                (self.zone_root_address, self.zone_root_prefix)
+            )
+        except ValueError:
+            return None
+
     def __str__(self):
         return f"{self.zone_root_address}/{self.zone_root_prefix}"
 
@@ -336,3 +345,25 @@ class PTRRecord(ReverseDNSZoneRecord):
     class Meta:
         verbose_name = "PTR record"
         verbose_name_plural = "PTR records"
+
+
+class ReverseNSRecord(ReverseDNSZoneRecord):
+    record_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)])
+    nameserver = models.CharField(max_length=255, verbose_name="Name server")
+
+    @property
+    def network(self):
+        try:
+            return ipaddress.ip_network(
+                (self.record_address, self.record_prefix)
+            )
+        except ValueError:
+            return None
+
+    def save(self, *args, **kwargs):
+        self.nameserver = self.nameserver.lower()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "NS record"
+        verbose_name_plural = "NS records"

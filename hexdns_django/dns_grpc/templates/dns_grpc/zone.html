@@ -1,7 +1,24 @@
 {% extends 'dns_grpc/base.html' %}
 {% block content %}
-    <div class="container my-3">
-        <h1>Edit {{ zone.zone_root }}</h1>
+    <section class="stripe my-5">
+        <div class="container py-3">
+            <div class="jumbotron my-0">
+                <h1>Edit {{ zone.zone_root }}</h1>
+                <div class="row">
+                    <div class="col">
+                        <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
+                    </div>
+                    <div class="col">
+                        <div class="btn-group">
+                            <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">&#x1f5d1; Delete</a>
+                            <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone file</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div class="container my-3 {% if zone.active %}pt-3 pt-md-5{% endif %}">
         {% if not zone.active %}
             <div class="alert alert-warning" role="alert">
                 <h4 class="alert-heading">Inactive zone</h4>
@@ -13,18 +30,6 @@
                 </p>
             </div>
         {% endif %}
-        <div class="row">
-            <div class="col">
-                <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
-            </div>
-            <div class="col">
-                <div class="btn-group">
-                    <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">Delete</a>
-                    <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone file</a>
-                </div>
-            </div>
-        </div>
-        <hr>
         <h2>DNSSEC</h2>
         <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
         <b>DS digest:</b> {{ dnssec_digest }}<br/>
@@ -63,8 +68,8 @@
                             </td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_address_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_address_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_address_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_address_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -103,8 +108,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_dynamic_address_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_dynamic_address_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_dynamic_address_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_dynamic_address_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -138,8 +143,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_aname_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_aname_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_aname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_aname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -173,8 +178,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_cname_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_cname_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_cname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_cname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -216,8 +221,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_mx_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_mx_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_mx_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_mx_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -251,8 +256,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_ns_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_ns_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_ns_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_ns_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -292,8 +297,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_txt_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_txt_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_txt_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_txt_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -333,8 +338,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_srv_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_srv_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_srv_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_srv_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -372,8 +377,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_caa_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_caa_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_caa_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_caa_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -415,8 +420,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_naptr_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_naptr_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_naptr_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_naptr_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -450,8 +455,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_sshfp_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_sshfp_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_sshfp_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_sshfp_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -491,8 +496,8 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_ds_record' record.id %}" class="btn btn-primary btn-sm">Edit</a>
-                                    <a href="{% url 'delete_ds_record' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="{% url 'edit_ds_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'delete_ds_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
