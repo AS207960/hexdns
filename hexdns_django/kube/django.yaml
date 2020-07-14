@@ -27,9 +27,9 @@ apiVersion: v1
 metadata:
   name: hexdns-django-conf
 data:
-  HOST: dns.glau.ca
+  HOST: dns.glauca.digital
   DJANGO_SETTINGS_MODULE: hexdns_django.settings
-  EXTERNAL_URL: "https://dns.glau.ca"
+  EXTERNAL_URL: "https://dns.glauca.digital"
   SENTRY_ENVIRONMENT: "prod"
   KEYCLOAK_SERVER_URL: "https://sso.as207960.net/"
   KEYCLOAK_REALM: master

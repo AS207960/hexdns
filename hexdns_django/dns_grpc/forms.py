@@ -38,7 +38,8 @@ class AddressRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "address", "ttl", "auto_reverse"
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "address", "ttl", "auto_reverse"
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -60,7 +61,8 @@ class DynamicAddressRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "id", "password", "record_name", "ttl"
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "id", "password", "ttl"
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -77,7 +79,9 @@ class ANAMERecordForm(forms.ModelForm):
         self.helper.form_class = "form-horizontal"
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
-        self.helper.layout = crispy_forms.layout.Layout("record_name", "alias", "ttl",)
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "alias", "ttl"
+        )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
     class Meta:
@@ -93,7 +97,9 @@ class CNAMERecordForm(forms.ModelForm):
         self.helper.form_class = "form-horizontal"
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
-        self.helper.layout = crispy_forms.layout.Layout("record_name", "alias", "ttl",)
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "alias", "ttl"
+        )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
     class Meta:
@@ -110,7 +116,8 @@ class MXRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "exchange", "priority", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "exchange", "priority", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -128,7 +135,8 @@ class NSRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "nameserver", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "nameserver", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -145,7 +153,9 @@ class TXTRecordForm(forms.ModelForm):
         self.helper.form_class = "form-horizontal"
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
-        self.helper.layout = crispy_forms.layout.Layout("record_name", "data", "ttl",)
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "data", "ttl",
+        )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
     class Meta:
@@ -162,7 +172,8 @@ class SRVRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "priority", "weight", "port", "target", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "priority", "weight", "port", "target", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -180,7 +191,8 @@ class CAARecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "flag", "tag", "value", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "flag", "tag", "value", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -198,7 +210,7 @@ class NAPTRRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "order",
             "preference",
             "flags",
@@ -223,7 +235,8 @@ class SSHFPRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "host_key", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "host_key", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -241,7 +254,8 @@ class DSRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "key_tag", "algorithm", "digest_type", "digest", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "key_tag", "algorithm", "digest_type", "digest", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -259,7 +273,7 @@ class LOCRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             crispy_forms.layout.Row(
                 crispy_forms.layout.Column("latitude"), crispy_forms.layout.Column("longitude")
             ),
@@ -287,7 +301,8 @@ class HINFORecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "cpu", "os", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "cpu", "os", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
@@ -305,7 +320,8 @@ class RPRecordForm(forms.ModelForm):
         self.helper.label_class = "col-lg-4"
         self.helper.field_class = "col-lg-8"
         self.helper.layout = crispy_forms.layout.Layout(
-            "record_name", "mailbox", "txt", "ttl",
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "mailbox", "txt", "ttl",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 

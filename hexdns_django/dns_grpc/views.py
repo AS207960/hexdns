@@ -314,16 +314,15 @@ def create_address_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.AddressRecordForm(request.POST)
+        record_form = forms.AddressRecordForm(request.POST, instance=models.AddressRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.AddressRecordForm()
+        record_form = forms.AddressRecordForm(instance=models.AddressRecord(zone=user_zone))
 
     return render(
         request,
@@ -385,19 +384,18 @@ def create_dynamic_address_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.DynamicAddressRecordForm(request.POST)
+        record_form = forms.DynamicAddressRecordForm(request.POST, instance=models.DynamicAddressRecord(zone=user_zone))
         del record_form.fields['id']
         del record_form.fields['password']
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             instance.password = secrets.token_hex(32)
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.DynamicAddressRecordForm()
+        record_form = forms.DynamicAddressRecordForm(instance=models.DynamicAddressRecord(zone=user_zone))
         del record_form.fields['id']
         del record_form.fields['password']
 
@@ -461,16 +459,15 @@ def create_aname_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.ANAMERecordForm(request.POST)
+        record_form = forms.ANAMERecordForm(request.POST, instance=models.ANAMERecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.ANAMERecordForm()
+        record_form = forms.ANAMERecordForm(instance=models.ANAMERecord(zone=user_zone))
 
     return render(
         request,
@@ -532,16 +529,15 @@ def create_cname_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.CNAMERecordForm(request.POST)
+        record_form = forms.CNAMERecordForm(request.POST, instance=models.CNAMERecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.CNAMERecordForm()
+        record_form = forms.CNAMERecordForm(instance=models.CNAMERecord(zone=user_zone))
 
     return render(
         request,
@@ -603,16 +599,15 @@ def create_mx_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.MXRecordForm(request.POST)
+        record_form = forms.MXRecordForm(request.POST, instance=models.MXRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.MXRecordForm()
+        record_form = forms.MXRecordForm(instance=models.MXRecord(zone=user_zone))
 
     return render(
         request,
@@ -674,16 +669,15 @@ def create_ns_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.NSRecordForm(request.POST)
+        record_form = forms.NSRecordForm(request.POST, instance=models.NSRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.NSRecordForm()
+        record_form = forms.NSRecordForm(instance=models.NSRecord(zone=user_zone))
 
     return render(
         request,
@@ -745,16 +739,15 @@ def create_txt_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.TXTRecordForm(request.POST)
+        record_form = forms.TXTRecordForm(request.POST, instance=models.TXTRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.TXTRecordForm()
+        record_form = forms.TXTRecordForm(instance=models.TXTRecord(zone=user_zone))
 
     return render(
         request,
@@ -816,16 +809,15 @@ def create_srv_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.SRVRecordForm(request.POST)
+        record_form = forms.SRVRecordForm(request.POST, instance=models.SRVRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.SRVRecordForm()
+        record_form = forms.SRVRecordForm(instance=models.SRVRecord(zone=user_zone))
 
     return render(
         request,
@@ -887,16 +879,15 @@ def create_caa_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.CAARecordForm(request.POST)
+        record_form = forms.CAARecordForm(request.POST, instance=models.CAARecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.CAARecordForm()
+        record_form = forms.CAARecordForm(instance=models.CAARecord(zone=user_zone))
 
     return render(
         request,
@@ -958,16 +949,15 @@ def create_naptr_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.NAPTRRecordForm(request.POST)
+        record_form = forms.NAPTRRecordForm(request.POST, instance=models.NAPTRRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.NAPTRRecordForm()
+        record_form = forms.NAPTRRecordForm(instance=models.NAPTRRecord(zone=user_zone))
 
     return render(
         request,
@@ -1029,16 +1019,15 @@ def create_sshfp_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.SSHFPRecordForm(request.POST)
+        record_form = forms.SSHFPRecordForm(request.POST, instance=models.SSHFPRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.SSHFPRecordForm()
+        record_form = forms.SSHFPRecordForm(instance=models.DynamicAddressRecord(zone=user_zone))
 
     return render(
         request,
@@ -1100,16 +1089,15 @@ def create_ds_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.DSRecordForm(request.POST)
+        record_form = forms.DSRecordForm(request.POST, instance=models.DSRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.DSRecordForm()
+        record_form = forms.DSRecordForm(instance=models.DSRecord(zone=user_zone))
 
     return render(
         request,
@@ -1171,16 +1159,15 @@ def create_loc_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.LOCRecordForm(request.POST)
+        record_form = forms.LOCRecordForm(request.POST, instance=models.LOCRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.LOCRecordForm()
+        record_form = forms.LOCRecordForm(instance=models.LOCRecord(zone=user_zone))
 
     return render(
         request,
@@ -1242,16 +1229,15 @@ def create_hinfo_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.HINFORecordForm(request.POST)
+        record_form = forms.HINFORecordForm(request.POST, instance=models.HINFORecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.HINFORecordForm()
+        record_form = forms.HINFORecordForm(instance=models.HINFORecord(zone=user_zone))
 
     return render(
         request,
@@ -1313,16 +1299,15 @@ def create_rp_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.RPRecordForm(request.POST)
+        record_form = forms.RPRecordForm(request.POST, instance=models.RPRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
-            instance.zone = user_zone
             user_zone.last_modified = timezone.now()
             instance.save()
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.RPRecordForm()
+        record_form = forms.RPRecordForm(instance=models.RPRecord(zone=user_zone))
 
     return render(
         request,
