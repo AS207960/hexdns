@@ -67,6 +67,15 @@ urlpatterns = [
         "zone/<uuid:zone_id>/new_ds/", views.create_ds_record, name="create_ds_record"
     ),
     path(
+        "zone/<uuid:zone_id>/new_loc/", views.create_loc_record, name="create_loc_record"
+    ),
+    path(
+        "zone/<uuid:zone_id>/new_hinfo/", views.create_hinfo_record, name="create_hinfo_record"
+    ),
+    path(
+        "zone/<uuid:zone_id>/new_rp/", views.create_rp_record, name="create_rp_record"
+    ),
+    path(
         "records/address/<uuid:record_id>/",
         views.edit_address_record,
         name="edit_address_record",
@@ -167,6 +176,24 @@ urlpatterns = [
         "records/ds/<uuid:record_id>/delete/",
         views.delete_ds_record,
         name="delete_ds_record",
+    ),
+    path("records/loc/<uuid:record_id>/", views.edit_loc_record, name="edit_loc_record"),
+    path(
+        "records/loc/<uuid:record_id>/delete/",
+        views.delete_loc_record,
+        name="delete_loc_record",
+    ),
+    path("records/hinfo/<uuid:record_id>/", views.edit_hinfo_record, name="edit_hinfo_record"),
+    path(
+        "records/hinfo/<uuid:record_id>/delete/",
+        views.delete_hinfo_record,
+        name="delete_hinfo_record",
+    ),
+    path("records/rp/<uuid:record_id>/", views.edit_rp_record, name="edit_rp_record"),
+    path(
+        "records/rp/<uuid:record_id>/delete/",
+        views.delete_rp_record,
+        name="delete_rp_record",
     ),
     path("rzone/<uuid:zone_id>/", views.edit_rzone, name="edit_rzone"),
     path(

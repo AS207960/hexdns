@@ -251,6 +251,70 @@ class DSRecordForm(forms.ModelForm):
         exclude = ("id", "zone")
 
 
+class LOCRecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout(
+            "record_name",
+            crispy_forms.layout.Row(
+                crispy_forms.layout.Column("latitude"), crispy_forms.layout.Column("longitude")
+            ),
+            crispy_forms.layout.Row(
+                crispy_forms.layout.Column("altitude"), crispy_forms.layout.Column("size")
+            ),
+            crispy_forms.layout.Row(
+                crispy_forms.layout.Column("hp"), crispy_forms.layout.Column("vp")
+            ),
+            "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.LOCRecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
+class HINFORecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout(
+            "record_name", "cpu", "os", "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.HINFORecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
+class RPRecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout(
+            "record_name", "mailbox", "txt", "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.RPRecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
 class ReversePTRRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

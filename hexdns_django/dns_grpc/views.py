@@ -1164,6 +1164,219 @@ def delete_ds_record(request, record_id):
 
 
 @login_required
+def create_loc_record(request, zone_id):
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.LOCRecordForm(request.POST)
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            instance.zone = user_zone
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.LOCRecordForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create LOC record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_loc_record(request, record_id):
+    user_record = get_object_or_404(models.LOCRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.LOCRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.LOCRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit LOC record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_loc_record(request, record_id):
+    user_record = get_object_or_404(models.LOCRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_record.html",
+        {"title": "Delete LOC record", "record": user_record, },
+    )
+
+
+@login_required
+def create_hinfo_record(request, zone_id):
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.HINFORecordForm(request.POST)
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            instance.zone = user_zone
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.HINFORecordForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create HINFO record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_hinfo_record(request, record_id):
+    user_record = get_object_or_404(models.HINFORecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.HINFORecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.HINFORecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit HINFO record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_hinfo_record(request, record_id):
+    user_record = get_object_or_404(models.HINFORecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_record.html",
+        {"title": "Delete HINFO record", "record": user_record, },
+    )
+
+
+@login_required
+def create_rp_record(request, zone_id):
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if user_zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.RPRecordForm(request.POST)
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            instance.zone = user_zone
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.RPRecordForm()
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create RP record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_rp_record(request, record_id):
+    user_record = get_object_or_404(models.RPRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.RPRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.RPRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit RP record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_rp_record(request, record_id):
+    user_record = get_object_or_404(models.RPRecord, id=record_id)
+
+    if user_record.zone.user != request.user:
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_record.html",
+        {"title": "Delete RP record", "record": user_record, },
+    )
+
+
+@login_required
 def create_r_ptr_record(request, zone_id):
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
 

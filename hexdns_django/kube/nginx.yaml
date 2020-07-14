@@ -32,7 +32,7 @@ data:
 
       server {
         listen       [::]:80;
-        server_name  dns.as207960.net;
+        server_name  dns.glau.ca;
 
         root /data/;
 
@@ -119,15 +119,15 @@ kind: Ingress
 metadata:
   name: hexdns-ingress
   annotations:
-#    certmanager.k8s.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: letsencrypt
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
-#  tls:
-#    - hosts:
-#        - cardifftec.uk
-#      secretName: cls-tls
+  tls:
+    - hosts:
+        - dns.glau.ca
+      secretName: dns-tls
   rules:
-  - host: dns.as207960.net
+  - host: dns.glau.ca
     http:
       paths:
       - path: /

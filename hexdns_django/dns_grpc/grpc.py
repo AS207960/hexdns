@@ -5,6 +5,7 @@ import dnslib
 import ipaddress
 import typing
 import traceback
+import math
 import struct
 import hashlib
 import sentry_sdk
@@ -805,6 +806,77 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_ds
             )
 
+    def lookup_loc(
+        self,
+        dns_res: dnslib.DNSRecord,
+        record_name: DNSLabel,
+        zone: models.DNSZone,
+        query_name: DNSLabel,
+        is_dnssec: bool,
+    ):
+        def enc_size(value):
+            size_exp = int(math.floor(math.log10(value)) if value != 0 else 0)
+            size_man = int(value / (10 ** size_exp))
+
+            return ((size_man << 4) & 0xF0) + (size_exp & 0x0F)
+
+        records = self.find_records(models.LOCRecord, record_name, zone)  # type: typing.List[models.LOCRecord]
+        for record in records:
+            lat = int(record.latitude * 3600 * 1000) + 2**31
+            long = int(record.longitude * 3600 * 1000) + 2**31
+            alt = int((record.altitude + 100000) * 100)
+
+            loc_data = bytearray(struct.pack(
+                "!BBBBIII", 0, enc_size(record.size * 100), enc_size(record.hp * 100), enc_size(record.vp * 100),
+                lat, long, alt
+            ))
+            dns_res.add_answer(
+                dnslib.RR(query_name, QTYPE.LOC, rdata=dnslib.RD(loc_data), ttl=record.ttl)
+            )
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_loc
+            )
+
+    def lookup_hinfo(
+        self,
+        dns_res: dnslib.DNSRecord,
+        record_name: DNSLabel,
+        zone: models.DNSZone,
+        query_name: DNSLabel,
+        is_dnssec: bool,
+    ):
+        records = self.find_records(models.HINFORecord, record_name, zone)  # type: typing.List[models.HINFORecord]
+        for record in records:
+            dns_res.add_answer(
+                dnslib.RR(query_name, QTYPE.HINFO, rdata=dnslib.TXT([record.cpu, record.os]), ttl=record.ttl)
+            )
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_hinfo
+            )
+
+    def lookup_rp(
+        self,
+        dns_res: dnslib.DNSRecord,
+        record_name: DNSLabel,
+        zone: models.DNSZone,
+        query_name: DNSLabel,
+        is_dnssec: bool,
+    ):
+        records = self.find_records(models.RPRecord, record_name, zone)  # type: typing.List[models.RPRecord]
+        for record in records:
+            buffer = dnslib.DNSBuffer()
+            buffer.encode_name(dnslib.DNSLabel(record.mailbox))
+            buffer.encode_name(dnslib.DNSLabel(record.txt))
+            dns_res.add_answer(
+                dnslib.RR(query_name, QTYPE.RP, rdata=dnslib.RD(buffer.data), ttl=record.ttl)
+            )
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_rp
+            )
+
     def lookup_reverse_referral(
         self,
         dns_res: dnslib.DNSRecord,
@@ -1399,6 +1471,15 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
                 elif dns_req.q.qtype == QTYPE.DS:
                     self.lookup_ds(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.LOC:
+                    self.lookup_loc(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.HINFO:
+                    self.lookup_hinfo(dns_res, record_name, zone, query_name, is_dnssec)
+                    self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+                elif dns_req.q.qtype == QTYPE.RP:
+                    self.lookup_rp(dns_res, record_name, zone, query_name, is_dnssec)
                     self.sign_rrset(dns_res, zone, query_name, is_dnssec)
                 elif dns_req.q.qtype == QTYPE.CNAME:
                     record = self.find_records(

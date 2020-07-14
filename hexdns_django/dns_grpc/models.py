@@ -9,7 +9,7 @@ import binascii
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 
 class Account(models.Model):
@@ -333,6 +333,54 @@ class DSRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "DS record"
         verbose_name_plural = "DS records"
+
+
+class LOCRecord(DNSZoneRecord):
+    latitude = models.FloatField(
+        validators=[MaxValueValidator(90), MinValueValidator(-90)], verbose_name="Latitude (deg)"
+    )
+    longitude = models.FloatField(
+        validators=[MaxValueValidator(180), MinValueValidator(-180)], verbose_name="Longitude (deg)"
+    )
+    altitude = models.FloatField(validators=[
+        MinValueValidator(-100000.00), MaxValueValidator(42849672.95)
+    ], verbose_name="Altitude (m)", default=0)
+    size = models.FloatField(validators=[
+        MinValueValidator(0), MaxValueValidator(90000000.00)
+    ], verbose_name="Size (m)", default=0)
+    hp = models.FloatField(validators=[
+        MinValueValidator(0), MaxValueValidator(90000000.00)
+    ], verbose_name="Horizontal precision (m)", default=0)
+    vp = models.FloatField(validators=[
+        MinValueValidator(0), MaxValueValidator(90000000.00)
+    ], verbose_name="Vertical precision (m)", default=0)
+
+    class Meta:
+        verbose_name = "LOC record"
+        verbose_name_plural = "LOC records"
+
+
+class HINFORecord(DNSZoneRecord):
+    cpu = models.CharField(max_length=255, verbose_name="CPU")
+    os = models.CharField(max_length=255, verbose_name="OS")
+
+    class Meta:
+        verbose_name = "HINFO record"
+        verbose_name_plural = "HINFO records"
+
+
+class RPRecord(DNSZoneRecord):
+    mailbox = models.CharField(max_length=255)
+    txt = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        self.mailbox = self.mailbox.lower()
+        self.txt = self.txt.lower()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "RP record"
+        verbose_name_plural = "RP records"
 
 
 class PTRRecord(ReverseDNSZoneRecord):
