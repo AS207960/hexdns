@@ -225,6 +225,22 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             record_name=search_name, zone=zone
         ).count():
             return True
+        elif models.ANAMERecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.LOCRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.HINFORecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
+        elif models.RPRecord.objects.filter(
+            record_name=search_name, zone=zone
+        ).count():
+            return True
         else:
             return False
 
@@ -305,7 +321,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             )
                         )
                 self.lookup_additional_addr(dns_res, ns)
-        if not ns_found:
+        if not ns_found and record_name != "@":
             if not self.any_records(record_name, zone):
                 dns_res.header.rcode = RCODE.NXDOMAIN
 
