@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "crispy_forms",
     "dns_grpc",
     "django_grpc",
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -80,7 +81,7 @@ LOGOUT_REDIRECT_URL = "oidc_login"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, 'templates')],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -180,3 +181,25 @@ BILLING_PLAN_ID = os.getenv("BILLING_PLAN_ID")
 
 RESOLVER_ADDR = os.getenv("RESOLVER_ADDR")
 RESOLVER_PORT = int(os.getenv("RESOLVER_PORT"))
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser'
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'dns_grpc.api.auth.BearerAuthentication',
+        'dns_grpc.api.auth.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 25
+}
