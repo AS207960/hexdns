@@ -13,3 +13,4 @@ cryptography
 django-xff
 publicsuffixlist
 retry
+django-rest-framework
