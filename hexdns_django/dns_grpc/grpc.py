@@ -32,6 +32,17 @@ IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
 
+with open(settings.DNSSEC_KEY_LOCATION, "rb") as f:
+    priv_key_data = f.read()
+
+priv_key = load_pem_private_key(
+    priv_key_data, password=None, backend=default_backend()
+)
+if not issubclass(type(priv_key), EllipticCurvePrivateKey):
+    raise Exception("Only EC private keys supported")
+pub_key = priv_key.public_key()
+
+
 def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
     buffer = dnslib.DNSBuffer()
     nums = public_key.public_numbers()
@@ -94,15 +105,6 @@ def grpc_hook(server):
 class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
     def __init__(self):
-        with open(settings.DNSSEC_KEY_LOCATION, "rb") as f:
-            priv_key_data = f.read()
-
-        priv_key = load_pem_private_key(
-            priv_key_data, password=None, backend=default_backend()
-        )
-        if not issubclass(type(priv_key), EllipticCurvePrivateKey):
-            raise Exception("Only EC private keys supported")
-
         self.priv_key = priv_key
 
     def is_rdns(self, qname: DNSLabel) -> bool:
@@ -686,7 +688,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
-            pub_key = self.priv_key.public_key()
             nums = pub_key.public_numbers()
             dns_res.add_answer(
                 dnslib.RR(

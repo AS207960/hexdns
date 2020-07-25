@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework_nested.relations import NestedHyperlinkedIdentityField
+import base64
 import ipaddress
 from .. import models, views, grpc
 
@@ -264,11 +265,19 @@ class RPRecordSerializer(ZoneRecordSerializer):
         read_only_fields = ('id', 'zone',)
 
 
-class DNSSECSerailazer(serializers.Serializer):
+class DNSSECKeySerializer(serializers.Serializer):
+    flags = serializers.IntegerField(read_only=True)
+    protocol = serializers.IntegerField(read_only=True)
+    algorithm = serializers.IntegerField(read_only=True)
+    public_key = serializers.CharField(read_only=True)
+
+
+class DNSSECSerializer(serializers.Serializer):
     key_tag = serializers.IntegerField(read_only=True)
     algorithm = serializers.IntegerField(read_only=True)
     digest_type = serializers.IntegerField(read_only=True)
     digest = serializers.CharField(read_only=True)
+    key = DNSSECKeySerializer(read_only=True)
 
 
 class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
@@ -296,17 +305,25 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
     loc_records = LOCRecordSerializer(many=True, read_only=True, source='locrecord_set')
     hinfo_records = HINFORecordSerializer(many=True, read_only=True, source='hinforecord_set')
     rp_records = RPRecordSerializer(many=True, read_only=True, source='rprecord_set')
-    dnssec = DNSSECSerailazer(read_only=True)
+    dnssec = DNSSECSerializer(read_only=True)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
 
         dnssec_digest, dnssec_tag = views.make_zone_digest(instance.zone_root)
+        nums = grpc.pub_key.public_numbers()
+        pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {
             "key_tag": dnssec_tag,
             "algorithm": 13,
             "digest_type": 2,
-            "digest": dnssec_digest
+            "digest": dnssec_digest,
+            "key": {
+                "flags": 257,
+                "protocol": 3,
+                "algorithm": 13,
+                "public_key": base64.b64encode(pubkey_bytes)
+            }
         }
 
         return ret
@@ -350,7 +367,7 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
 
     ptr_records = PTRRecordSerializer(many=True, read_only=True, source='ptrrecord_set')
     ns_records = ReverseNSRecordSerializer(many=True, read_only=True, source='reversensrecord_set')
-    dnssec = DNSSECSerailazer(read_only=True)
+    dnssec = DNSSECSerializer(read_only=True)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -360,11 +377,19 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         )
         zone_name = grpc.network_to_apra(zone_network)
         dnssec_digest, dnssec_tag = views.make_zone_digest(zone_name.label)
+        nums = grpc.pub_key.public_numbers()
+        pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {
             "key_tag": dnssec_tag,
             "algorithm": 13,
             "digest_type": 2,
-            "digest": dnssec_digest
+            "digest": dnssec_digest,
+            "key": {
+                "flags": 257,
+                "protocol": 3,
+                "algorithm": 13,
+                "public_key": base64.b64encode(pubkey_bytes)
+            }
         }
 
         return ret
