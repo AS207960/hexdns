@@ -1,5 +1,8 @@
 from django.db import models
 from django.conf import settings
+from django.shortcuts import reverse
+from django.contrib.auth import get_user_model
+import django_keycloak_auth.clients
 import uuid
 import ipaddress
 import sshpubkeys
@@ -10,6 +13,85 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
+
+
+def sync_resource_to_keycloak(self, display_name, resource_type, scopes, urn, view_name, super_save, args, kwargs):
+    uma_client = django_keycloak_auth.clients.get_uma_client()
+    token = django_keycloak_auth.clients.get_access_token()
+    created = False
+
+    if not self.pk:
+        created = True
+    super_save(*args, **kwargs)
+
+    create_kwargs = {
+        "name": f"{resource_type}_{self.id}",
+        "displayName": f"{display_name}: {str(self)}",
+        "ownerManagedAccess": True,
+        "scopes": scopes,
+        "type": urn,
+        "uri": reverse(view_name, args=(self.id,)) if view_name else None,
+    }
+
+    if created or not self.resource_id:
+        if self.user:
+            create_kwargs['owner'] = self.user.username
+
+        d = uma_client.resource_set_create(
+            token,
+            **create_kwargs
+        )
+        self.resource_id = d['_id']
+        super_save()
+    else:
+        uma_client.resource_set_update(
+            token,
+            id=self.resource_id,
+            **create_kwargs
+        )
+
+
+def delete_resource(resource_id):
+    uma_client = django_keycloak_auth.clients.get_uma_client()
+    token = django_keycloak_auth.clients.get_access_token()
+    uma_client.resource_set_delete(token, resource_id)
+
+
+def get_object_ids(access_token, resource_type, action):
+    scope_name = f"{action}-{resource_type}"
+    permissions = django_keycloak_auth.clients.get_authz_client().get_permissions(access_token)
+    permissions = permissions.get("permissions", [])
+    permissions = filter(
+        lambda p: scope_name in p.get('scopes', []) and p.get('rsname', "").startswith(f"{resource_type}_"),
+        permissions
+    )
+    object_ids = list(map(lambda p: p['rsname'][len(f"{resource_type}_"):], permissions))
+    return object_ids
+
+
+def eval_permission(token, resource, scope, submit_request=False):
+    resource = str(resource)
+    permissions = django_keycloak_auth.clients.get_authz_client().get_permissions(
+        token=token,
+        resource_scopes_tuples=[(resource, scope)],
+        submit_request=submit_request
+    )
+
+    for permission in permissions.get('permissions', []):
+        for scope in permission.get('scopes', []):
+            if permission.get('rsid') == resource and scope == scope:
+                return True
+
+    return False
+
+
+def get_resource_owner(resource_id):
+    uma_client = django_keycloak_auth.clients.get_uma_client()
+    token = django_keycloak_auth.clients.get_access_token()
+    resource = uma_client.resource_set_read(token, resource_id)
+    owner = resource.get("owner", {}).get("id")
+    user = get_user_model().objects.filter(username=owner).first()
+    return user
 
 
 class Account(models.Model):
@@ -37,10 +119,38 @@ class DNSZone(models.Model):
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
+    resource_id = models.UUIDField(null=True)
+
+    @classmethod
+    def get_object_list(cls, access_token: str, action='view'):
+        return cls.objects.filter(pk__in=get_object_ids(access_token, 'zone', action))
+
+    @classmethod
+    def has_class_scope(cls, access_token: str, action='view'):
+        scope_name = f"{action}-zone"
+        return django_keycloak_auth.clients.get_authz_client() \
+            .eval_permission(access_token, f"zone", scope_name)
+
+    def has_scope(self, access_token: str, action='view'):
+        scope_name = f"{action}-zone"
+        return eval_permission(access_token, self.resource_id, scope_name)
 
     def save(self, *args, **kwargs):
         self.zone_root = self.zone_root.lower()
-        return super().save(*args, **kwargs)
+        sync_resource_to_keycloak(
+            self,
+            display_name="Zone", resource_type="zone", scopes=[
+                'view-zone',
+                'edit-zone',
+                'delete-zone',
+            ],
+            urn="urn:as207960:hexdns:zone", super_save=super().save, view_name='edit_zone',
+            args=args, kwargs=kwargs
+        )
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, *kwargs)
+        delete_resource(self.resource_id)
 
     class Meta:
         verbose_name = "DNS Zone"
@@ -61,6 +171,37 @@ class ReverseDNSZone(models.Model):
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=True, blank=True)
+    resource_id = models.UUIDField(null=True)
+
+    @classmethod
+    def get_object_list(cls, access_token: str, action='view'):
+        return cls.objects.filter(pk__in=get_object_ids(access_token, 'reverse-zone', action))
+
+    @classmethod
+    def has_class_scope(cls, access_token: str, action='view'):
+        scope_name = f"{action}-reverse-zone"
+        return django_keycloak_auth.clients.get_authz_client() \
+            .eval_permission(access_token, f"reverse-zone", scope_name)
+
+    def has_scope(self, access_token: str, action='view'):
+        scope_name = f"{action}-reverse-zone"
+        return eval_permission(access_token, self.resource_id, scope_name)
+
+    def save(self, *args, **kwargs):
+        sync_resource_to_keycloak(
+            self,
+            display_name="Reverse zone", resource_type="reverse-zone", scopes=[
+                'view-reverse-zone',
+                'edit-reverse-zone',
+                'delete-reverse-zone',
+            ],
+            urn="urn:as207960:hexdns:reverse_zone", super_save=super().save, view_name='edit_rzone',
+            args=args, kwargs=kwargs
+        )
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, *kwargs)
+        delete_resource(self.resource_id)
 
     class Meta:
         verbose_name = "Reverse DNS Zone"
@@ -96,10 +237,38 @@ class SecondaryDNSZone(models.Model):
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
+    resource_id = models.UUIDField(null=True)
+
+    @classmethod
+    def get_object_list(cls, access_token: str, action='view'):
+        return cls.objects.filter(pk__in=get_object_ids(access_token, 'secondary-zone', action))
+
+    @classmethod
+    def has_class_scope(cls, access_token: str, action='view'):
+        scope_name = f"{action}-secondary-zone"
+        return django_keycloak_auth.clients.get_authz_client() \
+            .eval_permission(access_token, f"secondary-zone", scope_name)
+
+    def has_scope(self, access_token: str, action='view'):
+        scope_name = f"{action}-secondary-zone"
+        return eval_permission(access_token, self.resource_id, scope_name)
 
     def save(self, *args, **kwargs):
         self.zone_root = self.zone_root.lower()
-        return super().save(*args, **kwargs)
+        sync_resource_to_keycloak(
+            self,
+            display_name="Secondary zone", resource_type="secondary-zone", scopes=[
+                'view-secondary-zone',
+                'edit-secondary-zone',
+                'delete-secondary-zone',
+            ],
+            urn="urn:as207960:hexdns:secondary_zone", super_save=super().save, view_name='view_szone',
+            args=args, kwargs=kwargs
+        )
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, *kwargs)
+        delete_resource(self.resource_id)
 
     class Meta:
         verbose_name = "Secondary DNS Zone"

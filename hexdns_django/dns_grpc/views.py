@@ -1503,7 +1503,6 @@ def delete_r_ns_record(request, record_id):
     )
 
 
-
 @login_required
 def import_zone_file(request, zone_id):
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
@@ -1792,7 +1791,6 @@ def update_ip(request):
     hostname = data.get("hostname")
     myip = data.get("myip")
 
-    print(hostname, f"{dyn_obj.record_name}.{dyn_obj.zone.zone_root}")
     if hostname != f"{dyn_obj.record_name}.{dyn_obj.zone.zone_root}":
         return HttpResponseBadRequest("nohost")
 

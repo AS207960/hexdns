@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 urlpatterns = [
@@ -232,4 +232,5 @@ urlpatterns = [
     path("delete_szone/<uuid:zone_id>/", views.delete_szone, name="delete_szone"),
     path("checkip", views.check_ip, name="check_ip"),
     path("nic/update", views.update_ip, name="update_ip"),
+    path('api/', include('dns_grpc.api.urls')),
 ]
