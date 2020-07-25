@@ -175,7 +175,7 @@ def edit_zone(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.has_scope(access_token, 'edit'):
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     dnssec_digest, dnssec_tag = make_zone_digest(user_zone.zone_root)
