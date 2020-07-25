@@ -95,21 +95,24 @@ def log_usage(user, extra=0):
 
 @login_required
 def zones(request):
-    user_zones = models.DNSZone.objects.filter(user=request.user)
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zones = models.DNSZone.get_object_list(access_token)
 
     return render(request, "dns_grpc/zones.html", {"zones": user_zones})
 
 
 @login_required
 def rzones(request):
-    user_zones = models.ReverseDNSZone.objects.filter(user=request.user)
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zones = models.ReverseDNSZone.get_object_list(access_token)
 
     return render(request, "dns_grpc/rzones.html", {"zones": user_zones})
 
 
 @login_required
 def szones(request):
-    user_zones = models.SecondaryDNSZone.objects.filter(user=request.user)
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zones = models.SecondaryDNSZone.get_object_list(access_token)
 
     return render(request, "dns_grpc/szones.html", {"zones": user_zones})
 
@@ -128,6 +131,11 @@ def valid_zone(zone_root_txt):
 
 @login_required
 def create_zone(request):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+
+    if not models.DNSZone.has_class_scope(access_token, 'create'):
+        raise PermissionDenied
+
     if request.method == "POST":
         form = forms.ZoneForm(request.POST)
         if form.is_valid():
@@ -164,9 +172,10 @@ def create_zone(request):
 
 @login_required
 def edit_zone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     dnssec_digest, dnssec_tag = make_zone_digest(user_zone.zone_root)
@@ -180,9 +189,10 @@ def edit_zone(request, zone_id):
 
 @login_required
 def delete_zone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'delete'):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
@@ -197,9 +207,10 @@ def delete_zone(request, zone_id):
 
 @login_required
 def edit_rzone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     zone_network = ipaddress.ip_network(
@@ -217,6 +228,11 @@ def edit_rzone(request, zone_id):
 
 @login_required
 def create_szone(request):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+
+    if not models.SecondaryDNSZone.has_class_scope(access_token, 'create'):
+        raise PermissionDenied
+
     if request.method == "POST":
         form = forms.SecondaryZoneForm(request.POST)
         if form.is_valid():
@@ -247,9 +263,10 @@ def create_szone(request):
 
 @login_required
 def view_szone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'view'):
         raise PermissionDenied
 
     return render(
@@ -261,9 +278,10 @@ def view_szone(request, zone_id):
 
 @login_required
 def edit_szone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -291,9 +309,10 @@ def edit_szone(request, zone_id):
 
 @login_required
 def delete_szone(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.SecondaryDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'delete'):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
@@ -308,9 +327,10 @@ def delete_szone(request, zone_id):
 
 @login_required
 def create_address_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -333,9 +353,10 @@ def create_address_record(request, zone_id):
 
 @login_required
 def edit_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.AddressRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -357,9 +378,10 @@ def edit_address_record(request, record_id):
 
 @login_required
 def delete_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.AddressRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -378,9 +400,10 @@ def delete_address_record(request, record_id):
 
 @login_required
 def create_dynamic_address_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -408,9 +431,10 @@ def create_dynamic_address_record(request, zone_id):
 
 @login_required
 def edit_dynamic_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DynamicAddressRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -432,9 +456,10 @@ def edit_dynamic_address_record(request, record_id):
 
 @login_required
 def delete_dynamic_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DynamicAddressRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -453,9 +478,10 @@ def delete_dynamic_address_record(request, record_id):
 
 @login_required
 def create_aname_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -478,9 +504,10 @@ def create_aname_record(request, zone_id):
 
 @login_required
 def edit_aname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ANAMERecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -502,9 +529,10 @@ def edit_aname_record(request, record_id):
 
 @login_required
 def delete_aname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ANAMERecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -523,9 +551,10 @@ def delete_aname_record(request, record_id):
 
 @login_required
 def create_cname_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -548,9 +577,10 @@ def create_cname_record(request, zone_id):
 
 @login_required
 def edit_cname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CNAMERecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -572,9 +602,10 @@ def edit_cname_record(request, record_id):
 
 @login_required
 def delete_cname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CNAMERecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -593,9 +624,10 @@ def delete_cname_record(request, record_id):
 
 @login_required
 def create_mx_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -618,9 +650,10 @@ def create_mx_record(request, zone_id):
 
 @login_required
 def edit_mx_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.MXRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -642,9 +675,10 @@ def edit_mx_record(request, record_id):
 
 @login_required
 def delete_mx_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.MXRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -663,9 +697,10 @@ def delete_mx_record(request, record_id):
 
 @login_required
 def create_ns_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -688,9 +723,10 @@ def create_ns_record(request, zone_id):
 
 @login_required
 def edit_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.NSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -712,9 +748,10 @@ def edit_ns_record(request, record_id):
 
 @login_required
 def delete_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.NSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -733,9 +770,10 @@ def delete_ns_record(request, record_id):
 
 @login_required
 def create_txt_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -758,9 +796,10 @@ def create_txt_record(request, zone_id):
 
 @login_required
 def edit_txt_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.TXTRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -782,9 +821,10 @@ def edit_txt_record(request, record_id):
 
 @login_required
 def delete_txt_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.TXTRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -803,9 +843,10 @@ def delete_txt_record(request, record_id):
 
 @login_required
 def create_srv_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -828,9 +869,10 @@ def create_srv_record(request, zone_id):
 
 @login_required
 def edit_srv_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SRVRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -852,9 +894,10 @@ def edit_srv_record(request, record_id):
 
 @login_required
 def delete_srv_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SRVRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -873,9 +916,10 @@ def delete_srv_record(request, record_id):
 
 @login_required
 def create_caa_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -898,9 +942,10 @@ def create_caa_record(request, zone_id):
 
 @login_required
 def edit_caa_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CAARecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -922,9 +967,10 @@ def edit_caa_record(request, record_id):
 
 @login_required
 def delete_caa_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CAARecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -943,9 +989,10 @@ def delete_caa_record(request, record_id):
 
 @login_required
 def create_naptr_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -968,9 +1015,10 @@ def create_naptr_record(request, zone_id):
 
 @login_required
 def edit_naptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.NAPTRRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -992,9 +1040,10 @@ def edit_naptr_record(request, record_id):
 
 @login_required
 def delete_naptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.NAPTRRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1013,9 +1062,10 @@ def delete_naptr_record(request, record_id):
 
 @login_required
 def create_sshfp_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1038,9 +1088,10 @@ def create_sshfp_record(request, zone_id):
 
 @login_required
 def edit_sshfp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SSHFPRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1062,9 +1113,10 @@ def edit_sshfp_record(request, record_id):
 
 @login_required
 def delete_sshfp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SSHFPRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1083,9 +1135,10 @@ def delete_sshfp_record(request, record_id):
 
 @login_required
 def create_ds_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1108,9 +1161,10 @@ def create_ds_record(request, zone_id):
 
 @login_required
 def edit_ds_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1132,9 +1186,10 @@ def edit_ds_record(request, record_id):
 
 @login_required
 def delete_ds_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1153,9 +1208,10 @@ def delete_ds_record(request, record_id):
 
 @login_required
 def create_loc_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1178,9 +1234,10 @@ def create_loc_record(request, zone_id):
 
 @login_required
 def edit_loc_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.LOCRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1202,9 +1259,10 @@ def edit_loc_record(request, record_id):
 
 @login_required
 def delete_loc_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.LOCRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1223,9 +1281,10 @@ def delete_loc_record(request, record_id):
 
 @login_required
 def create_hinfo_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1248,9 +1307,10 @@ def create_hinfo_record(request, zone_id):
 
 @login_required
 def edit_hinfo_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.HINFORecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1272,9 +1332,10 @@ def edit_hinfo_record(request, record_id):
 
 @login_required
 def delete_hinfo_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.HINFORecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1293,9 +1354,10 @@ def delete_hinfo_record(request, record_id):
 
 @login_required
 def create_rp_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1318,9 +1380,10 @@ def create_rp_record(request, zone_id):
 
 @login_required
 def edit_rp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.RPRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1342,9 +1405,10 @@ def edit_rp_record(request, record_id):
 
 @login_required
 def delete_rp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.RPRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1363,9 +1427,10 @@ def delete_rp_record(request, record_id):
 
 @login_required
 def create_r_ptr_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1389,9 +1454,10 @@ def create_r_ptr_record(request, zone_id):
 
 @login_required
 def edit_r_ptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.PTRRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1413,9 +1479,10 @@ def edit_r_ptr_record(request, record_id):
 
 @login_required
 def delete_r_ptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.PTRRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1434,9 +1501,10 @@ def delete_r_ptr_record(request, record_id):
 
 @login_required
 def create_r_ns_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
 
-    if user_zone.user != request.user:
+    if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1460,9 +1528,10 @@ def create_r_ns_record(request, zone_id):
 
 @login_required
 def edit_r_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ReverseNSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1484,9 +1553,10 @@ def edit_r_ns_record(request, record_id):
 
 @login_required
 def delete_r_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ReverseNSRecord, id=record_id)
 
-    if user_record.zone.user != request.user:
+    if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1505,9 +1575,10 @@ def delete_r_ns_record(request, record_id):
 
 @login_required
 def import_zone_file(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if zone_obj.user != request.user:
+    if not zone_obj.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1626,9 +1697,10 @@ def import_zone_file(request, zone_id):
 
 @login_required
 def generate_dmarc(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if zone_obj.user != request.user:
+    if not zone_obj.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":
@@ -1670,9 +1742,10 @@ def generate_dmarc(request, zone_id):
 
 @login_required
 def setup_gsuite(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if zone_obj.user != request.user:
+    if not zone_obj.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("setup") == "true":
@@ -1703,9 +1776,11 @@ def setup_gsuite(request, zone_id):
 
 @login_required
 def setup_github_pages(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
 
-    if zone_obj.user != request.user:
+
+    if not zone_obj.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
     if request.method == "POST":

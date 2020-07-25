@@ -113,13 +113,14 @@ class DNSZone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     zone_root = models.CharField(max_length=255)
     last_modified = models.DateTimeField()
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
-    )
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     resource_id = models.UUIDField(null=True)
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
@@ -165,13 +166,14 @@ class ReverseDNSZone(models.Model):
     zone_root_address = models.GenericIPAddressField()
     zone_root_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)])
     last_modified = models.DateTimeField()
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
-    )
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=True, blank=True)
     resource_id = models.UUIDField(null=True)
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
@@ -231,13 +233,14 @@ class SecondaryDNSZone(models.Model):
     zone_root = models.CharField(max_length=255)
     serial = models.PositiveIntegerField(null=True)
     primary = models.CharField(max_length=255)
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
-    )
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
     resource_id = models.UUIDField(null=True)
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
