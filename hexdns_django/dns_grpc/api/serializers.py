@@ -187,7 +187,7 @@ class NAPTRRecordSerializer(ZoneRecordSerializer):
 
     class Meta:
         model = models.NAPTRRecord
-        fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'order', 'preference', 'flags', 'services', 'regexp',
+        fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'order', 'preference', 'flags', 'service', 'regexp',
                   'replacement', 'ttl',)
         read_only_fields = ('id', 'zone',)
 
