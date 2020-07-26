@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.conf import settings
 from rest_framework_nested.relations import NestedHyperlinkedIdentityField
 import base64
 import ipaddress
@@ -311,7 +312,7 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         ret = super().to_representation(instance)
 
         dnssec_digest, dnssec_tag = views.make_zone_digest(instance.zone_root)
-        nums = grpc.pub_key.public_numbers()
+        nums = settings.DNSSEC_PUBKEY.public_numbers()
         pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {
             "key_tag": dnssec_tag,
@@ -377,7 +378,7 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         )
         zone_name = grpc.network_to_apra(zone_network)
         dnssec_digest, dnssec_tag = views.make_zone_digest(zone_name.label)
-        nums = grpc.pub_key.public_numbers()
+        nums = settings.DNSSEC_PUBKEY.public_numbers()
         pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {
             "key_tag": dnssec_tag,
