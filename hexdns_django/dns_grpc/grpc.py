@@ -1008,7 +1008,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
         if not len(records):
             address_records = models.AddressRecord.objects.filter(
-                address=str(addr), auto_reverse=True, zone__user=zone.user
+                address=str(addr), auto_reverse=True
             )
             if address_records:
                 for record in address_records:
