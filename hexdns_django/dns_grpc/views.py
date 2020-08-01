@@ -43,9 +43,10 @@ def make_zone_digest(zone_name: str):
 
 def log_usage(user, extra=0):
     client_token = django_keycloak_auth.clients.get_access_token()
-    user_zone_count = models.DNSZone.objects.filter(user=user, charged=True).count() \
-                      + models.SecondaryDNSZone.objects.filter(user=user, charged=True).count() \
-                      + models.ReverseDNSZone.objects.filter(user=user, charged=True).count() \
+    resources = django_keycloak_auth.clients.get_uma_client().resource_set_list(client_token, owner=user.username)
+    user_zone_count = models.DNSZone.objects.filter(resource_id__in=resources, charged=True).count() \
+                      + models.SecondaryDNSZone.objects.filter(resource_id__in=resources, charged=True).count() \
+                      + models.ReverseDNSZone.objects.filter(resource_id__in=resources, charged=True).count() \
                       + extra
     if not user.account.subscription_id:
         r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{user.username}/", json={
