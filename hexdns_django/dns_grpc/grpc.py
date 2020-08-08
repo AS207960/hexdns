@@ -759,7 +759,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             buffer.encode_name(dnslib.DNSLabel(zone_root))
             rd.pack(buffer)
             digest = hashlib.sha256(buffer.data).digest()
-            tag = make_key_tag(pub_key)
+            tag = make_key_tag(pub_key, flags=257)
             ds_data = bytearray(struct.pack("!HBB", tag, 13, 2))
             ds_data.extend(digest)
             dns_res.add_answer(

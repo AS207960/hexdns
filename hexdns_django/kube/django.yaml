@@ -170,8 +170,8 @@ spec:
               configMap:
                 name: hexdns-key-pub
             - name: domains-pubkey
-                configMap:
-                  name: domains-jwt-pub
+              configMap:
+                name: domains-jwt-pub
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -225,8 +225,8 @@ spec:
               configMap:
                 name: hexdns-key-pub
             - name: domains-pubkey
-                configMap:
-                  name: domains-jwt-pub
+              configMap:
+                name: domains-jwt-pub
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -293,8 +293,8 @@ spec:
           secret:
             secretName: hexdns-key-priv
         - name: domains-pubkey
-            configMap:
-              name: domains-jwt-pub
+          configMap:
+            name: domains-jwt-pub
       containers:
         - name: grpc
           image: as207960/hexdns-django:(version)
