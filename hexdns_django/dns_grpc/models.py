@@ -153,6 +153,9 @@ class DNSZone(models.Model):
         super().delete(*args, *kwargs)
         delete_resource(self.resource_id)
 
+    def get_user(self):
+        return get_resource_owner(self.resource_id)
+
     class Meta:
         verbose_name = "DNS Zone"
         verbose_name_plural = "DNS Zones"
@@ -204,6 +207,9 @@ class ReverseDNSZone(models.Model):
     def delete(self, *args, **kwargs):
         super().delete(*args, *kwargs)
         delete_resource(self.resource_id)
+
+    def get_user(self):
+        return get_resource_owner(self.resource_id)
 
     class Meta:
         verbose_name = "Reverse DNS Zone"
@@ -272,6 +278,9 @@ class SecondaryDNSZone(models.Model):
     def delete(self, *args, **kwargs):
         super().delete(*args, *kwargs)
         delete_resource(self.resource_id)
+
+    def get_user(self):
+        return get_resource_owner(self.resource_id)
 
     class Meta:
         verbose_name = "Secondary DNS Zone"

@@ -15,3 +15,5 @@ publicsuffixlist
 retry
 django-rest-framework
 drf-nested-routers
+pyjwt
+cryptography

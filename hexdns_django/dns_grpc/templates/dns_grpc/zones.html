@@ -5,7 +5,10 @@
             <div class="jumbotron">
                 <h1 class="display-4">My zones</h1>
                 <hr class="my-4">
-                <a class="btn btn-primary btn-lg" href="{% url 'create_zone' %}" role="button">Create a new zone</a>
+                <div class="btn-group">
+                    <a class="btn btn-primary btn-lg" href="{% url 'create_zone' %}" role="button">Create a new zone</a>
+                    <a class="btn btn-secondary btn-lg" href="{% url 'create_domain_zone_list' %}" role="button">Setup Glauca Domain</a>
+                </div>
             </div>
         </div>
     </section>
@@ -34,7 +37,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="5">No zones</td>
+                        <td colspan="3">No zones</td>
                     </tr>
                 {% endif %}
                 </tbody>

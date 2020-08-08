@@ -165,9 +165,13 @@ CRISPY_TEMPLATE_PACK = "bootstrap4"
 
 DNSSEC_KEY_LOCATION = os.getenv("DNSSEC_KEY_LOCATION")
 DNSSEC_PUBKEY_LOCATION = os.getenv("DNSSEC_PUBKEY_LOCATION")
+DOMAINS_PUBKEY_LOCATION = os.getenv("DOMAINS_PUBKEY_LOCATION")
 
 with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
     pub_key_data = f.read()
+
+with open(DOMAINS_PUBKEY_LOCATION, "rb") as f:
+    DOMAINS_JWT_PUB = f.read()
 
 DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
 if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
@@ -175,6 +179,8 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
 
 XFF_TRUSTED_PROXY_DEPTH = 2
 XFF_STRICT = True
+
+DOMAINS_URL = os.getenv("DOMAINS_URL")
 
 BILLING_URL = os.getenv("BILLING_URL")
 BILLING_PLAN_ID = os.getenv("BILLING_PLAN_ID")

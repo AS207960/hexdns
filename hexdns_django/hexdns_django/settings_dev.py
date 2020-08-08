@@ -154,11 +154,15 @@ DNSSEC_PUBKEY_LOCATION = "secrets/p.pem"
 with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
     pub_key_data = f.read()
 
+with open("domains_jwt_pub.pem", "rb") as f:
+    DOMAINS_JWT_PUB = f.read()
+
 DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
 if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
 
 BILLING_URL = "http://localhost:8001"
+DOMAINS_URL = "http://localhost:8000"
 BILLING_PLAN_ID = "0021a973-35c2-4f92-b1d0-167b97717bae"
 
 RESOLVER_ADDR = "2a0d:1a40:7900::2"

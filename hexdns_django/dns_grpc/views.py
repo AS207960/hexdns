@@ -7,6 +7,7 @@ import uuid
 import django_keycloak_auth.clients
 import dnslib
 import requests
+import jwt
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -14,7 +15,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.safestring import mark_safe
@@ -41,7 +42,7 @@ def make_zone_digest(zone_name: str):
     return digest, tag
 
 
-def log_usage(user, extra=0):
+def log_usage(user, extra=0, can_reject=True):
     client_token = django_keycloak_auth.clients.get_access_token()
     resources = django_keycloak_auth.clients.get_uma_client().resource_set_list(client_token, owner=user.username)
     user_zone_count = models.DNSZone.objects.filter(resource_id__in=resources, charged=True).count() \
@@ -51,7 +52,8 @@ def log_usage(user, extra=0):
     if not user.account.subscription_id:
         r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{user.username}/", json={
             "plan_id": settings.BILLING_PLAN_ID,
-            "initial_usage": user_zone_count
+            "initial_usage": user_zone_count,
+            "can_reject": can_reject
         }, headers={
             "Authorization": f"Bearer {client_token}"
         })
@@ -77,7 +79,8 @@ def log_usage(user, extra=0):
     else:
         r = requests.post(
             f"{settings.BILLING_URL}/log_usage/{user.account.subscription_id}/", json={
-                "usage": user_zone_count
+                "usage": user_zone_count,
+                "can_reject": can_reject
             }, headers={
                 "Authorization": f"Bearer {client_token}"
             }
@@ -168,6 +171,85 @@ def create_zone(request):
 
     return render(request, "dns_grpc/create_zone.html", {
         "form": form
+    })
+
+
+@login_required
+def create_domains_zone(request):
+    client_token = django_keycloak_auth.clients.get_access_token()
+    referrer = request.META.get("HTTP_REFERER")
+    referrer = referrer if referrer else reverse('zones')
+
+    try:
+        domain_token = jwt.decode(
+            request.GET.get("domain_token"), settings.DOMAINS_JWT_PUB, issuer='urn:as207960:domains',
+            audience='urn:as207960:hexdns', options={'require': ['exp', 'iss', 'sub', 'domain']}, algorithms='ES384'
+        )
+    except jwt.exceptions.InvalidTokenError as e:
+        return render(request, "dns_grpc/error.html", {
+            "error": str(e),
+            "back_url": referrer
+        })
+
+    if request.user.username != domain_token["sub"]:
+        return render(request, "dns_grpc/error.html", {
+            "error": "Token not for this user",
+            "back_url": referrer
+        })
+
+    zone_root = domain_token["domain"].lower()
+    zone_error = valid_zone(zone_root)
+    if zone_error:
+        return render(request, "dns_grpc/error.html", {
+            "error": zone_error,
+            "back_url": referrer
+        })
+
+    r = requests.post(
+        f"{settings.DOMAINS_URL}/api/internal/domains/{domain_token['domain_id']}/set_dns/",
+        headers={
+            "Authorization": f"Bearer {client_token}"
+        }
+    )
+    r.raise_for_status()
+
+    priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
+    priv_key_bytes = priv_key.private_bytes(
+        encoding=Encoding.PEM,
+        format=PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=NoEncryption()
+    ).decode()
+    zone_obj = models.DNSZone(
+        zone_root=domain_token["domain"],
+        last_modified=timezone.now(),
+        user=request.user,
+        zsk_private=priv_key_bytes,
+        charged=False
+    )
+    zone_obj.save()
+    return redirect('edit_zone', zone_obj.id)
+
+
+@login_required
+def create_domain_zone_list(request):
+    client_token = django_keycloak_auth.clients.get_access_token()
+    r = requests.get(
+        f"{settings.DOMAINS_URL}/api/internal/domains/{request.user.username}/all",
+        headers={
+            "Authorization": f"Bearer {client_token}"
+        }
+    )
+    r.raise_for_status()
+    data = r.json()
+
+    domains = []
+    for domain in data["domains"]:
+        zone_error = valid_zone(domain["domain"])
+        domain["error"] = zone_error
+        domains.append(domain)
+
+    return render(request, "dns_grpc/domain_zones.html", {
+        "domains": domains
     })
 
 
