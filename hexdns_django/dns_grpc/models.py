@@ -111,7 +111,7 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 class DNSZone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    zone_root = models.CharField(max_length=255)
+    zone_root = models.CharField(max_length=255, db_index=True)
     last_modified = models.DateTimeField()
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
@@ -166,8 +166,8 @@ class DNSZone(models.Model):
 
 class ReverseDNSZone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    zone_root_address = models.GenericIPAddressField()
-    zone_root_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)])
+    zone_root_address = models.GenericIPAddressField(db_index=True)
+    zone_root_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)], db_index=True)
     last_modified = models.DateTimeField()
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
@@ -236,7 +236,7 @@ class ReverseDNSZone(models.Model):
 
 class SecondaryDNSZone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    zone_root = models.CharField(max_length=255)
+    zone_root = models.CharField(max_length=255, db_index=True)
     serial = models.PositiveIntegerField(null=True)
     primary = models.CharField(max_length=255)
     charged = models.BooleanField(default=True, blank=True)
@@ -302,6 +302,7 @@ class SecondaryDNSZoneRecord(models.Model):
         verbose_name = "Secondary DNS Zone Record"
         verbose_name_plural = "Secondary DNS Zones Record"
         ordering = ('record_name', 'rtype')
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def __str__(self):
         return f"{self.record_name} IN {self.rtype_name} {self.ttl}"
@@ -325,6 +326,7 @@ class DNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def __str__(self):
         return self.record_name
@@ -338,6 +340,7 @@ class ReverseDNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
+        indexes = [models.Index(fields=['record_address', 'zone'])]
 
     def clean(self):
         zone_network = ipaddress.ip_network(
