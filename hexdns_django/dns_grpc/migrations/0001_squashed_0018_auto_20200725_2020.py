@@ -8,9 +8,6 @@ import uuid
 
 
 class Migration(migrations.Migration):
-
-    replaces = [('dns_grpc', '0001_initial'), ('dns_grpc', '0002_auto_20200510_1013'), ('dns_grpc', '0003_dsrecord'), ('dns_grpc', '0004_auto_20200510_1300'), ('dns_grpc', '0005_reversednszone_zsk_private'), ('dns_grpc', '0006_auto_20200512_1324'), ('dns_grpc', '0007_account'), ('dns_grpc', '0008_auto_20200521_0917'), ('dns_grpc', '0009_auto_20200521_1040'), ('dns_grpc', '0010_secondarydnszone'), ('dns_grpc', '0011_secondarydnszone_primary'), ('dns_grpc', '0012_secondarydnszonerecord'), ('dns_grpc', '0013_auto_20200626_1006'), ('dns_grpc', '0014_anamerecord'), ('dns_grpc', '0015_reversensrecord'), ('dns_grpc', '0016_hinforecord_locrecord_rprecord'), ('dns_grpc', '0017_auto_20200725_1446'), ('dns_grpc', '0018_auto_20200725_2020')]
-
     initial = True
 
     dependencies = [
