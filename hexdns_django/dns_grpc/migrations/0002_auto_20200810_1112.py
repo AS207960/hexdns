@@ -41,6 +41,58 @@ class Migration(migrations.Migration):
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_ad_record__22ca60_idx'),
         ),
         migrations.AddIndex(
+            model_name='anemerecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_an_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='caarecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_ca_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='cnamerecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_cn_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='dsrecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_ds_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='hinforecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_hi_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='locrecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_lo_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='mxrecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_mx_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='naptrrecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_na_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='nsrecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_ns_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='rprecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_rp_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='srvecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_sr_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='sshfpecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_sp_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='txtpecord',
+            index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_tx_record__22ca60_idx'),
+        ),
+        migrations.AddIndex(
             model_name='dynamicaddressrecord',
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_dy_record__ef57a3_idx'),
         ),
