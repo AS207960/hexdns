@@ -3,6 +3,7 @@ from django.conf import settings
 from rest_framework_nested.relations import NestedHyperlinkedIdentityField
 import base64
 import ipaddress
+import collections
 from .. import models, views, grpc
 
 
@@ -45,6 +46,46 @@ class WriteOnceMixin:
             fields[field_name].read_only = False
 
 
+class PermissionPrimaryKeyRelatedFieldValidator:
+    requires_context = True
+
+    def __call__(self, value, ctx):
+        if not value.has_scope(ctx.auth_token, 'view'):
+            raise serializers.ValidationError("you don't have permission to reference this object")
+
+
+class PermissionPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    def __init__(self, model, **kwargs):
+        self.model = model
+        self.auth_token = None
+        super().__init__(queryset=model.objects.all(), **kwargs)
+
+    def get_choices(self, cutoff=None):
+        if self.auth_token:
+            queryset = self.model.get_object_list(self.auth_token)
+        else:
+            queryset = self.get_queryset()
+
+        if queryset is None:
+            return {}
+
+        if cutoff is not None:
+            queryset = queryset[:cutoff]
+
+        return collections.OrderedDict([
+            (
+                self.to_representation(item),
+                self.display_value(item)
+            )
+            for item in queryset
+        ])
+
+    def get_validators(self):
+        validators = super().get_validators()
+        validators.append(PermissionPrimaryKeyRelatedFieldValidator())
+        return validators
+
+
 class ZoneRecordSerializer(WriteOnceMixin, serializers.ModelSerializer):
     zone_url = serializers.HyperlinkedRelatedField(
         view_name='dnszone-detail',
@@ -53,183 +94,182 @@ class ZoneRecordSerializer(WriteOnceMixin, serializers.ModelSerializer):
     )
 
 
-class AddressRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-addressrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class AddressRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='addressrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.AddressRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'address', 'auto_reverse', 'ttl',)
-        read_only_fields = ('id', 'zone')
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class DynamicRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-dynamicaddressrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class DynamicRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='dynamicaddressrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.DynamicAddressRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'current_ipv4', 'current_ipv6', 'password', 'ttl',)
-        read_only_fields = ('id', 'zone', 'current_ipv4', 'current_ipv6', 'password')
+        read_only_fields = ('id', 'current_ipv4', 'current_ipv6', 'password')
+        write_once_fields = ('zone',)
 
 
-class ANAMERecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-anamerecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class ANAMERecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='anamerecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.ANAMERecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'alias', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class CNAMERecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-cnamerecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class CNAMERecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='cnamerecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.CNAMERecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'alias', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class MXRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-mxrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class MXRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='mxrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.MXRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'exchange', 'priority', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class NSRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-nsrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class NSRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='nsrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.NSRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'nameserver', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class TXTRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-txtrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class TXTRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='txtrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.TXTRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'data', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class SRVRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-srvrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class SRVRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='srvrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.SRVRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'priority', 'weight', 'port', 'target', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class CAARecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-caarecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class CAARecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='caarecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.CAARecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'flag', 'tag', 'value', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class NAPTRRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-naptrrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class NAPTRRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='naptrrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.NAPTRRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'order', 'preference', 'flags', 'service', 'regexp',
                   'replacement', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class SSHFPRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-sshfprecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class SSHFPRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='sshfprecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.SSHFPRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'host_key', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class DSRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-dsrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class DSRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='dsrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.DSRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'key_tag', 'algorithm', 'digest_type', 'digest',
                   'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class LOCRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-locrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class LOCRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='locrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.LOCRecord
@@ -238,32 +278,32 @@ class LOCRecordSerializer(ZoneRecordSerializer):
         read_only_fields = ('id', 'zone',)
 
 
-class HINFORecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-hinforecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class HINFORecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='hinforecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.HINFORecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'cpu', 'os', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class RPRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='dnszone-rprecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class RPRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='rprecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
     )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
 
     class Meta:
         model = models.RPRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'mailbox', 'txt', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
 class DNSSECKeySerializer(serializers.Serializer):
@@ -330,32 +370,42 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         return ret
 
 
-class PTRRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='reversednszone-ptrrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class PTRRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='reverse-ptrrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
+    )
+    zone = PermissionPrimaryKeyRelatedField(model=models.ReverseDNSZone)
+    zone_url = serializers.HyperlinkedRelatedField(
+        source='zone',
+        view_name='reversednszone-detail',
+        read_only=True,
     )
 
     class Meta:
         model = models.PTRRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_address', 'pointer', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
-class ReverseNSRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='reversednszone-nsrecord-detail',
-        lookup_url_kwarg='dnszone_pk',
+class ReverseNSRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='reverse-nsrecord-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
+    )
+    zone = PermissionPrimaryKeyRelatedField(model=models.ReverseDNSZone)
+    zone_url = serializers.HyperlinkedRelatedField(
+        source='zone',
+        view_name='reversednszone-detail',
+        read_only=True,
     )
 
     class Meta:
         model = models.ReverseNSRecord
         fields = ('url', 'id', 'zone', 'zone_url', 'record_address', 'record_prefix', 'nameserver', 'ttl',)
-        read_only_fields = ('id', 'zone',)
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
 
 
 class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
@@ -397,11 +447,15 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
 
 
 class SecondaryDNSZoneRecordSerializer(ZoneRecordSerializer):
-    url = NestedHyperlinkedIdentityField(
-        view_name='secondarydnszone-record-detail',
-        lookup_url_kwarg='dnszone_pk',
+    url = serializers.HyperlinkedIdentityField(
+        view_name='secondary-record-detail',
         read_only=True,
-        parent_lookup_kwargs={'dnszone_pk': 'zone__pk', 'pk': 'pk'}
+    )
+    zone = PermissionPrimaryKeyRelatedField(model=models.SecondaryDNSZone)
+    zone_url = serializers.HyperlinkedRelatedField(
+        source='zone',
+        view_name='secondarydnszone-detail',
+        read_only=True,
     )
 
     class Meta:

@@ -138,7 +138,7 @@ class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
 
 class DNSZoneRecordViewSet(viewsets.ModelViewSet):
     model_class: models.models.Model
-    permission_classes = [permissions.zone_keycloak(models.DNSZone)]
+    permission_classes = [permissions.zone_keycloak()]
 
     def get_queryset(self):
         return self.model_class.objects.all()
@@ -147,10 +147,37 @@ class DNSZoneRecordViewSet(viewsets.ModelViewSet):
         if not isinstance(self.request.auth, auth.OAuthToken):
             raise PermissionDenied
 
-        return self.model_class.objects.filter(zone=self.kwargs['dnszone_pk'])
+        zones = models.DNSZone.get_object_list(self.request.auth.token)
+        return self.model_class.objects.filter(zone__in=zones)
 
     def perform_create(self, serializer):
-        serializer.save(zone_id=self.kwargs['dnszone_pk'])
+        serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.instance.zone.last_modified = timezone.now()
+        serializer.instance.zone.save()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+
+class ReverseDNSZoneRecordViewSet(viewsets.ModelViewSet):
+    model_class: models.models.Model
+    permission_classes = [permissions.zone_keycloak()]
+
+    def get_queryset(self):
+        return self.model_class.objects.all()
+
+    def filter_queryset(self, queryset):
+        if not isinstance(self.request.auth, auth.OAuthToken):
+            raise PermissionDenied
+
+        zones = models.ReverseDNSZone.get_object_list(self.request.auth.token)
+        return self.model_class.objects.filter(zone__in=zones)
+
+    def perform_create(self, serializer):
+        serializer.save()
 
     def perform_update(self, serializer):
         serializer.instance.zone.last_modified = timezone.now()
@@ -171,7 +198,7 @@ class DynamicAddressRecordViewSet(DNSZoneRecordViewSet):
     serializer_class = serializers.DynamicRecordSerializer
 
     def perform_create(self, serializer):
-        serializer.save(zone_id=self.kwargs['dnszone_pk'], password=secrets.token_hex(32))
+        serializer.save(password=secrets.token_hex(32))
 
 
 class ANAMERecordViewSet(DNSZoneRecordViewSet):
@@ -239,29 +266,24 @@ class RPRecordViewSet(DNSZoneRecordViewSet):
     serializer_class = serializers.RPRecordSerializer
 
 
-class PTRRecordViewSet(DNSZoneRecordViewSet):
+class PTRRecordViewSet(ReverseDNSZoneRecordViewSet):
     model_class = models.PTRRecord
     serializer_class = serializers.PTRRecordSerializer
 
 
-class ReverseNSRecordViewSet(DNSZoneRecordViewSet):
+class ReverseNSRecordViewSet(ReverseDNSZoneRecordViewSet):
     model_class = models.ReverseNSRecord
     serializer_class = serializers.ReverseNSRecordSerializer
 
 
 class SecondaryRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [permissions.zone_keycloak()]
     queryset = models.SecondaryDNSZoneRecord.objects.all()
     serializer_class = serializers.SecondaryDNSZoneRecordSerializer
-    permission_classes = [permissions.zone_keycloak(models.DNSZone)]
 
     def filter_queryset(self, queryset):
         if not isinstance(self.request.auth, auth.OAuthToken):
             raise PermissionDenied
 
-        return models.SecondaryDNSZoneRecord.objects.filter(zone=self.kwargs['dnszone_pk'])
-
-    def perform_create(self, serializer):
-        serializer.save(zone_id=self.kwargs['dnszone_pk'])
-
-    def perform_destroy(self, instance):
-        instance.delete()
+        zones = models.SecondaryDNSZone.get_object_list(self.request.auth.token)
+        return models.SecondaryDNSZoneRecord.objects.filter(zone__in=zones)

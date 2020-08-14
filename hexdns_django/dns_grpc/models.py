@@ -1,4 +1,6 @@
 from django.db import models
+from django import forms
+from django.core import exceptions
 from django.conf import settings
 from django.shortcuts import reverse
 from django.contrib.auth import get_user_model
@@ -15,7 +17,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 
 
-def sync_resource_to_keycloak(self, display_name, resource_type, scopes, urn, view_name, super_save, args, kwargs):
+def sync_resource_to_keycloak(self, display_name, scopes, urn, view_name, super_save, args, kwargs):
     uma_client = django_keycloak_auth.clients.get_uma_client()
     token = django_keycloak_auth.clients.get_access_token()
     created = False
@@ -25,7 +27,7 @@ def sync_resource_to_keycloak(self, display_name, resource_type, scopes, urn, vi
     super_save(*args, **kwargs)
 
     create_kwargs = {
-        "name": f"{resource_type}_{self.id}",
+        "name": self.id,
         "displayName": f"{display_name}: {str(self)}",
         "ownerManagedAccess": True,
         "scopes": scopes,
@@ -94,6 +96,82 @@ def get_resource_owner(resource_id):
     return user
 
 
+class TypedUUIDField(models.Field):
+    def __init__(self, data_type, **kwargs):
+        self.data_type = data_type
+        kwargs["default"] = self.default_value
+        super().__init__(**kwargs)
+
+    def default_value(self):
+        val = uuid.uuid4()
+        return f"{self.data_type}_{val.hex}"
+
+    def deconstruct(self):
+        name, path, args, kwargs = super().deconstruct()
+        kwargs["data_type"] = self.data_type
+        del kwargs["default"]
+        return name, path, args, kwargs
+
+    def db_type(self, connection):
+        return 'uuid'
+
+    def get_internal_type(self):
+        return 'CharField'
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        uuid_value = self._to_uuid(value)
+        return f"{self.data_type}_{uuid_value.hex}"
+
+    def _to_uuid(self, value):
+        if isinstance(value, uuid.UUID):
+            uuid_value = value
+        else:
+            prefix = f"{self.data_type}_"
+            if value.startswith(prefix):
+                act_value = value[len(prefix):]
+            else:
+                act_value = value
+
+            try:
+                uuid_value = uuid.UUID(act_value)
+            except (AttributeError, ValueError):
+                raise exceptions.ValidationError(
+                    '“%(value)s” is not a valid ID.',
+                    code='invalid',
+                    params={'value': value},
+                )
+
+        return uuid_value
+
+    def to_python(self, value):
+        if value is None:
+            return value
+
+        return f"{self.data_type}_{self._to_uuid(value).hex}"
+
+    def get_prep_value(self, value):
+        value = super().get_prep_value(value)
+        return self._to_uuid(value)
+
+    def get_db_prep_value(self, value, connection, prepared=False):
+        if value is None:
+            return None
+
+        value = self._to_uuid(value)
+
+        if connection.features.has_native_uuid_field:
+            return value
+        return value.hex
+
+    def formfield(self, **kwargs):
+        return super().formfield(**{
+            'form_class': forms.CharField,
+            **kwargs,
+        })
+
+
 class Account(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     subscription_id = models.UUIDField(blank=True, null=True)
@@ -110,7 +188,7 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 
 class DNSZone(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = TypedUUIDField("hexdns_zone", primary_key=True)
     zone_root = models.CharField(max_length=255, db_index=True)
     last_modified = models.DateTimeField()
     zsk_private = models.TextField(blank=True, null=True)
@@ -140,7 +218,7 @@ class DNSZone(models.Model):
         self.zone_root = self.zone_root.lower()
         sync_resource_to_keycloak(
             self,
-            display_name="Zone", resource_type="zone", scopes=[
+            display_name="Zone", scopes=[
                 'view-zone',
                 'edit-zone',
                 'delete-zone',
@@ -165,7 +243,7 @@ class DNSZone(models.Model):
 
 
 class ReverseDNSZone(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = TypedUUIDField("hexdns_rzone", primary_key=True)
     zone_root_address = models.GenericIPAddressField(db_index=True)
     zone_root_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)], db_index=True)
     last_modified = models.DateTimeField()
@@ -195,7 +273,7 @@ class ReverseDNSZone(models.Model):
     def save(self, *args, **kwargs):
         sync_resource_to_keycloak(
             self,
-            display_name="Reverse zone", resource_type="reverse-zone", scopes=[
+            display_name="Reverse zone", scopes=[
                 'view-reverse-zone',
                 'edit-reverse-zone',
                 'delete-reverse-zone',
@@ -235,7 +313,7 @@ class ReverseDNSZone(models.Model):
 
 
 class SecondaryDNSZone(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = TypedUUIDField("hexdns_szone", primary_key=True)
     zone_root = models.CharField(max_length=255, db_index=True)
     serial = models.PositiveIntegerField(null=True)
     primary = models.CharField(max_length=255)
@@ -266,7 +344,7 @@ class SecondaryDNSZone(models.Model):
         self.zone_root = self.zone_root.lower()
         sync_resource_to_keycloak(
             self,
-            display_name="Secondary zone", resource_type="secondary-zone", scopes=[
+            display_name="Secondary zone", scopes=[
                 'view-secondary-zone',
                 'edit-secondary-zone',
                 'delete-secondary-zone',
@@ -291,7 +369,7 @@ class SecondaryDNSZone(models.Model):
 
 
 class SecondaryDNSZoneRecord(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = TypedUUIDField("hexdns_szonerecord", primary_key=True)
     zone = models.ForeignKey(SecondaryDNSZone, on_delete=models.CASCADE)
     record_name = models.CharField(max_length=255)
     ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)")
@@ -313,7 +391,6 @@ class SecondaryDNSZoneRecord(models.Model):
 
 
 class DNSZoneRecord(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
     record_name = models.CharField(
         max_length=255, default="@", verbose_name="Record name (@ for zone root)"
@@ -333,7 +410,6 @@ class DNSZoneRecord(models.Model):
 
 
 class ReverseDNSZoneRecord(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
     record_address = models.GenericIPAddressField()
     ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
@@ -354,6 +430,7 @@ class ReverseDNSZoneRecord(models.Model):
 
 
 class AddressRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zoneaddressrecord", primary_key=True)
     address = models.GenericIPAddressField(verbose_name="Address (IPv4/IPv6)")
     auto_reverse = models.BooleanField(
         default=False, verbose_name="Automatically serve reverse PTR records"
@@ -361,12 +438,14 @@ class AddressRecord(DNSZoneRecord):
 
 
 class DynamicAddressRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonedynamicaddressrecord", primary_key=True)
     current_ipv4 = models.GenericIPAddressField(protocol='ipv4', blank=True, null=True)
     current_ipv6 = models.GenericIPAddressField(protocol='ipv6', blank=True, null=True)
     password = models.CharField(max_length=255)
 
 
 class ANAMERecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zoneanamerecord", primary_key=True)
     alias = models.CharField(max_length=255)
 
     def save(self, *args, **kwargs):
@@ -379,6 +458,7 @@ class ANAMERecord(DNSZoneRecord):
 
 
 class CNAMERecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonecnamerecord", primary_key=True)
     alias = models.CharField(max_length=255)
 
     def save(self, *args, **kwargs):
@@ -391,6 +471,7 @@ class CNAMERecord(DNSZoneRecord):
 
 
 class MXRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonemxrecord", primary_key=True)
     exchange = models.CharField(max_length=255)
     priority = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
 
@@ -404,6 +485,7 @@ class MXRecord(DNSZoneRecord):
 
 
 class NSRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonensrecord", primary_key=True)
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
 
     def save(self, *args, **kwargs):
@@ -416,6 +498,7 @@ class NSRecord(DNSZoneRecord):
 
 
 class TXTRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonetxtrecord", primary_key=True)
     data = models.TextField()
 
     class Meta:
@@ -424,6 +507,7 @@ class TXTRecord(DNSZoneRecord):
 
 
 class SRVRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonesrvrecord", primary_key=True)
     priority = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     weight = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     port = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
@@ -435,6 +519,7 @@ class SRVRecord(DNSZoneRecord):
 
 
 class CAARecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonecaarecord", primary_key=True)
     flag = models.PositiveIntegerField(validators=[MaxValueValidator(255)])
     tag = models.CharField(max_length=255)
     value = models.CharField(max_length=255)
@@ -458,6 +543,7 @@ class NAPTRRecord(DNSZoneRecord):
 
 
 class SSHFPRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonesshfprecord", primary_key=True)
     host_key = models.TextField(verbose_name="Host key (from /etc/ssh/ssh_host_ed25519_key.pub etc.)")
 
     @property
@@ -481,6 +567,7 @@ class SSHFPRecord(DNSZoneRecord):
 
 
 class DSRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonedsrecord", primary_key=True)
     ALGORITHMS = (
         (5, "RSA/SHA-1 (5) INSECURE"),
         (7, "RSASHA1-NSEC3-SHA1 (7) INSECURE"),
@@ -520,6 +607,7 @@ class DSRecord(DNSZoneRecord):
 
 
 class LOCRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonelocrecord", primary_key=True)
     latitude = models.FloatField(
         validators=[MaxValueValidator(90), MinValueValidator(-90)], verbose_name="Latitude (deg)"
     )
@@ -545,6 +633,7 @@ class LOCRecord(DNSZoneRecord):
 
 
 class HINFORecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonehinforecord", primary_key=True)
     cpu = models.CharField(max_length=255, verbose_name="CPU")
     os = models.CharField(max_length=255, verbose_name="OS")
 
@@ -554,6 +643,7 @@ class HINFORecord(DNSZoneRecord):
 
 
 class RPRecord(DNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_zonerprecord", primary_key=True)
     mailbox = models.CharField(max_length=255)
     txt = models.CharField(max_length=255)
 
@@ -568,6 +658,7 @@ class RPRecord(DNSZoneRecord):
 
 
 class PTRRecord(ReverseDNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_rzoneptrrecord", primary_key=True)
     pointer = models.CharField(max_length=255)
 
     def save(self, *args, **kwargs):
@@ -580,6 +671,7 @@ class PTRRecord(ReverseDNSZoneRecord):
 
 
 class ReverseNSRecord(ReverseDNSZoneRecord):
+    id = TypedUUIDField(f"hexdns_rzonensrecord", primary_key=True)
     record_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)])
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
 
