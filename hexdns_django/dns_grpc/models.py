@@ -63,11 +63,8 @@ def get_object_ids(access_token, resource_type, action):
     scope_name = f"{action}-{resource_type}"
     permissions = django_keycloak_auth.clients.get_authz_client().get_permissions(access_token)
     permissions = permissions.get("permissions", [])
-    permissions = filter(
-        lambda p: scope_name in p.get('scopes', []) and p.get('rsname', "").startswith(f"{resource_type}_"),
-        permissions
-    )
-    object_ids = list(map(lambda p: p['rsname'][len(f"{resource_type}_"):], permissions))
+    permissions = filter(lambda p: scope_name in p.get('scopes', []), permissions)
+    object_ids = list(map(lambda p: p['rsid'], permissions))
     return object_ids
 
 
@@ -194,7 +191,7 @@ class DNSZone(models.Model):
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
-    resource_id = models.UUIDField(null=True)
+    resource_id = models.UUIDField(null=True, db_index=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -202,7 +199,7 @@ class DNSZone(models.Model):
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
-        return cls.objects.filter(pk__in=get_object_ids(access_token, 'zone', action))
+        return cls.objects.filter(resource_id__in=get_object_ids(access_token, 'zone', action))
 
     @classmethod
     def has_class_scope(cls, access_token: str, action='view'):
@@ -250,7 +247,7 @@ class ReverseDNSZone(models.Model):
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=True, blank=True)
-    resource_id = models.UUIDField(null=True)
+    resource_id = models.UUIDField(null=True, db_index=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -258,7 +255,7 @@ class ReverseDNSZone(models.Model):
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
-        return cls.objects.filter(pk__in=get_object_ids(access_token, 'reverse-zone', action))
+        return cls.objects.filter(resource_id__in=get_object_ids(access_token, 'reverse-zone', action))
 
     @classmethod
     def has_class_scope(cls, access_token: str, action='view'):
@@ -320,7 +317,7 @@ class SecondaryDNSZone(models.Model):
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
-    resource_id = models.UUIDField(null=True)
+    resource_id = models.UUIDField(null=True, db_index=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -328,7 +325,7 @@ class SecondaryDNSZone(models.Model):
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
-        return cls.objects.filter(pk__in=get_object_ids(access_token, 'secondary-zone', action))
+        return cls.objects.filter(resource_id__in=get_object_ids(access_token, 'secondary-zone', action))
 
     @classmethod
     def has_class_scope(cls, access_token: str, action='view'):
