@@ -249,7 +249,7 @@ class DNSZoneRecord(models.Model):
         abstract = True
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
-    @@property
+    @property
     def dns_label(self):
         if self.record_name == "@":
             return dnslib.DNSLabel(self.zone.zone_root)
