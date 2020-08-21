@@ -179,8 +179,8 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser'
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'dns_grpc.api.auth.BearerAuthentication',
-        'dns_grpc.api.auth.SessionAuthentication',
+        'as207960_utils.api.auth.BearerAuthentication',
+        'as207960_utils.api.auth.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',

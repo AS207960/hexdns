@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from django.conf import settings
-from rest_framework_nested.relations import NestedHyperlinkedIdentityField
 import base64
 import ipaddress
 import collections

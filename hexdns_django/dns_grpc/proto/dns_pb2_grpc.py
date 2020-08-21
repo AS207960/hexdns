@@ -5,43 +5,59 @@ from . import dns_pb2 as dns__pb2
 
 
 class DnsServiceStub(object):
-    # missing associated documentation comment in .proto file
-    pass
+  # missing associated documentation comment in .proto file
+  pass
 
-    def __init__(self, channel):
-        """Constructor.
+  def __init__(self, channel):
+    """Constructor.
 
     Args:
       channel: A grpc.Channel.
     """
-        self.Query = channel.unary_unary(
-            "/coredns.dns.DnsService/Query",
-            request_serializer=dns__pb2.DnsPacket.SerializeToString,
-            response_deserializer=dns__pb2.DnsPacket.FromString,
+    self.Query = channel.unary_unary(
+        '/coredns.dns.DnsService/Query',
+        request_serializer=dns__pb2.DnsPacket.SerializeToString,
+        response_deserializer=dns__pb2.DnsPacket.FromString,
+        )
+    self.AXFRQuery = channel.unary_stream(
+        '/coredns.dns.DnsService/AXFRQuery',
+        request_serializer=dns__pb2.DnsPacket.SerializeToString,
+        response_deserializer=dns__pb2.DnsPacket.FromString,
         )
 
 
 class DnsServiceServicer(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def Query(self, request, context):
     # missing associated documentation comment in .proto file
     pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
 
-    def Query(self, request, context):
-        # missing associated documentation comment in .proto file
-        pass
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
+  def AXFRQuery(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
 
 
 def add_DnsServiceServicer_to_server(servicer, server):
-    rpc_method_handlers = {
-        "Query": grpc.unary_unary_rpc_method_handler(
-            servicer.Query,
-            request_deserializer=dns__pb2.DnsPacket.FromString,
-            response_serializer=dns__pb2.DnsPacket.SerializeToString,
-        ),
-    }
-    generic_handler = grpc.method_handlers_generic_handler(
-        "coredns.dns.DnsService", rpc_method_handlers
-    )
-    server.add_generic_rpc_handlers((generic_handler,))
+  rpc_method_handlers = {
+      'Query': grpc.unary_unary_rpc_method_handler(
+          servicer.Query,
+          request_deserializer=dns__pb2.DnsPacket.FromString,
+          response_serializer=dns__pb2.DnsPacket.SerializeToString,
+      ),
+      'AXFRQuery': grpc.unary_stream_rpc_method_handler(
+          servicer.AXFRQuery,
+          request_deserializer=dns__pb2.DnsPacket.FromString,
+          response_serializer=dns__pb2.DnsPacket.SerializeToString,
+      ),
+  }
+  generic_handler = grpc.method_handlers_generic_handler(
+      'coredns.dns.DnsService', rpc_method_handlers)
+  server.add_generic_rpc_handlers((generic_handler,))

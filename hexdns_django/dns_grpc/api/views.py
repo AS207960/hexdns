@@ -4,8 +4,10 @@ from django.utils import timezone
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+from as207960_utils.api import auth
+import as207960_utils.api.permissions
 import secrets
-from . import serializers, permissions, auth
+from . import serializers, permissions
 from .. import models, views
 
 
@@ -24,7 +26,7 @@ class BillingError(exceptions.APIException):
 class DNSZoneViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.DNSZoneSerializer
     queryset = models.DNSZone.objects.all()
-    permission_classes = [permissions.keycloak(models.DNSZone)]
+    permission_classes = [as207960_utils.api.permissions.keycloak(models.DNSZone)]
 
     def filter_queryset(self, queryset):
         if not isinstance(self.request.auth, auth.OAuthToken):
@@ -65,7 +67,7 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
 class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.ReverseDNSZoneSerializer
     queryset = models.ReverseDNSZone.objects.all()
-    permission_classes = [permissions.keycloak(models.ReverseDNSZone)]
+    permission_classes = [as207960_utils.api.permissions.keycloak(models.ReverseDNSZone)]
 
     def filter_queryset(self, queryset):
         if not isinstance(self.request.auth, auth.OAuthToken):
@@ -102,7 +104,7 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
 class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.SecondaryDNSZoneSerializer
     queryset = models.SecondaryDNSZone.objects.all()
-    permission_classes = [permissions.keycloak(models.SecondaryDNSZone)]
+    permission_classes = [as207960_utils.api.permissions.keycloak(models.SecondaryDNSZone)]
 
     def filter_queryset(self, queryset):
         if not isinstance(self.request.auth, auth.OAuthToken):
