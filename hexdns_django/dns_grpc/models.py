@@ -249,6 +249,13 @@ class DNSZoneRecord(models.Model):
         abstract = True
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
+    @@property
+    def dns_label(self):
+        if self.record_name == "@":
+            return dnslib.DNSLabel(self.zone.zone_root)
+        else:
+            return dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}")
+
     def __str__(self):
         return self.record_name
 
@@ -284,14 +291,14 @@ class AddressRecord(DNSZoneRecord):
         address = ipaddress.ip_address(self.address)
         if type(address) == ipaddress.IPv4Address:
             return dnslib.RR(
-                dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+                self.dns_label,
                 dnslib.QTYPE.A,
                 rdata=dnslib.A(address.compressed),
                 ttl=self.ttl,
             )
         elif type(address) == ipaddress.IPv6Address:
             return dnslib.RR(
-                dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+                self.dns_label,
                 dnslib.QTYPE.AAAA,
                 rdata=dnslib.AAAA(address.compressed),
                 ttl=self.ttl,
@@ -309,7 +316,7 @@ class DynamicAddressRecord(DNSZoneRecord):
             return None
 
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.A,
             rdata=dnslib.A(self.current_ipv4),
             ttl=self.ttl,
@@ -320,7 +327,7 @@ class DynamicAddressRecord(DNSZoneRecord):
             return None
 
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.AAAA,
             rdata=dnslib.AAAA(self.current_ipv6),
             ttl=self.ttl,
@@ -344,7 +351,7 @@ class ANAMERecord(DNSZoneRecord):
         res = dnslib.DNSRecord.parse(res_pkt)
         for rr in res.rr:
             out.append(dnslib.RR(
-                dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+                self.dns_label,
                 qtype,
                 rdata=rr.rdata,
                 ttl=self.ttl
@@ -387,7 +394,7 @@ class MXRecord(DNSZoneRecord):
 
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.MX,
             rdata=dnslib.MX(self.exchange, self.priority),
             ttl=self.ttl,
@@ -408,7 +415,7 @@ class NSRecord(DNSZoneRecord):
 
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.NS,
             rdata=dnslib.NS(self.nameserver),
             ttl=self.ttl,
@@ -426,7 +433,7 @@ class TXTRecord(DNSZoneRecord):
 
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.TXT,
             rdata=dnslib.TXT(
                 [
@@ -451,7 +458,7 @@ class SRVRecord(DNSZoneRecord):
 
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.SRV,
             rdata=dnslib.SRV(
                 self.priority, self.weight, self.port, self.target
@@ -472,7 +479,7 @@ class CAARecord(DNSZoneRecord):
 
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.CAA,
             rdata=dnslib.CAA(
                 flags=self.flag, tag=self.tag, value=self.value
@@ -496,7 +503,7 @@ class NAPTRRecord(DNSZoneRecord):
     
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.NAPTR,
             rdata=dnslib.NAPTR(
                 order=self.order,
@@ -550,7 +557,7 @@ class SSHFPRecord(DNSZoneRecord):
         sha1_rd.extend(hashlib.sha1(pubkey._decoded_key).digest())
         sha256_rd = bytearray(struct.pack("!BB", algo_num, 2))
         sha256_rd.extend(hashlib.sha256(pubkey._decoded_key).digest())
-        query_name = dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}")
+        query_name = self.dns_label
         out.append(
             dnslib.RR(
                 query_name, dnslib.QTYPE.SSHFP, rdata=dnslib.RD(sha1_rd), ttl=self.ttl,
@@ -614,7 +621,7 @@ class DSRecord(DNSZoneRecord):
             return None
         ds_data.extend(digest_data)
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.DS,
             rdata=dnslib.RD(ds_data),
             ttl=self.ttl,
@@ -662,7 +669,7 @@ class LOCRecord(DNSZoneRecord):
             lat, long, alt
         ))
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.LOC,
             rdata=dnslib.RD(loc_data),
             ttl=self.ttl
@@ -680,7 +687,7 @@ class HINFORecord(DNSZoneRecord):
     
     def to_rr(self):
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.HINFO,
             rdata=dnslib.TXT([self.cpu, self.os]),
             ttl=self.ttl
@@ -706,7 +713,7 @@ class RPRecord(DNSZoneRecord):
         buffer.encode_name(dnslib.DNSLabel(self.mailbox))
         buffer.encode_name(dnslib.DNSLabel(self.txt))
         return dnslib.RR(
-            dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}"),
+            self.dns_label,
             dnslib.QTYPE.RP,
             rdata=dnslib.RD(buffer.data),
             ttl=self.ttl
