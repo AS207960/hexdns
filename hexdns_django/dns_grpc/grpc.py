@@ -1010,7 +1010,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             labels=len(label.label),
                             orig_ttl=rrs[0].ttl,
                             sig_inc=now_ts,
-                            sig_exp=now_ts + 87000,
+                            sig_exp=now_ts + 172800,
                             key_tag=this_key_tag,
                             name=this_zone_root,
                             sig=b"",
