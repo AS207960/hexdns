@@ -1,0 +1,6 @@
+FROM debian
+
+RUN apt-get update && apt-get install -y make git 
+RUN git clone https://github.com/toreanderson/clatd
+RUN make -C clatd installdeps
+RUN rm -rf /var/lib/apt/lists/*

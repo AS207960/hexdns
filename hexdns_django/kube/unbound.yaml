@@ -14,10 +14,13 @@ data:
         access-control: ::/0 allow
         auto-trust-anchor-file: /var/run/unbound/root.key
         logfile: ""
-        verbosity: 1
+        log-servfail: yes
+        verbosity: 3
         statistics-interval: 600
         statistics-cumulative: yes
         target-fetch-policy: "0 0 0 0 0"
+        module-config: "dns64 validator iterator"
+        dns64-prefix: 2a0d:1a40:7900:6:0:2::/96
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -52,6 +55,14 @@ spec:
           volumeMounts:
             - mountPath: "/opt/unbound/etc/unbound"
               name: conf
+        - name: clatd
+          image: as207960/clatd
+          command: [
+            "/bin/bash", "-c",
+            "/clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'"
+          ]
+          securityContext:
+            privileged: true
 ---
 apiVersion: v1
 kind: Service
