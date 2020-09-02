@@ -15,7 +15,7 @@ data:
         auto-trust-anchor-file: /var/run/unbound/root.key
         logfile: ""
         log-servfail: yes
-        verbosity: 3
+        verbosity: 1
         statistics-interval: 600
         statistics-cumulative: yes
         target-fetch-policy: "0 0 0 0 0"
