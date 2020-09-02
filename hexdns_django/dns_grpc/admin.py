@@ -28,4 +28,4 @@ class ReverseDNSZoneAdmin(admin.ModelAdmin):
 
 @admin.register(models.SecondaryDNSZone)
 class SecondaryDNSZoneAdmin(admin.ModelAdmin):
-    list_display = ('zone_root', 'last_modified', 'active', 'charged',)
+    list_display = ('zone_root', 'serial', 'active', 'error', 'charged',)
