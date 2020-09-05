@@ -18,7 +18,7 @@ import as207960_utils.models
 
 class Account(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    subscription_id = models.UUIDField(blank=True, null=True)
+    subscription_id = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return str(self.user)
