@@ -17,7 +17,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -139,6 +139,7 @@ with open(os.path.join(BASE_DIR, "secrets/keycloak.json")) as f:
     keycloak_conf = json.load(f)
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "Glauca HexDNS <dns@glauca.digital>"
 
 KEYCLOAK_SERVER_URL = keycloak_conf["server_url"]
 KEYCLOAK_REALM = keycloak_conf["realm"]
@@ -162,6 +163,7 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
 
 BILLING_URL = "http://localhost:8001"
+FEEDBACK_URL = "http://localhost:8003"
 DOMAINS_URL = "http://localhost:8000"
 BILLING_PLAN_ID = "0021a973-35c2-4f92-b1d0-167b97717bae"
 
@@ -205,7 +207,7 @@ LOGGING = {
     },
     'loggers': {
         'django.db.backends': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'handlers': ['console'],
         }
     }

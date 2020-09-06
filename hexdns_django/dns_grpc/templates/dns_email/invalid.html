@@ -1,0 +1,12 @@
+{% extends "dns_email/email_base.html" %}
+{% block content %}
+    <p>
+        Unfortunately we've detected that the NS records for {{ zone.zone_root }} are no longer pointing at us correctly,
+        and consequently HexDNS is no longer serving the zone. If you'd like to continue using HexDNS please
+        reconfigure your domain as described in <a href="https://docs.glauca.digital/hexdns/setup/">our setup guide</a>.
+    </p>
+    <p>
+        If you no longer want to use HexDNS, that's ok too, simply login to delete the zone. We'd appreciate it if you could
+        reply to this email and tell us why you've decided to no longer use HexDNS.
+    </p>
+{% endblock %}

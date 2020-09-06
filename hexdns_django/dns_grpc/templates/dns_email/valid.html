@@ -1,0 +1,10 @@
+{% extends "dns_email/email_base.html" %}
+{% block content %}
+    <p>
+       The NS records for {{ zone.zone_root }} are now pointing at us correctly, and consequently the zone is being
+        served by HexDNS! <i>cue fanfare</i>
+    </p>
+    <p>
+        We'll be sure to email you if we see the NS records change to an invalid configuration.
+    </p>
+{% endblock %}

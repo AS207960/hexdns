@@ -45,6 +45,11 @@ data:
   BILLING_PLAN_ID: "8db7eda0-4c84-45e4-b2d8-1438625daa92"
   RESOLVER_ADDR: "hexdns-unbound"
   RESOLVER_PORT: "5053"
+  FEEDBACK_URL: "http://feedback-nginx"
+  EMAIL_HOST: "mx.postal.as207960.net"
+  EMAIL_HOST_USER: "apikey"
+  EMAIL_PORT: "25"
+  EMAIL_FROM: "Glauca HexDNS <dns@glauca.digital>"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -116,6 +121,9 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
       containers:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
@@ -143,6 +151,9 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
 ---
 apiVersion: batch/v1beta1
 kind: CronJob
@@ -197,6 +208,9 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
+                - secretRef:
+                    name: hexdns-email
+                  prefix: "EMAIL_"
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1beta1
@@ -252,6 +266,9 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
+                - secretRef:
+                    name: hexdns-email
+                  prefix: "EMAIL_"
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1beta1
@@ -307,6 +324,9 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
+                - secretRef:
+                    name: hexdns-email
+                  prefix: "EMAIL_"
           restartPolicy: OnFailure
 ---
 apiVersion: apps/v1
@@ -379,6 +399,9 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
 ---
 apiVersion: v1
 kind: Service

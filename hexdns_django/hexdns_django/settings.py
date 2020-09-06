@@ -154,7 +154,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 MEDIA_URL = f"{EXTERNAL_URL_BASE}/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 25))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", False)
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_FROM", "Glauca HexDNS <dns@glauca.digital>")
 
 KEYCLOAK_SERVER_URL = os.getenv("KEYCLOAK_SERVER_URL")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM")
@@ -182,7 +188,7 @@ XFF_TRUSTED_PROXY_DEPTH = 2
 XFF_STRICT = True
 
 DOMAINS_URL = os.getenv("DOMAINS_URL")
-
+FEEDBACK_URL = os.getenv("FEEDBACK_URL")
 BILLING_URL = os.getenv("BILLING_URL")
 BILLING_PLAN_ID = os.getenv("BILLING_PLAN_ID")
 

@@ -26,6 +26,22 @@ from . import forms, grpc, models
 psl = PublicSuffixList()
 
 
+def get_feedback_url(description: str, reference: str):
+    if settings.FEEDBACK_URL == "none":
+        return None
+    access_token = django_keycloak_auth.clients.get_access_token()
+    r = requests.post(f"{settings.FEEDBACK_URL}/api/feedback_request/", json={
+        "description": description,
+        "action_reference": reference
+    }, headers={
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    })
+    r.raise_for_status()
+    data = r.json()
+    return data["public_url"]
+
+
 def make_zone_digest(zone_name: str):
     buffer = dnslib.DNSBuffer()
     nums = settings.DNSSEC_PUBKEY.public_numbers()

@@ -1,11 +1,56 @@
 from django.core.management.base import BaseCommand
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
-from dns_grpc import models
+from dns_grpc import models, views
 import random
 import retry
 import dnslib
 
 WANTED_NS = [dnslib.DNSLabel('ns1.as207960.net'), dnslib.DNSLabel('ns2.as207960.net')]
+
+
+def mail_valid(user, zone):
+    feedback_url = views.get_feedback_url(
+        f"HexDNS for {zone.zone_root}", zone.id
+    )
+
+    context = {
+        "name": user.first_name,
+        "zone": zone,
+        "feedback_url": feedback_url
+    }
+    html_content = render_to_string("dns_email/valid.html", context)
+    txt_content = render_to_string("dns_email/valid.txt", context)
+
+    email = EmailMultiAlternatives(
+        subject='HexDNS Zone Activated',
+        body=txt_content,
+        to=[user.email],
+        bcc=['q@as207960.net'],
+        reply_to=['info@glauca.digital']
+    )
+    email.attach_alternative(html_content, "text/html")
+    email.send()
+
+
+def mail_invalid(user, zone):
+    context = {
+        "name": user.first_name,
+        "zone": zone
+    }
+    html_content = render_to_string("dns_email/invalid.html", context)
+    txt_content = render_to_string("dns_email/invalid.txt", context)
+
+    email = EmailMultiAlternatives(
+        subject='HexDNS Zone Inactive',
+        body=txt_content,
+        to=[user.email],
+        bcc=['q@as207960.net'],
+        reply_to=['info@glauca.digital']
+    )
+    email.attach_alternative(html_content, "text/html")
+    email.send()
 
 
 @retry.retry(tries=5)
@@ -67,6 +112,7 @@ class Command(BaseCommand):
                     print(f"Setting {zone} to inactive")
                     zone.active = False
                     zone.save()
+                    mail_invalid(zone.get_user(), zone)
                 continue
 
             is_valid = all(any(rr.rdata.label == wns for rr in ns) for wns in WANTED_NS)
@@ -77,9 +123,11 @@ class Command(BaseCommand):
                     print(f"Setting {zone} to active")
                     zone.active = True
                     zone.save()
+                    mail_valid(zone.get_user(), zone)
             else:
                 print(f"{zone} is invalid")
                 if zone.active:
                     print(f"Setting {zone} to inactive")
                     zone.active = False
                     zone.save()
+                    mail_invalid(zone.get_user(), zone)

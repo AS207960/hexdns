@@ -1,0 +1,8 @@
+Hello {{ name }},
+{% block content %}{% endblock %}
+Thanks,
+The Glauca Team
+https://glauca.digital
+{% if feedback_url %}
+How did we do? Give your feedback at {{ feedback_url }}
+{% endif %}
