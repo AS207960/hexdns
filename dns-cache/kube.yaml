@@ -12,6 +12,8 @@ spec:
       part: cache
   template:
     metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
       labels:
         app: hexdns
         part: cache
@@ -23,7 +25,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cache
-          image: as207960/dns-cache:3
+          image: as207960/dns-cache:5
           args:
             - "-a"
             - "::"

@@ -54,7 +54,17 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22068c0c19514942eefcfd4daf8976ef1aad84e61539f95cd200c35202f80af5"
 dependencies = [
- "async-stream-impl",
+ "async-stream-impl 0.2.1",
+ "futures-core",
+]
+
+[[package]]
+name = "async-stream"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3670df70cbc01729f901f94c887814b3c68db038aad1329a418bae178bc5295c"
+dependencies = [
+ "async-stream-impl 0.3.0",
  "futures-core",
 ]
 
@@ -63,6 +73,17 @@ name = "async-stream-impl"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25f9db3b38af870bf7e5cc649167533b493928e50744e2c30ae350230b414670"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3548b8efc9f8e8a5a0a2808c5bd8451a9031b9e5b879a79590304ae928b0a70"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -206,8 +227,10 @@ checksum = "72aa14c04dfae8dd7d8a2b1cb7ca2152618cd01336dbfe704b8dcbf8d41dbd69"
 name = "dns-cache"
 version = "0.1.0"
 dependencies = [
+ "async-stream 0.3.0",
  "clap",
  "futures",
+ "futures-util",
  "log",
  "lru",
  "pretty_env_logger",
@@ -1206,7 +1229,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4afef9ce97ea39593992cf3fa00ff33b1ad5eb07665b31355df63a690e38c736"
 dependencies = [
- "async-stream",
+ "async-stream 0.2.1",
  "async-trait",
  "base64",
  "bytes",
