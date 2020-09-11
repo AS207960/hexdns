@@ -305,6 +305,21 @@ def delete_zone(request, zone_id):
 
 
 @login_required
+def edit_zone_tsig(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    return render(
+        request,
+        "dns_grpc/zone_tsig.html",
+        {"zone": user_zone,},
+    )
+
+
+@login_required
 def edit_rzone(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
@@ -1525,6 +1540,74 @@ def delete_rp_record(request, record_id):
 
 
 @login_required
+def create_zone_secret(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.UpdateSecretForm(request.POST, instance=models.DNSZoneUpdateSecrets(zone=user_zone))
+        del record_form.fields['id']
+        if record_form.is_valid():
+            record_form.save()
+            return redirect("edit_zone_secrets", user_zone.id)
+    else:
+        record_form = forms.UpdateSecretForm(instance=models.DNSZoneUpdateSecrets(zone=user_zone))
+        del record_form.fields['id']
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Create update secret", "form": record_form, },
+    )
+
+
+@login_required
+def edit_zone_secret(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneUpdateSecrets, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.UpdateSecretForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.save()
+            return redirect("edit_zone_secrets", user_record.zone.id)
+    else:
+        record_form = forms.UpdateSecretForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/edit_record.html",
+        {"title": "Edit update secret", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_secret(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneUpdateSecrets, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.delete()
+            return redirect("edit_zone_secrets", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/delete_record.html",
+        {"title": "Delete update secret", "record": user_record, },
+    )
+
+
+@login_required
 def create_r_ptr_record(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
@@ -1698,90 +1781,31 @@ def import_zone_file(request, zone_id):
                     if len(record_name.label) == 0:
                         record_name = dnslib.DNSLabel("@")
                     if record.rtype == dnslib.QTYPE.A:
-                        r = models.AddressRecord(
-                            zone=zone_obj,
-                            address="%d.%d.%d.%d" % record.rdata.data,
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1],
-                            auto_reverse=False
-                        )
+                        r = models.AddressRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.AAAA:
-                        d = list(map(lambda e: f"{e:02x}", record.rdata.data))
-                        r = models.AddressRecord(
-                            zone=zone_obj,
-                            address=":".join(["".join(d[n:n + 2]) for n in range(0, len(d), 2)]),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1],
-                            auto_reverse=False
-                        )
+                        r = models.AddressRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.CNAME:
-                        r = models.CNAMERecord(
-                            zone=zone_obj,
-                            alias=str(record.rdata.label),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.CNAMERecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.MX:
-                        r = models.MXRecord(
-                            zone=zone_obj,
-                            exchange=str(record.rdata.label),
-                            priority=record.rdata.preference,
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.MXRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
-                        r = models.NSRecord(
-                            zone=zone_obj,
-                            nameserver=str(record.rdata.label),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.NSRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.TXT:
-                        r = models.TXTRecord(
-                            zone=zone_obj,
-                            data="".join(d.decode() for d in record.rdata.data),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.TXTRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.SRV:
-                        r = models.SRVRecord(
-                            zone=zone_obj,
-                            priority=record.rdata.priority,
-                            weight=record.rdata.weight,
-                            port=record.rdata.port,
-                            target=str(record.rdata.target),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.SRVRecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.CAA:
-                        r = models.CAARecord(
-                            zone=zone_obj,
-                            flag=record.rdata.flags,
-                            tag=record.rdata.tag,
-                            value=record.rdata.value,
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.CAARecord.from_rr(record, zone_obj)
                         r.save()
                     elif record.rtype == dnslib.QTYPE.NAPTR:
-                        r = models.NAPTRRecord(
-                            zone=zone_obj,
-                            order=record.rdata.order,
-                            preference=record.rdata.preference,
-                            flags=record.rdata.flags.decode(),
-                            service=record.rdata.service.decode(),
-                            regexp=record.rdata.regexp.decode(),
-                            replacement=str(record.rdata.replacement),
-                            ttl=record.ttl,
-                            record_name=str(record_name)[:-1]
-                        )
+                        r = models.NAPTRRecord.from_rr(record, zone_obj)
                         r.save()
                 return redirect('edit_zone', zone_id)
     else:

@@ -1,35 +1,104 @@
-from .proto import dns_pb2
-from .proto import dns_pb2_grpc
-from . import models
-import dnslib
-import ipaddress
-import typing
-import traceback
-import math
-import struct
 import hashlib
+import ipaddress
+import struct
+import traceback
+import typing
+import dataclasses
+import dnslib
 import sentry_sdk
-from dnslib import QTYPE, RCODE, OPCODE
-from dnslib.label import DNSLabel
-from django.db.models.functions import Length
-from django.db.models import Q
-from django.conf import settings
-from django.utils import timezone
+import datetime
+import hmac
+import django.core.exceptions
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
     EllipticCurvePublicKey,
 )
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from django.conf import settings
+from django.db.models import Q
+from django.db.models.functions import Length
+from django.utils import timezone
+from dnslib import CLASS, OPCODE, QTYPE, RCODE
+from dnslib.label import DNSLabel
+
+from . import models
+from .proto import dns_pb2, dns_pb2_grpc
 
 NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
 IP4_APRA = DNSLabel("in-addr.arpa.")
 IP6_APRA = DNSLabel("ip6.arpa.")
 IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
+TSIG_BADSIG = 16
+TSIG_BADKEY = 17
+TSIG_BADTIME = 18
+HMAC_NAMES = {
+    "hmac-md5.sig-alg.reg.int": "md5",
+    "hmac-sha1": "sha1",
+    "hmac-sha256": "sha256",
+    "hmac-sha384": "sha384",
+    "hmac-sha512": "sha512",
+}
+
+
+@dataclasses.dataclass
+class TSIG:
+    alg_name: DNSLabel
+    time_signed: datetime.datetime
+    fudge: int
+    mac: bytes
+    original_id: int
+    error: int
+    other_data: bytes
+
+    def make_tsig(self) -> bytes:
+        buffer = dnslib.DNSBuffer()
+        buffer.encode_name_nocompress(self.alg_name)
+
+        timestamp = (int(self.time_signed.timestamp()) << 16) | (self.fudge & 0xFFFF)
+        buffer.pack("!QH", timestamp, len(self.mac))
+        buffer.append(self.mac)
+        buffer.pack("!HHH",  self.original_id, self.error, len(self.other_data))
+        buffer.append(self.other_data)
+
+        return buffer.data
+
+    def make_variables(self) -> bytes:
+        buffer = dnslib.DNSBuffer()
+        buffer.encode_name_nocompress(self.alg_name)
+
+        timestamp = (int(self.time_signed.timestamp()) << 16) | (self.fudge & 0xFFFF)
+        buffer.pack("!QHH", timestamp, self.error, len(self.other_data))
+        buffer.append(self.other_data)
+
+        return buffer.data
+
+    @classmethod
+    def decode_tsig(cls, data: bytes):
+        buffer = dnslib.DNSBuffer(data)
+        alg_name = buffer.decode_name()
+        timestamp, mac_len = buffer.unpack("!QH")
+        mac = buffer.get(mac_len)
+        original_id, error, other_len = buffer.unpack("!HHH")
+        other_data = buffer.get(other_len)
+
+        fudge = timestamp & 0xFFFF
+        time_signed_stamp = timestamp >> 16
+        time_signed = datetime.datetime.utcfromtimestamp(time_signed_stamp)
+
+        return cls(
+            alg_name=alg_name,
+            time_signed=time_signed,
+            fudge=fudge,
+            mac=mac,
+            original_id=original_id,
+            error=error,
+            other_data=other_data
+        )
 
 
 def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
@@ -66,7 +135,7 @@ def network_to_apra(network: IP_NETWORK) -> DNSLabel:
                         )
                     )
                     + ["ip6", "arpa"],
-                    )
+                )
             )
         )
     elif type(network) == ipaddress.IPv4Network:
@@ -82,7 +151,7 @@ def network_to_apra(network: IP_NETWORK) -> DNSLabel:
                         )
                     )
                     + ["in-addr", "arpa"],
-                    )
+                )
             )
         )
 
@@ -114,7 +183,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return False
 
     def find_zone(
-        self, qname: DNSLabel
+            self, qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
         zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
         for zone in zones:
@@ -127,7 +196,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         return None, None
 
     def find_secondary_zone(
-        self, qname: DNSLabel
+            self, qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
         zones = models.SecondaryDNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
         for zone in zones:
@@ -137,7 +206,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         return None, None
 
     def find_rzone(
-        self, qname: DNSLabel
+            self, qname: DNSLabel
     ) -> (typing.Optional[models.ReverseDNSZone], typing.Optional[IP_ADDR]):
         is_ip6_zone = qname.matchSuffix(IP6_APRA)
         qname = (
@@ -150,7 +219,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
             parts += ["0"] * (32 - len(parts))
             addr = ":".join(
-                ["".join(parts[n : n + 4]) for n in range(0, len(parts), 4)]
+                ["".join(parts[n: n + 4]) for n in range(0, len(parts), 4)]
             )
         else:
             parts = list(reversed(list(map(lambda n: n.decode(), qname.label))))
@@ -173,82 +242,135 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         return None, None, None
 
     def find_records(
-        self,
-        model: typing.Type[models.DNSZoneRecord],
-        rname: DNSLabel,
-        zone: models.DNSZone,
+            self,
+            model: typing.Type[models.DNSZoneRecord],
+            rname: DNSLabel,
+            zone: models.DNSZone,
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
         return model.objects.filter(record_name=search_name, zone=zone)
 
     def any_records(
-        self, rname: DNSLabel, zone: models.DNSZone,
+            self, rname: DNSLabel, zone: models.DNSZone, include_cname: bool = True
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
         if models.AddressRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.DynamicAddressRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.CNAMERecord.objects.filter(
-            record_name=search_name, zone=zone
-        ).count():
+                record_name=search_name, zone=zone
+        ).count() and include_cname:
             return True
         elif models.MXRecord.objects.filter(record_name=search_name, zone=zone).count():
             return True
         elif models.NSRecord.objects.filter(record_name=search_name, zone=zone).count():
             return True
         elif models.TXTRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.SRVRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.CAARecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.NAPTRRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.SSHFPRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.DSRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.ANAMERecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.LOCRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.HINFORecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         elif models.RPRecord.objects.filter(
-            record_name=search_name, zone=zone
+                record_name=search_name, zone=zone
         ).count():
             return True
         else:
             return False
 
+    def any_record_type(
+            self, rname: DNSLabel, zone: models.DNSZone, qtype: int
+    ):
+        search_name = ".".join(map(lambda n: n.decode(), rname.label))
+
+        if qtype in [QTYPE.A, QTYPE.AAAA]:
+            records = self.find_records(models.AddressRecord, search_name, zone)
+            for record in records:
+                address = ipaddress.ip_address(record.address)
+                if type(address) == ipaddress.IPv4Address and qtype == QTYPE.A:
+                    return True
+                elif type(address) == ipaddress.IPv6Address and qtype == QTYPE.AAAA:
+                    return True
+            return False
+        elif qtype == QTYPE.MX:
+            if models.MXRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.NS:
+            if models.NSRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.TXT:
+            if models.TXTRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.SRV:
+            if models.SRVRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.CAA:
+            if models.CAARecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.NAPTR:
+            if models.NAPTRRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.SSHFP:
+            if models.SSHFPRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.DS:
+            if models.DSRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.LOC:
+            if models.LOCRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.HINFO:
+            if models.HINFORecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.RP:
+            if models.RPRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.CNAME:
+            if models.CNAMERecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+
+        return False
+
     def find_reverse_records(
-        self,
-        model: typing.Type[models.ReverseDNSZoneRecord],
-        addr: IP_ADDR,
-        zone: models.ReverseDNSZone,
+            self,
+            model: typing.Type[models.ReverseDNSZoneRecord],
+            addr: IP_ADDR,
+            zone: models.ReverseDNSZone,
     ):
         return model.objects.filter(record_address=str(addr), zone=zone)
 
@@ -259,11 +381,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return dns_pb2.DnsPacket(msg=bytes(res))
 
     def lookup_referral(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            is_dnssec: bool,
     ):
         nameservers = models.NSRecord.objects.order_by(
             Length("record_name").desc()
@@ -326,13 +448,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res.header.rcode = RCODE.NXDOMAIN
 
     def lookup_cname(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
-        func,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
+            func,
     ):
         cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
         if cname_record:
@@ -351,12 +473,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
     def lookup_addr(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.AddressRecord, record_name, zone)
         addr_found = False
@@ -391,7 +513,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_additional_addr(
-        self, dns_res: dnslib.DNSRecord, query_name: DNSLabel
+            self, dns_res: dnslib.DNSRecord, query_name: DNSLabel
     ):
         zone, record_name = self.find_zone(query_name)
         if zone and record_name:
@@ -418,12 +540,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         dns_res.add_answer(rr)
 
     def lookup_mx(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.MXRecord, record_name, zone)
         for record in records:
@@ -434,12 +556,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_ns(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.NSRecord, record_name, zone)
         for record in records:
@@ -447,7 +569,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         if record_name == "@":
             for ns in NAMESERVERS:
                 dns_res.add_answer(
-                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
+                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400, )
                 )
         if not len(records):
             self.lookup_cname(
@@ -455,12 +577,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_txt(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.TXTRecord, record_name, zone)
         for record in records:
@@ -471,12 +593,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_srv(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.SRVRecord, record_name, zone)
         for record in records:
@@ -487,12 +609,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_caa(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.CAARecord, record_name, zone)
         for record in records:
@@ -503,12 +625,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_naptr(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.NAPTRRecord, record_name, zone)
         for record in records:
@@ -519,12 +641,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_sshfp(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.SSHFPRecord, record_name, zone)
         for record in records:
@@ -536,12 +658,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_dnskey(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
             pub_key = self.priv_key.public_key()
@@ -586,12 +708,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_cds(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: typing.Union[models.DNSZone, models.ReverseDNSZone],
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: typing.Union[models.DNSZone, models.ReverseDNSZone],
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
             if isinstance(zone, models.DNSZone):
@@ -625,12 +747,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_cdnskey(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
             pub_key = self.priv_key.public_key()
@@ -651,12 +773,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_ds(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.DSRecord, record_name, zone)
         for record in records:
@@ -669,12 +791,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_loc(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
 
         records = self.find_records(models.LOCRecord, record_name, zone)  # type: typing.List[models.LOCRecord]
@@ -687,12 +809,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_hinfo(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.HINFORecord, record_name, zone)  # type: typing.List[models.HINFORecord]
         for record in records:
@@ -703,12 +825,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_rp(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.DNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_records(models.RPRecord, record_name, zone)  # type: typing.List[models.RPRecord]
         for record in records:
@@ -720,11 +842,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_reverse_referral(
-        self,
-        dns_res: dnslib.DNSRecord,
-        addr: IP_ADDR,
-        zone: models.ReverseDNSZone,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            addr: IP_ADDR,
+            zone: models.ReverseDNSZone,
+            is_dnssec: bool,
     ):
         nameservers = models.ReverseNSRecord.objects.order_by('-record_prefix').filter(zone=zone)
         ns_found = False
@@ -807,7 +929,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             found = True
             for ns in NAMESERVERS:
                 dns_res.add_answer(
-                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400,)
+                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400, )
                 )
         if not found:
             self.lookup_reverse_referral(
@@ -815,12 +937,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             )
 
     def lookup_ptr(
-        self,
-        dns_res: dnslib.DNSRecord,
-        addr: IP_ADDR,
-        zone: models.ReverseDNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            addr: IP_ADDR,
+            zone: models.ReverseDNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         records = self.find_reverse_records(models.PTRRecord, addr, zone)
         for record in records:
@@ -867,22 +989,22 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 windows[w] = [v & 0xFF]
 
         for window, rrs in sorted(windows.items(), key=lambda w: w[0]):
-            bitmap = bytearray([0]*32)
+            bitmap = bytearray([0] * 32)
             for rr in rrs:
-                bitmap[rr//8] |= 1 << (7 - rr % 8)
+                bitmap[rr // 8] |= 1 << (7 - rr % 8)
             while bitmap[-1] == 0:
                 bitmap = bitmap[:-1]
             out.extend(struct.pack("BB", window, len(bitmap)) + bitmap)
         return out
 
     def sign_rrset(
-        self,
-        dns_res: dnslib.DNSRecord,
-        zone: typing.Union[models.DNSZone, models.ReverseDNSZone],
-        query_name: DNSLabel,
-        is_dnssec: bool,
-        priv_key=None,
-        flags=256,
+            self,
+            dns_res: dnslib.DNSRecord,
+            zone: typing.Union[models.DNSZone, models.ReverseDNSZone],
+            query_name: DNSLabel,
+            is_dnssec: bool,
+            priv_key=None,
+            flags=256,
     ):
         if isinstance(zone, models.DNSZone):
             zone_root = zone.zone_root
@@ -1056,12 +1178,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             sign_section(dns_res.ar, dns_res.add_ar, priv_key)
 
     def handle_secondary(
-        self,
-        dns_res: dnslib.DNSRecord,
-        record_name: DNSLabel,
-        zone: models.SecondaryDNSZone,
-        query_name: DNSLabel,
-        is_dnssec: bool,
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.SecondaryDNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
     ):
         def lookup_referral(record_name: DNSLabel):
             nameservers = zone.secondarydnszonerecord_set.filter(
@@ -1124,7 +1246,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             )
             if not ns_found:
                 if zone.secondarydnszonerecord_set.filter(
-                    record_name=str(record_name),
+                        record_name=str(record_name),
                 ).count() == 0:
                     dns_res.header.rcode = RCODE.NXDOMAIN
 
@@ -1448,6 +1570,484 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         # self.sign_rrset(soa_dns_res, zone, query_name, is_dnssec)
 
+    def handle_update_query(self, dns_req: dnslib.DNSRecord):
+        dns_res = dns_req.reply()
+
+        # RFC 2136 § 3.1
+        if dns_req.header.opcode != OPCODE.UPDATE or dns_req.q.qclass != CLASS.IN or dns_req.q.qtype != QTYPE.SOA:
+            dns_res.header.rcode = RCODE.REFUSED
+            return dns_res
+
+        req_tsig = None
+        if dns_req.ar:
+            last_ar = dns_req.ar[-1]
+            if last_ar.rtype == QTYPE.TSIG:
+                req_tsig = last_ar
+                del dns_req.ar[-1]
+                dns_req.set_header_qa()
+
+        if not req_tsig:
+            dns_res.header.rcode = RCODE.REFUSED
+            return dns_res
+
+        zone_name = dns_req.q.qname
+        zone_name = DNSLabel(
+            list(map(lambda n: n.decode().lower().encode(), zone_name.label))
+        )
+
+        tsig_key = None  # type: typing.Optional[models.DNSZoneUpdateSecrets]
+        if req_tsig.rname.matchSuffix(zone_name):
+            tsig_key_id = str(req_tsig.rname.stripSuffix(zone_name)).strip(".")
+            try:
+                tsig_key = models.DNSZoneUpdateSecrets.objects.filter(id=str(tsig_key_id)).first()
+            except django.core.exceptions.ValidationError:
+                pass
+
+        def tsig_unsigned_error(error):
+            dns_res.header.rcode = RCODE.NOTAUTH
+            res_tsig = TSIG(
+                alg_name=dnslib.DNSLabel("."),
+                time_signed=datetime.datetime.utcnow(),
+                fudge=300,
+                mac=b'',
+                original_id=dns_res.header.id,
+                error=error,
+                other_data=b''
+            )
+            dns_res.add_ar(dnslib.RR(
+                req_tsig.rname, QTYPE.TSIG, getattr(CLASS, "*"), 0,
+                dnslib.RD(res_tsig.make_tsig())
+            ))
+
+        if tsig_key is None:
+            tsig_unsigned_error(TSIG_BADKEY)
+            return dns_res
+
+        incoming_tsig = TSIG.decode_tsig(req_tsig.rdata.data)
+        tsig_alg_label = ".".join(map(lambda n: n.decode().lower(), incoming_tsig.alg_name.label))
+        if tsig_alg_label not in HMAC_NAMES:
+            tsig_unsigned_error(TSIG_BADSIG)
+            return dns_res
+
+        # RFC 2845 § 4.5.3
+        message_digest = HMAC_NAMES[tsig_alg_label]
+        incoming_hmac = hmac.new(tsig_key.secret, digestmod=message_digest)
+        dns_req.header.id = incoming_tsig.original_id
+
+        for r in dns_req.rr:
+            if r.rdata == '':
+                r.rdata = dnslib.RD(data=b'')
+        for r in dns_req.auth:
+            if r.rdata == '':
+                r.rdata = dnslib.RD(data=b'')
+        for r in dns_req.ar:
+            if r.rdata == '':
+                r.rdata = dnslib.RD(data=b'')
+
+        incoming_hmac.update(dns_req.pack())
+
+        for r in dns_req.rr:
+            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+                r.rdata = ''
+        for r in dns_req.auth:
+            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+                r.rdata = ''
+        for r in dns_req.ar:
+            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+                r.rdata = ''
+
+        temp_buffer = dnslib.DNSBuffer()
+        temp_buffer.encode_name_nocompress(req_tsig.rname)
+        temp_buffer.pack("!HI", getattr(CLASS, "*"), 0)
+        incoming_hmac.update(temp_buffer.data)
+        incoming_hmac.update(incoming_tsig.make_variables())
+        incoming_digest = incoming_hmac.digest()
+        print(incoming_tsig, incoming_digest)
+
+        if incoming_digest != incoming_tsig.mac:
+            tsig_unsigned_error(TSIG_BADSIG)
+            return dns_res
+
+        # RFC 2845 § 4.2
+        def sign_resp(error=0, other_data=b'', time_now=None):
+            if time_now is None:
+                time_now = datetime.datetime.utcnow()
+
+            if error != 0:
+                dns_res.header.rcode = RCODE.NOTAUTH
+
+            outgoing_tsig = TSIG(
+                alg_name=incoming_tsig.alg_name,
+                time_signed=time_now,
+                fudge=300,
+                mac=b'',
+                original_id=dns_res.header.id,
+                error=error,
+                other_data=other_data
+            )
+
+            outgoing_hmac = hmac.new(tsig_key.secret, digestmod=message_digest)
+            outgoing_hmac.update(struct.pack('!H', len(incoming_tsig.mac)))
+            outgoing_hmac.update(incoming_tsig.mac)
+            outgoing_hmac.update(dns_res.pack())
+            temp_buffer = dnslib.DNSBuffer()
+            temp_buffer.encode_name_nocompress(req_tsig.rname)
+            temp_buffer.pack("!HI", getattr(CLASS, "*"), 0)
+            outgoing_hmac.update(temp_buffer.data)
+            outgoing_hmac.update(outgoing_tsig.make_variables())
+
+            outgoing_digest = outgoing_hmac.digest()
+            outgoing_tsig.mac = outgoing_digest
+
+            dns_res.add_ar(dnslib.RR(
+                req_tsig.rname, QTYPE.TSIG, getattr(CLASS, "*"), 0,
+                dnslib.RD(outgoing_tsig.make_tsig())
+            ))
+
+        # RFC 2845 § 4.5.2
+        now = datetime.datetime.utcnow()
+        min_time = incoming_tsig.time_signed - datetime.timedelta(seconds=incoming_tsig.fudge)
+        max_time = incoming_tsig.time_signed + datetime.timedelta(seconds=incoming_tsig.fudge)
+        if now < min_time or now > max_time:
+            server_timestamp = int(now.timestamp())
+            upper_time = (server_timestamp >> 32) & 0xffff
+            lower_time = server_timestamp & 0xffffffff
+            sign_resp(TSIG_BADTIME, struct.pack("!HI", upper_time, lower_time), time_now=incoming_tsig.time_signed)
+            return dns_res
+
+        zone = None
+        zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        for z in zones:
+            zone_root = DNSLabel(z.zone_root)
+            if zone_name == zone_root:
+                zone = z
+        if not zone:
+            dns_res.header.rcode = RCODE.NOTAUTH
+            sign_resp()
+            return dns_res
+
+        if tsig_key.zone != zone:
+            dns_res.header.rcode = RCODE.NOTAUTH
+            sign_resp()
+            return dns_res
+
+        prset = dns_req.rr
+        upset = dns_req.auth
+
+        # RFC 2136 § 3.2
+        temp_prereq_rrset = {}
+
+        for rr in prset:
+            if rr.ttl != 0:
+                dns_res.header.rcode = RCODE.FORMERR
+                sign_resp()
+                return dns_res
+
+            if not rr.rname.matchSuffix(zone_name):
+                dns_res.header.rcode = RCODE.NOTZONE
+                sign_resp()
+                return dns_res
+
+            record_name = rr.rname.stripSuffix(zone_name)
+            if len(record_name.label) == 0:
+                record_name = DNSLabel("@")
+
+            # RFC 2136 § 3.2.1
+            if rr.rclass == getattr(CLASS, "*"):
+                if rr.rdata != '':
+                    dns_res.header.rcode = RCODE.FORMERR
+                    sign_resp()
+                    return dns_res
+
+                if rr.rtype == QTYPE.ANY:
+                    if not self.any_records(record_name, zone):
+                        dns_res.header.rcode = RCODE.NXDOMAIN
+                        sign_resp()
+                        return dns_res
+                else:
+                    if not self.any_record_type(record_name, zone, rr.rtype):
+                        dns_res.header.rcode = RCODE.NXRRSET
+                        sign_resp()
+                        return dns_res
+
+            # RFC 2136 § 3.2.2
+            elif rr.rclass == getattr(CLASS, "None"):
+                if rr.rdata != '':
+                    dns_res.header.rcode = RCODE.FORMERR
+                    sign_resp()
+                    return dns_res
+
+                if rr.rtype == QTYPE.ANY:
+                    if self.any_records(record_name, zone):
+                        dns_res.header.rcode = RCODE.YXDOMAIN
+                        sign_resp()
+                        return dns_res
+                else:
+                    if self.any_record_type(record_name, zone, rr.rtype):
+                        dns_res.header.rcode = RCODE.YXRRSET
+                        sign_resp()
+                        return dns_res
+
+            # RFC 2136 § 3.2.3
+            elif rr.rclass == dns_req.q.qclass:
+                temp_key = (rr.rname, rr.rtype)
+                if temp_key in temp_prereq_rrset:
+                    temp_prereq_rrset[temp_key].append(rr)
+                else:
+                    temp_prereq_rrset[temp_key] = [rr]
+            else:
+                dns_res.header.rcode = RCODE.FORMERR
+                sign_resp()
+                return dns_res
+
+        # RFC 2136 § 3.2.5
+        for (rname, rtype), values in temp_prereq_rrset.items():
+            record_name = rname.stripSuffix(zone_name)
+            if len(record_name.label) == 0:
+                record_name = DNSLabel("@")
+
+            temp_dns_res = dnslib.DNSRecord()
+            temp_dns_res.add_question(dnslib.DNSQuestion(rname, rtype))
+
+            if rtype in [QTYPE.A, QTYPE.AAAA]:
+                self.lookup_addr(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.MX:
+                self.lookup_mx(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.NS:
+                self.lookup_ns(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.TXT:
+                self.lookup_txt(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.SRV:
+                self.lookup_srv(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.CAA:
+                self.lookup_caa(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.NAPTR:
+                self.lookup_naptr(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.SSHFP:
+                self.lookup_sshfp(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.DS:
+                self.lookup_ds(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.LOC:
+                self.lookup_loc(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.HINFO:
+                self.lookup_hinfo(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.RP:
+                self.lookup_rp(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.CNAME:
+                record = self.find_records(
+                    models.CNAMERecord, record_name, zone
+                ).first()
+                if record:
+                    dns_res.add_answer(
+                        dnslib.RR(
+                            rname,
+                            QTYPE.CNAME,
+                            rdata=dnslib.CNAME(record.alias),
+                            ttl=record.ttl,
+                        )
+                    )
+
+            found_rr = temp_dns_res.rr
+            for rr in found_rr:
+                rr.ttl = 0
+            values.sort(key=lambda r: (r.rname, r.rdata))
+            found_rr.sort(key=lambda r: (r.rname, r.rdata))
+
+            if values != found_rr:
+                dns_res.header.rcode = RCODE.YXRRSET
+                sign_resp()
+                return dns_res
+
+        supported_types = (
+            QTYPE.A, QTYPE.AAAA, QTYPE.MX, QTYPE.NS, QTYPE.TXT, QTYPE.SRV, QTYPE.CAA, QTYPE.NAPTR, QTYPE.DS,
+            QTYPE.LOC, QTYPE.HINFO, QTYPE.RP, QTYPE.CNAME
+        )
+
+        # RFC 2136 § 3.4.1
+        for rr in upset:
+
+            # RFC 2136 § 3.4.1
+            if rr.rclass not in (getattr(CLASS, "*"), getattr(CLASS, "None"), dns_req.q.qclass):
+                dns_res.header.rcode = RCODE.YXRRSET
+                sign_resp()
+                return dns_res
+
+            if not rr.rname.matchSuffix(zone_name):
+                dns_res.header.rcode = RCODE.NOTZONE
+                sign_resp()
+                return dns_res
+
+            # RFC 2136 § 3.4.1.2
+            if rr.rclass == dns_req.q.qclass:
+                if rr.rtype not in supported_types:
+                    dns_res.header.rcode = RCODE.FORMERR
+                    sign_resp()
+                    return dns_res
+
+            elif rr.rclass == getattr(CLASS, "*"):
+                if rr.rdata != '' or rr.rtype not in supported_types or rr.ttl != 0:
+                    dns_res.header.rcode = RCODE.FORMERR
+                    sign_resp()
+                    return dns_res
+
+            elif rr.rclass == getattr(CLASS, "None"):
+                if rr.ttl != 0 or rr.rtype not in supported_types:
+                    dns_res.header.rcode = RCODE.FORMERR
+                    sign_resp()
+                    return dns_res
+
+            else:
+                dns_res.header.rcode = RCODE.FORMERR
+                sign_resp()
+                return dns_res
+
+        def get_record_models(rrtype, record_name: dnslib.DNSLabel):
+            if rrtype in [QTYPE.A, QTYPE.AAAA]:
+                return self.find_records(models.AddressRecord, record_name, zone)
+            elif rrtype == QTYPE.MX:
+                return self.find_records(models.MXRecord, record_name, zone)
+            elif rrtype == QTYPE.NS:
+                return self.find_records(models.NSRecord, record_name, zone)
+            elif rrtype == QTYPE.TXT:
+                return self.find_records(models.TXTRecord, record_name, zone)
+            elif rrtype == QTYPE.SRV:
+                return self.find_records(models.SRVRecord, record_name, zone)
+            elif rrtype == QTYPE.CAA:
+                return self.find_records(models.CAARecord, record_name, zone)
+            elif rrtype == QTYPE.NAPTR:
+                return self.find_records(models.NAPTRRecord, record_name, zone)
+            elif rrtype == QTYPE.DS:
+                return self.find_records(models.DSRecord, record_name, zone)
+            elif rrtype == QTYPE.LOC:
+                return self.find_records(models.LOCRecord, record_name, zone)
+            elif rrtype == QTYPE.HINFO:
+                return self.find_records(models.HINFORecord, record_name, zone)
+            elif rrtype == QTYPE.RP:
+                return self.find_records(models.RPRecord, record_name, zone)
+            elif rrtype == QTYPE.CNAME:
+                return self.find_records(models.CNAMERecord, record_name, zone)
+            else:
+                return None
+            
+        def can_manage(rrtype, record_name: dnslib.DNSLabel):
+            if tsig_key.type == tsig_key.TYPE_UNLIMITED:
+                return True
+            elif tsig_key.type == tsig_key.TYPE_ACME_DNS01:
+                if record_name.label[0] == b"_acme-challenge" and rrtype == QTYPE.TXT:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+
+        # RFC 2136 § 3.4.2
+        to_update = []
+        for rr in upset:
+            record_name = rr.rname.stripSuffix(zone_name)
+
+            # RFC 2136 § 3.4.2.2
+            if rr.rclass == dns_req.q.qclass:
+                if not can_manage(rr.rtype, rr.rname):
+                    dns_res.header.rcode = RCODE.NOTAUTH
+                    sign_resp()
+                    return dns_res
+
+                def _try_update():
+                    if rr.rtype == QTYPE.CNAME:
+                        if self.any_records(record_name, zone, include_cname=False):
+                            return
+                    elif self.any_record_type(record_name, zone, QTYPE.CNAME):
+                        return
+
+                    records = get_record_models(rr.rtype, record_name)
+                    if records is None:
+                        return
+
+                    for record in records:
+                        record_rr = record.to_rr()
+
+                        if rr.rdata == record_rr.rdata:
+                            record.update_from_rr(rr)
+                            record.save()
+                            return
+                    if rr.rtype in [QTYPE.A, QTYPE.AAAA]:
+                        new_record = models.AddressRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.MX:
+                        new_record = models.MXRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.NS:
+                        new_record = models.NSRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.TXT:
+                        new_record = models.TXTRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.SRV:
+                        new_record = models.SRVRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.CAA:
+                        new_record = models.CAARecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.NAPTR:
+                        new_record = models.NAPTRRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.DS:
+                        new_record = models.DSRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.LOC:
+                        new_record = models.LOCRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.HINFO:
+                        new_record = models.HINFORecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.RP:
+                        new_record = models.RPRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.CNAME:
+                        new_record = models.CNAMERecord.from_rr(rr, zone)
+                    else:
+                        return
+
+                    new_record.save()
+
+                _try_update()
+
+            # RFC 2136 § 3.4.2.3
+            elif rr.rclass == getattr(CLASS, "*"):
+                if rr.rtype == QTYPE.ANY:
+                    for m in (
+                            models.AddressRecord, models.MXRecord, models.NSRecord, models.TXTRecord, models.SRVRecord,
+                            models.CAARecord, models.NAPTRRecord, models.DSRecord, models.LOCRecord, models.HINFORecord,
+                            models.RPRecord, models.CNAMERecord
+                    ):
+                        for record in self.find_records(m, record_name, zone):
+                            record_rr = record.to_rr()
+                            if not can_manage(record_rr.rtype, rr.rname):
+                                dns_res.header.rcode = RCODE.NOTAUTH
+                                sign_resp()
+                                return dns_res
+                            record.delete()
+                else:
+                    records = get_record_models(rr.rtype, record_name)
+                    if not can_manage(rr.rtype, rr.rname):
+                        dns_res.header.rcode = RCODE.NOTAUTH
+                        sign_resp()
+                        return dns_res
+
+                    if records is not None:
+                        for record in records:
+                            record_rr = record.to_rr()
+                            if record_rr.rtype == rr.rtype:
+                                record.delete()
+
+            # RFC 2136 § 3.4.2.4
+            elif rr.rclass == getattr(CLASS, "None"):
+                records = get_record_models(rr.rtype, record_name)
+                if records is None:
+                    continue
+
+                if not can_manage(rr.rtype, rr.rname):
+                    dns_res.header.rcode = RCODE.NOTAUTH
+                    sign_resp()
+                    return dns_res
+
+                for record in records:
+                    record_rr = record.to_rr()
+                    if rr.rdata == record_rr.rdata and record_rr.rtype == rr.rtype:
+                        record.delete()
+
+        sign_resp()
+        return dns_res
+
     def Query(self, request: dns_pb2.DnsPacket, context):
         try:
             dns_req = dnslib.DNSRecord.parse(request.msg)
@@ -1492,3 +2092,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for res in dns_res:
             res = self.make_resp(res)
             yield res
+
+    def UpdateQuery(self, request: dns_pb2.DnsPacket, context):
+        try:
+            dns_req = dnslib.DNSRecord.parse(request.msg)
+        except dnslib.DNSError:
+            dns_res = dnslib.DNSRecord()
+            dns_res.header.rcode = RCODE.FORMERR
+            return self.make_resp(dns_res)
+
+        try:
+            dns_res = self.handle_update_query(dns_req)
+        except Exception as e:
+            print(e)
+            sentry_sdk.capture_exception(e)
+            traceback.print_exc()
+            dns_res = dns_req.reply()
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return dns_res
+
+        print(dns_res)
+        res = self.make_resp(dns_res)
+        return res

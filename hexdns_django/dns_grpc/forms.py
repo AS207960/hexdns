@@ -331,6 +331,28 @@ class RPRecordForm(forms.ModelForm):
         exclude = ("id", "zone")
 
 
+class UpdateSecretForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.fields['id'].disabled = True
+        self.fields['id'].required = False
+        self.helper.form_class = "form-horizontal"
+        self.helper.label_class = "col-lg-4"
+        self.helper.field_class = "col-lg-8"
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}"),
+            "type",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneUpdateSecrets
+        fields = "__all__"
+        exclude = ("zone", "secret")
+        read_only = ("id",)
+
+
 class ReversePTRRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

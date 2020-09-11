@@ -3,9 +3,11 @@ import binascii
 import ipaddress
 import struct
 import math
+import secrets
 import hashlib
 import django_keycloak_auth.clients
 import dnslib
+import codecs
 import sshpubkeys
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -84,6 +86,32 @@ class DNSZone(models.Model):
 
     def __str__(self):
         return self.zone_root
+
+
+def make_update_secret():
+    return secrets.token_bytes(64)
+
+
+class DNSZoneUpdateSecrets(models.Model):
+    TYPE_UNLIMITED = "U"
+    TYPE_ACME_DNS01 = "D"
+
+    TYPES = (
+        (TYPE_UNLIMITED, "Unlimited access"),
+        (TYPE_ACME_DNS01, "ACME DNS01 access")
+    )
+
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneupdatesecret", primary_key=True)
+    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    type = models.CharField(max_length=1, choices=TYPES)
+    secret = models.BinaryField(default=make_update_secret)
+
+    def __str__(self):
+        return f"{self.id}.{self.zone.zone_root}"
+
+    @property
+    def secret_str(self):
+        return base64.b64encode(self.secret).decode()
 
 
 class ReverseDNSZone(models.Model):
@@ -247,7 +275,6 @@ class DNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
-        indexes = [models.Index(fields=['record_name', 'zone'])]
 
     @property
     def dns_label(self):
@@ -255,6 +282,15 @@ class DNSZoneRecord(models.Model):
             return dnslib.DNSLabel(self.zone.zone_root)
         else:
             return dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}")
+
+    @classmethod
+    def dns_label_to_record_name(cls, rname, zone):
+        zone_name = dnslib.DNSLabel(zone.zone_root)
+        if zone_name == rname:
+            return "@"
+        else:
+            record_label = rname.stripSuffix(zone_name)
+            return ".".join(map(lambda n: n.decode().lower(), record_label.label))
 
     def __str__(self):
         return self.record_name
@@ -267,7 +303,6 @@ class ReverseDNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
-        indexes = [models.Index(fields=['record_address', 'zone'])]
 
     def clean(self):
         zone_network = ipaddress.ip_network(
@@ -286,6 +321,25 @@ class AddressRecord(DNSZoneRecord):
     auto_reverse = models.BooleanField(
         default=False, verbose_name="Automatically serve reverse PTR records"
     )
+
+    class Meta:
+        indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            address=str(rr.rdata)
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.address = str(rr.rdata)
 
     def to_rr(self):
         address = ipaddress.ip_address(self.address)
@@ -310,6 +364,9 @@ class DynamicAddressRecord(DNSZoneRecord):
     current_ipv4 = models.GenericIPAddressField(protocol='ipv4', blank=True, null=True)
     current_ipv6 = models.GenericIPAddressField(protocol='ipv6', blank=True, null=True)
     password = models.CharField(max_length=255)
+
+    class Meta:
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def to_rr_v4(self):
         if not self.current_ipv4:
@@ -368,11 +425,28 @@ class ANAMERecord(DNSZoneRecord):
     class Meta:
         verbose_name = "ANAME record"
         verbose_name_plural = "ANAME records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class CNAMERecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonecnamerecord", primary_key=True)
     alias = models.CharField(max_length=255)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            alias=str(rr.rdata.label)
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.address = str(rr.rdata.label)
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
@@ -381,12 +455,31 @@ class CNAMERecord(DNSZoneRecord):
     class Meta:
         verbose_name = "CNAME record"
         verbose_name_plural = "CNAME records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class MXRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonemxrecord", primary_key=True)
     exchange = models.CharField(max_length=255)
     priority = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            exchange=str(rr.rdata.label),
+            priority=rr.rdata.preference
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.exchange = str(rr.rdata.label)
+        self.priority = rr.rdata.preference
 
     def save(self, *args, **kwargs):
         self.exchange = self.exchange.lower()
@@ -403,11 +496,28 @@ class MXRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "MX record"
         verbose_name_plural = "MX records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class NSRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonensrecord", primary_key=True)
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            nameserver=str(rr.rdata.label)
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.nameserver = str(rr.rdata.label)
 
     def save(self, *args, **kwargs):
         self.nameserver = self.nameserver.lower()
@@ -421,15 +531,31 @@ class NSRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-
-class Meta:
-    verbose_name = "NS record"
-    verbose_name_plural = "NS records"
+    class Meta:
+        verbose_name = "NS record"
+        verbose_name_plural = "NS records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class TXTRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonetxtrecord", primary_key=True)
     data = models.TextField()
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            data="".join([x.decode(errors='replace') for x in rr.rdata.data])
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.data = "".join([x.decode(errors='replace') for x in rr.rdata.data])
 
     def to_rr(self):
         return dnslib.RR(
@@ -447,6 +573,7 @@ class TXTRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "TXT record"
         verbose_name_plural = "TXT records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class SRVRecord(DNSZoneRecord):
@@ -455,6 +582,28 @@ class SRVRecord(DNSZoneRecord):
     weight = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     port = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     target = models.CharField(max_length=255)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            priority=rr.rdata.priority,
+            weight=rr.rdata.weight,
+            port=rr.rdata.port,
+            target=str(rr.rdata.target)
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.priority = rr.rdata.priority
+        self.weight = rr.rdata.weight
+        self.port = rr.rdata.port
+        self.target = str(rr.rdata.target)
 
     def to_rr(self):
         return dnslib.RR(
@@ -469,6 +618,7 @@ class SRVRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "SRV record"
         verbose_name_plural = "SRV records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class CAARecord(DNSZoneRecord):
@@ -476,6 +626,26 @@ class CAARecord(DNSZoneRecord):
     flag = models.PositiveIntegerField(validators=[MaxValueValidator(255)])
     tag = models.CharField(max_length=255)
     value = models.CharField(max_length=255)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            flag=rr.rdata.flag,
+            tag=rr.rdata.tag,
+            value=rr.rdata.value
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.flag = rr.rdata.flag
+        self.tag = rr.rdata.tag
+        self.value = rr.rdata.value
 
     def to_rr(self):
         return dnslib.RR(
@@ -490,6 +660,7 @@ class CAARecord(DNSZoneRecord):
     class Meta:
         verbose_name = "CAA record"
         verbose_name_plural = "CAA records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class NAPTRRecord(DNSZoneRecord):
@@ -500,6 +671,32 @@ class NAPTRRecord(DNSZoneRecord):
     service = models.CharField(max_length=255)
     regexp = models.CharField(max_length=255)
     replacement = models.CharField(max_length=255)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            order=rr.rdata.order,
+            preference=rr.rdata.preference,
+            flags=rr.rdata.flags,
+            service=rr.rdata.service,
+            regexp=rr.rdata.regexp,
+            replacement=rr.rdata.replacement,
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.order = rr.rdata.order
+        self.preference = rr.rdata.preference,
+        self.flags = rr.rdata.flags,
+        self.service = rr.rdata.service,
+        self.regexp = rr.rdata.regexp,
+        self.replacement = rr.rdata.replacement
     
     def to_rr(self):
         return dnslib.RR(
@@ -519,6 +716,7 @@ class NAPTRRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "NAPTR record"
         verbose_name_plural = "NAPTR records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class SSHFPRecord(DNSZoneRecord):
@@ -573,6 +771,7 @@ class SSHFPRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "SSHFP record"
         verbose_name_plural = "SSHFP records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class DSRecord(DNSZoneRecord):
@@ -609,6 +808,34 @@ class DSRecord(DNSZoneRecord):
                 return base64.b64decode(self.digest)
             except binascii.Error:
                 return None
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        tags_len = struct.calcsize("!HBB")
+        key_tag, algorithm, digest_type = struct.pack("!HBB", rr.rdata.data)
+        digest = rr.rdata.data[tags_len:]
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            key_tag=key_tag,
+            algorithm=algorithm,
+            digest_type=digest_type,
+            digest=codecs.encode(digest, "hex").decode()
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        tags_len = struct.calcsize("!HBB")
+        key_tag, algorithm, digest_type = struct.pack("!HBB", rr.rdata.data)
+        digest = rr.rdata.data[tags_len:]
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.key_tag = key_tag
+        self.algorithm = algorithm
+        self.digest_type = digest_type
+        self.digest = codecs.encode(digest, "hex").decode()
             
     def to_rr(self):
         ds_data = bytearray(
@@ -630,6 +857,7 @@ class DSRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "DS record"
         verbose_name_plural = "DS records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class LOCRecord(DNSZoneRecord):
@@ -652,7 +880,58 @@ class LOCRecord(DNSZoneRecord):
     vp = models.FloatField(validators=[
         MinValueValidator(0), MaxValueValidator(90000000.00)
     ], verbose_name="Vertical precision (m)", default=0)
-    
+
+    @staticmethod
+    def _dec_size(value):
+        size_exp = value & 0x0F
+        size_man = (value & 0xF0) >> 4
+
+        return size_man * (10 ** size_exp)
+
+    @classmethod
+    def _dec_rdata(cls, rdata):
+        _, size, hp, vp, lat, long, alt = struct.unpack("!BBBBIII", rdata)
+
+        size = cls._dec_size(size)
+        hp = cls._dec_size(hp)
+        vp = cls._dec_size(vp)
+
+        lat = ((lat - 2 ** 31) / 3600.0 / 1000.0)
+        long = ((long - 2 ** 31) / 3600.0 / 1000.0)
+        alt = ((alt / 100.0) - 100000)
+
+        return size, hp, vp, lat, long, alt
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        size, hp, vp, lat, long, alt = cls._dec_size(rr.rdata.data)
+
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            latitude=lat,
+            longitude=long,
+            altitude=alt,
+            size=size,
+            hp=hp,
+            vp=vp
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        size, hp, vp, lat, long, alt = self._dec_size(rr.rdata.data)
+
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.latitude = lat
+        self.longitude = long
+        self.altitude = alt
+        self.size = size
+        self.hp = hp
+        self.vp = vp
+
     def to_rr(self):
         def enc_size(value):
             size_exp = int(math.floor(math.log10(value)) if value != 0 else 0)
@@ -678,12 +957,35 @@ class LOCRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "LOC record"
         verbose_name_plural = "LOC records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class HINFORecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonehinforecord", primary_key=True)
     cpu = models.CharField(max_length=255, verbose_name="CPU")
     os = models.CharField(max_length=255, verbose_name="OS")
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+        rdata = dnslib.TXT.parse(rdata_buffer, len(rr.rdata.data))
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            cpu=rdata.data[0].decode(errors='replace'),
+            os=rdata.data[1].decode(errors='replace'),
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+        rdata = dnslib.TXT.parse(rdata_buffer, len(rr.rdata.data))
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.cpu = rdata.data[0].decode(errors='replace')
+        self.os = rdata.data[1].decode(errors='replace')
     
     def to_rr(self):
         return dnslib.RR(
@@ -696,6 +998,7 @@ class HINFORecord(DNSZoneRecord):
     class Meta:
         verbose_name = "HINFO record"
         verbose_name_plural = "HINFO records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class RPRecord(DNSZoneRecord):
@@ -707,6 +1010,26 @@ class RPRecord(DNSZoneRecord):
         self.mailbox = self.mailbox.lower()
         self.txt = self.txt.lower()
         return super().save(*args, **kwargs)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            mailbox=str(rdata_buffer.decode_name()),
+            txt=str(rdata_buffer.decode_name()),
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.mailbox = str(rdata_buffer.decode_name())
+        self.txt = str(rdata_buffer.decode_name())
     
     def to_rr(self):
         buffer = dnslib.DNSBuffer()
@@ -722,6 +1045,7 @@ class RPRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "RP record"
         verbose_name_plural = "RP records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class PTRRecord(ReverseDNSZoneRecord):
@@ -735,6 +1059,7 @@ class PTRRecord(ReverseDNSZoneRecord):
     class Meta:
         verbose_name = "PTR record"
         verbose_name_plural = "PTR records"
+        indexes = [models.Index(fields=['record_address', 'zone'])]
 
 
 class ReverseNSRecord(ReverseDNSZoneRecord):
@@ -758,3 +1083,4 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
     class Meta:
         verbose_name = "NS record"
         verbose_name_plural = "NS records"
+        indexes = [models.Index(fields=['record_address', 'zone'])]

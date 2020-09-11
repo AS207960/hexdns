@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_ad_record__22ca60_idx'),
         ),
         migrations.AddIndex(
-            model_name='anemerecord',
+            model_name='anamerecord',
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_an_record__22ca60_idx'),
         ),
         migrations.AddIndex(
@@ -81,15 +81,15 @@ class Migration(migrations.Migration):
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_rp_record__22ca60_idx'),
         ),
         migrations.AddIndex(
-            model_name='srvecord',
+            model_name='srvrecord',
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_sr_record__22ca60_idx'),
         ),
         migrations.AddIndex(
-            model_name='sshfpecord',
+            model_name='sshfprecord',
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_sp_record__22ca60_idx'),
         ),
         migrations.AddIndex(
-            model_name='txtpecord',
+            model_name='txtrecord',
             index=models.Index(fields=['record_name', 'zone'], name='dns_grpc_tx_record__22ca60_idx'),
         ),
         migrations.AddIndex(

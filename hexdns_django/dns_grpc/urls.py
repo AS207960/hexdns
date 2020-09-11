@@ -13,6 +13,10 @@ urlpatterns = [
     path("zone/<str:zone_id>/generate_dmarc/", views.generate_dmarc, name="generate_dmarc"),
     path("zone/<str:zone_id>/setup_gsutie/", views.setup_gsuite, name="setup_gsuite"),
     path("zone/<str:zone_id>/setup_github_pages/", views.setup_github_pages, name="setup_github_pages"),
+    path("zone/<str:zone_id>/tsig/", views.edit_zone_tsig, name="edit_zone_secrets"),
+    path("zone/<str:zone_id>/tsig/create/", views.create_zone_secret, name="create_zone_secret"),
+    path("tsig/<str:record_id>/", views.edit_zone_secret, name="edit_zone_secret"),
+    path("tsig/<str:record_id>/delete/", views.delete_zone_secret, name="delete_zone_secret"),
     path("delete_zone/<str:zone_id>/", views.delete_zone, name="delete_zone"),
     path(
         "zone/<str:zone_id>/new_address/",

@@ -14,6 +14,7 @@ admin.site.register(models.SSHFPRecord)
 admin.site.register(models.DSRecord)
 admin.site.register(models.PTRRecord)
 admin.site.register(models.Account)
+admin.site.register(models.DNSZoneUpdateSecrets)
 
 
 @admin.register(models.DNSZone)

@@ -18,7 +18,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='coredns.dns',
   syntax='proto3',
   serialized_options=b'Z\002pb',
-  serialized_pb=b'\n\tdns.proto\x12\x0b\x63oredns.dns\"\x18\n\tDnsPacket\x12\x0b\n\x03msg\x18\x01 \x01(\x0c\x32\x84\x01\n\nDnsService\x12\x37\n\x05Query\x12\x16.coredns.dns.DnsPacket\x1a\x16.coredns.dns.DnsPacket\x12=\n\tAXFRQuery\x12\x16.coredns.dns.DnsPacket\x1a\x16.coredns.dns.DnsPacket0\x01\x42\x04Z\x02pbb\x06proto3'
+  serialized_pb=b'\n\tdns.proto\x12\x0b\x63oredns.dns\"\x18\n\tDnsPacket\x12\x0b\n\x03msg\x18\x01 \x01(\x0c\x32\xc3\x01\n\nDnsService\x12\x37\n\x05Query\x12\x16.coredns.dns.DnsPacket\x1a\x16.coredns.dns.DnsPacket\x12=\n\tAXFRQuery\x12\x16.coredns.dns.DnsPacket\x1a\x16.coredns.dns.DnsPacket0\x01\x12=\n\x0bUpdateQuery\x12\x16.coredns.dns.DnsPacket\x1a\x16.coredns.dns.DnsPacketB\x04Z\x02pbb\x06proto3'
 )
 
 
@@ -74,7 +74,7 @@ _DNSSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   serialized_start=53,
-  serialized_end=185,
+  serialized_end=248,
   methods=[
   _descriptor.MethodDescriptor(
     name='Query',
@@ -89,6 +89,15 @@ _DNSSERVICE = _descriptor.ServiceDescriptor(
     name='AXFRQuery',
     full_name='coredns.dns.DnsService.AXFRQuery',
     index=1,
+    containing_service=None,
+    input_type=_DNSPACKET,
+    output_type=_DNSPACKET,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='UpdateQuery',
+    full_name='coredns.dns.DnsService.UpdateQuery',
+    index=2,
     containing_service=None,
     input_type=_DNSPACKET,
     output_type=_DNSPACKET,

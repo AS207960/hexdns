@@ -24,6 +24,11 @@ class DnsServiceStub(object):
         request_serializer=dns__pb2.DnsPacket.SerializeToString,
         response_deserializer=dns__pb2.DnsPacket.FromString,
         )
+    self.UpdateQuery = channel.unary_unary(
+        '/coredns.dns.DnsService/UpdateQuery',
+        request_serializer=dns__pb2.DnsPacket.SerializeToString,
+        response_deserializer=dns__pb2.DnsPacket.FromString,
+        )
 
 
 class DnsServiceServicer(object):
@@ -44,6 +49,13 @@ class DnsServiceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def UpdateQuery(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
 
 def add_DnsServiceServicer_to_server(servicer, server):
   rpc_method_handlers = {
@@ -54,6 +66,11 @@ def add_DnsServiceServicer_to_server(servicer, server):
       ),
       'AXFRQuery': grpc.unary_stream_rpc_method_handler(
           servicer.AXFRQuery,
+          request_deserializer=dns__pb2.DnsPacket.FromString,
+          response_serializer=dns__pb2.DnsPacket.SerializeToString,
+      ),
+      'UpdateQuery': grpc.unary_unary_rpc_method_handler(
+          servicer.UpdateQuery,
           request_deserializer=dns__pb2.DnsPacket.FromString,
           response_serializer=dns__pb2.DnsPacket.SerializeToString,
       ),
