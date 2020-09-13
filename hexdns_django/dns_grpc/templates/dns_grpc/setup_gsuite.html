@@ -5,7 +5,8 @@
             <h1 class="display-4">Setup MX for G Suite&trade;</h1>
             <b>Zone name: </b> {{ zone.zone_root }}
             <hr class="my-4">
-            <p>This will remove all current MX records and replace them with those for G Suite&trade;</p>
+            <p>This will remove all current MX records and replace them with those for G Suite&trade;.</p>
+            <p><small>GSuite is a registered trademark of Google LLC.</small></p>
             <form action="" method="post">
                 {% csrf_token %}
                 <a class="btn btn-secondary btn-md" href="{% url 'edit_zone' zone.id %}" role="button">Cancel</a>
