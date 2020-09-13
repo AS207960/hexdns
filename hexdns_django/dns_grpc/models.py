@@ -403,7 +403,7 @@ class ANAMERecord(DNSZoneRecord):
         out = []
         question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
         res_pkt = question.send(
-            settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=False, timeout=5
+            settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True
         )
         res = dnslib.DNSRecord.parse(res_pkt)
         for rr in res.rr:
