@@ -228,7 +228,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         try:
             addr = ipaddress.ip_address(addr)
         except ValueError:
-            return None, None, None
+            return None, None
 
         zones = models.ReverseDNSZone.objects.filter(active=True).order_by("-zone_root_prefix")
         for zone in zones:
@@ -239,7 +239,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             if addr in zone_network:
                 return zone, addr
 
-        return None, None, None
+        return None, None
 
     def find_records(
             self,
