@@ -1038,7 +1038,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ]
                     try:
                         qtypes.remove(dnslib.QTYPE[dns_res.q.qtype])
-                    except ValueError:
+                    except ValueError, KeyError:
                         pass
                     bitmap = self.encode_type_bitmap_window(qtypes)
                     buf = dnslib.DNSBuffer()
