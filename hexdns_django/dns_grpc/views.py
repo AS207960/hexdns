@@ -213,6 +213,10 @@ def create_domains_zone(request):
             "back_url": referrer
         })
 
+    existing_zone = models.DNSZone.objects.filter(zone_root=domain_token["domain"]).first()
+    if existing_zone:
+        return redirect('edit_zone', existing_zone.id)
+
     zone_root = domain_token["domain"].lower()
     zone_error = valid_zone(zone_root)
     if zone_error:
