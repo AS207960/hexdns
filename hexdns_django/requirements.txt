@@ -1,7 +1,7 @@
 Django
 django-grpc
 dnslib
-git+https://github.com/TheEnbyperor/django-keycloak-auth@8f8b3f8a6e554acb7aff21ab12ec54c6b59b5197
+git+https://github.com/TheEnbyperor/django-keycloak-auth@d0c11a4a5dec5dfc7730256b011bc86260dda5cf
 sentry-sdk
 psycopg2-binary
 gunicorn
