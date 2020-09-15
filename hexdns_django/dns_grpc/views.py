@@ -2,12 +2,13 @@ import base64
 import hashlib
 import ipaddress
 import secrets
+import urllib.parse
 import uuid
 
 import django_keycloak_auth.clients
 import dnslib
-import requests
 import jwt
+import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -17,8 +18,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.utils.safestring import mark_safe
+from django.views.decorators.csrf import csrf_exempt
 from publicsuffixlist import PublicSuffixList
 
 from . import forms, grpc, models
@@ -282,11 +283,23 @@ def edit_zone(request, zone_id):
         raise PermissionDenied
 
     dnssec_digest, dnssec_tag = make_zone_digest(user_zone.zone_root)
+    sharing_data = {
+        "referrer": settings.OIDC_CLIENT_ID,
+        "referrer_uri": request.build_absolute_uri()
+    }
+    sharing_data_uri = urllib.parse.urlencode(sharing_data)
+    sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
+                  f"{user_zone.resource_id}?{sharing_data_uri}"
 
     return render(
         request,
         "dns_grpc/zone.html",
-        {"zone": user_zone, "dnssec_tag": dnssec_tag, "dnssec_digest": dnssec_digest},
+        {
+            "zone": user_zone,
+            "dnssec_tag": dnssec_tag,
+            "dnssec_digest": dnssec_digest,
+            "sharing_uri": sharing_uri
+        },
     )
 
 
@@ -319,7 +332,7 @@ def edit_zone_tsig(request, zone_id):
     return render(
         request,
         "dns_grpc/zone_tsig.html",
-        {"zone": user_zone,},
+        {"zone": user_zone, },
     )
 
 
@@ -336,11 +349,23 @@ def edit_rzone(request, zone_id):
     )
     zone_name = grpc.network_to_apra(zone_network)
     dnssec_digest, dnssec_tag = make_zone_digest(zone_name.label)
+    sharing_data = {
+        "referrer": settings.OIDC_CLIENT_ID,
+        "referrer_uri": request.build_absolute_uri()
+    }
+    sharing_data_uri = urllib.parse.urlencode(sharing_data)
+    sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
+                  f"{user_zone.resource_id}?{sharing_data_uri}"
 
     return render(
         request,
         "dns_grpc/rzone.html",
-        {"zone": user_zone, "dnssec_tag": dnssec_tag, "dnssec_digest": dnssec_digest}
+        {
+            "zone": user_zone,
+            "dnssec_tag": dnssec_tag,
+            "dnssec_digest": dnssec_digest,
+            "sharing_uri": sharing_uri
+        }
     )
 
 
@@ -387,10 +412,21 @@ def view_szone(request, zone_id):
     if not user_zone.has_scope(access_token, 'view'):
         raise PermissionDenied
 
+    sharing_data = {
+        "referrer": settings.OIDC_CLIENT_ID,
+        "referrer_uri": request.build_absolute_uri()
+    }
+    sharing_data_uri = urllib.parse.urlencode(sharing_data)
+    sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
+                  f"{user_zone.resource_id}?{sharing_data_uri}"
+
     return render(
         request,
         "dns_grpc/szone.html",
-        {"zone": user_zone}
+        {
+            "zone": user_zone,
+            "sharing_uri": sharing_uri,
+        }
     )
 
 
@@ -1905,7 +1941,6 @@ def setup_gsuite(request, zone_id):
 def setup_github_pages(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
-
 
     if not zone_obj.has_scope(access_token, 'edit'):
         raise PermissionDenied

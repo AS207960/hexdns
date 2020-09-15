@@ -9,6 +9,11 @@
                     <div class="col">
                         <b>Last updated date:</b> {{ zone.last_modified|date:"N jS Y P" }}
                     </div>
+                    <div class="col">
+                        <div class="btn-group">
+                            <a href="{{ sharing_uri }}" class="btn btn-info">&#x1f91d; Share</a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -20,7 +25,8 @@
                 <p>Your zone doesn't appear to be pointed to us correctly yet.</p>
                 <hr>
                 <p class="mb-0">
-                    Please ensure the parent is configured as described <a href="https://docs.glauca.digital/hexdns/setup/" class="alert-link">here</a>.
+                    Please ensure the parent is configured as described <a
+                        href="https://docs.glauca.digital/hexdns/setup/" class="alert-link">here</a>.
                     It may take up to 24 hours for the NS updates to propagate.
                 </p>
             </div>
@@ -49,8 +55,10 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_r_ptr_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'delete_r_ptr_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_r_ptr_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'delete_r_ptr_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -84,8 +92,10 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_r_ns_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'delete_r_ns_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_r_ns_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'delete_r_ns_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
