@@ -31,7 +31,7 @@ data:
   DJANGO_SETTINGS_MODULE: hexdns_django.settings
   EXTERNAL_URL: "https://dns.glauca.digital"
   SENTRY_ENVIRONMENT: "prod"
-  KEYCLOAK_SERVER_URL: "https://sso.as207960.net/"
+  KEYCLOAK_SERVER_URL: "https://sso.as207960.net"
   KEYCLOAK_REALM: master
   KEYCLOAK_SCOPES: "openid email profile"
   KEYCLOAK_CLIENT_ID: "hexdns"

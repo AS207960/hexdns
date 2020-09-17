@@ -1631,7 +1631,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         # RFC 2845 § 4.5.3
         message_digest = HMAC_NAMES[tsig_alg_label]
-        incoming_hmac = hmac.new(tsig_key.secret, digestmod=message_digest)
+        incoming_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
         dns_req.header.id = incoming_tsig.original_id
 
         for r in dns_req.rr:
@@ -1686,7 +1686,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 other_data=other_data
             )
 
-            outgoing_hmac = hmac.new(tsig_key.secret, digestmod=message_digest)
+            outgoing_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
             outgoing_hmac.update(struct.pack('!H', len(incoming_tsig.mac)))
             outgoing_hmac.update(incoming_tsig.mac)
             outgoing_hmac.update(dns_res.pack())
