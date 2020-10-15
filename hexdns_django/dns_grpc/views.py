@@ -1974,7 +1974,7 @@ def setup_github_pages(request, zone_id):
 
 
 def get_ip(request):
-    net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/96")
+    net64_net = ipaddress.IPv6Network("2a0d:1a40:7900:6::/80")
     addr = ipaddress.ip_address(request.META['REMOTE_ADDR'])
     if isinstance(addr, ipaddress.IPv6Address):
         if addr.ipv4_mapped:
