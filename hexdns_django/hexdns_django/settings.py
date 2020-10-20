@@ -190,6 +190,7 @@ XFF_STRICT = True
 DOMAINS_URL = os.getenv("DOMAINS_URL")
 FEEDBACK_URL = os.getenv("FEEDBACK_URL")
 BILLING_URL = os.getenv("BILLING_URL")
+PAT_URL = os.getenv("PAT_URL")
 BILLING_PLAN_ID = os.getenv("BILLING_PLAN_ID")
 
 RESOLVER_ADDR = os.getenv("RESOLVER_ADDR")
@@ -207,6 +208,10 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser'
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'as207960_utils.api.auth.BearerAuthentication',
+        'as207960_utils.api.auth.PATAuthentication',
+        'as207960_utils.api.auth.SessionAuthentication',
+    ] if PAT_URL else [
         'as207960_utils.api.auth.BearerAuthentication',
         'as207960_utils.api.auth.SessionAuthentication',
     ],
