@@ -28,7 +28,7 @@ def mail_valid(user, zone):
         body=txt_content,
         to=[user.email],
         bcc=['q@as207960.net'],
-        reply_to=['info@glauca.digital']
+        reply_to=['Glauca Support <hello@glauca.digital>']
     )
     email.attach_alternative(html_content, "text/html")
     email.send()
@@ -47,7 +47,7 @@ def mail_invalid(user, zone):
         body=txt_content,
         to=[user.email],
         bcc=['q@as207960.net'],
-        reply_to=['info@glauca.digital']
+        reply_to=['Glauca Support <hello@glauca.digital>']
     )
     email.attach_alternative(html_content, "text/html")
     email.send()
