@@ -1706,7 +1706,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         incoming_hmac2.update(d2)
         incoming_digest = incoming_hmac.digest()
         incoming_digest2 = incoming_hmac2.digest()
-        print(d, d2, incoming_digest, incoming_digest2)
+        print(d, d2, incoming_digest, incoming_digest2, incoming_tsig)
 
         if (incoming_digest != incoming_tsig.mac) and (incoming_digest2 != incoming_tsig.mac):
             tsig_unsigned_error(TSIG_BADSIG)
