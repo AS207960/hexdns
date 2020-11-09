@@ -1647,13 +1647,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         incoming_hmac.update(dns_req.pack())
 
         for r in dns_req.rr:
-            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
                 r.rdata = ''
         for r in dns_req.auth:
-            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
                 r.rdata = ''
         for r in dns_req.ar:
-            if isinstance(r.rdata, dnslib.RD) and r.rdata.data == b'':
+            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
                 r.rdata = ''
 
         temp_buffer = dnslib.DNSBuffer()
