@@ -1632,6 +1632,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         # RFC 2845 § 4.5.3
         message_digest = HMAC_NAMES[tsig_alg_label]
         incoming_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
+        incoming_hmac2 = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
         dns_req.header.id = incoming_tsig.original_id
 
         for r in dns_req.rr:
@@ -1644,7 +1645,45 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             if r.rdata == '':
                 r.rdata = dnslib.RD(data=b'')
 
-        incoming_hmac.update(dns_req.pack())
+        def pack_rr_canon(rd, buffer):
+            buffer.encode_name_nocompress(rd.rname)
+            buffer.pack("!HHI", rd.rtype, rd.rclass, rd.ttl)
+            rdlength_ptr = buffer.offset
+            buffer.pack("!H",0)
+            start = buffer.offset
+            if rd.rtype == QTYPE.OPT:
+                for opt in rd.rdata:
+                    opt.pack(buffer)
+            elif isinstance(rd.rdata, dnslib.MX):
+                buffer.pack("!H", rd.rdata.preference)
+                buffer.encode_name_nocompress(rd.rdata.label)
+            elif isinstance(rd.rdata, dnslib.CNAME):
+                buffer.encode_name_nocompress(rd.rdata.label)
+            elif isinstance(rd.rdata, dnslib.SOA):
+                buffer.encode_name_nocompress(rd.rdata.mname)
+                buffer.encode_name_nocompress(rd.rdata.rname)
+                buffer.pack("!IIIII", *rd.rdata.times)
+            elif isinstance(rd.rdata, dnslib.SRV):
+                buffer.pack("!HHH", rd.rdata.priority, rd.rdata.weight, rd.rdata.port)
+                buffer.encode_name_nocompress(rd.rdata.target)
+            else:
+                rd.rdata.pack(buffer)
+            end = buffer.offset
+            buffer.update(rdlength_ptr,"!H",end-start)
+
+        d = dns_req.pack()
+        db = dnslib.DNSBuffer()
+        dns_req.header.pack(db)
+        for q in dns_req.questions:
+            db.encode_name(q.qname)
+            db.pack("!HH", q.qtype, q.qclass)
+        for rr in dns_req.rr:
+            pack_rr_canon(rr, db)
+        for auth in dns_req.auth:
+            pack_rr_canon(auth, db)
+        for ar in dns_req.ar:
+            pack_rr_canon(ar, db)
+        d2 = db.data
 
         for r in dns_req.rr:
             if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
@@ -1659,12 +1698,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         temp_buffer = dnslib.DNSBuffer()
         temp_buffer.encode_name_nocompress(req_tsig.rname)
         temp_buffer.pack("!HI", getattr(CLASS, "*"), 0)
-        incoming_hmac.update(temp_buffer.data)
-        incoming_hmac.update(incoming_tsig.make_variables())
+        d += temp_buffer.data
+        d2 += temp_buffer.data
+        d += incoming_tsig.make_variables()
+        d2 += incoming_tsig.make_variables()
+        incoming_hmac.update(d)
+        incoming_hmac2.update(d2)
         incoming_digest = incoming_hmac.digest()
-        print(incoming_tsig, incoming_digest)
+        incoming_digest2 = incoming_hmac2.digest()
 
-        if incoming_digest != incoming_tsig.mac:
+        if (incoming_digest != incoming_tsig.mac) and (incoming_digest2 != incoming_tsig.mac):
             tsig_unsigned_error(TSIG_BADSIG)
             return dns_res
 
@@ -1928,7 +1971,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return self.find_records(models.CNAMERecord, record_name, zone)
             else:
                 return None
-            
+
         def can_manage(rrtype, record_name: dnslib.DNSLabel):
             if tsig_key.type == tsig_key.TYPE_UNLIMITED:
                 return True
