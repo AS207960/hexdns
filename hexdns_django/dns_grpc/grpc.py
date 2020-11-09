@@ -1716,7 +1716,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return dns_res
 
         zone = None
-        zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        zones = models.DNSZone.objects.order_by(Length("zone_root").desc())
         for z in zones:
             zone_root = DNSLabel(z.zone_root)
             if zone_name == zone_root:
