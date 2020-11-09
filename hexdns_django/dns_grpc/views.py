@@ -163,7 +163,7 @@ def create_zone(request):
             zone_root_txt = form.cleaned_data['zone_root'].lower()
             zone_error = valid_zone(zone_root_txt)
             if zone_error:
-                form.errors['zone_root'] = zone_error
+                form.errors['zone_root'] = (zone_error,)
             else:
                 error = log_usage(request.user, extra=1)
                 if error:
@@ -383,7 +383,7 @@ def create_szone(request):
             primary_server = form.cleaned_data['primary_server'].lower()
             zone_error = valid_zone(zone_root_txt)
             if zone_error:
-                form.errors['zone_root'] = [zone_error]
+                form.errors['zone_root'] = (zone_error,)
             else:
                 error = log_usage(request.user, extra=1)
                 if error:
