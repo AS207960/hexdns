@@ -23,10 +23,14 @@ pub mod dns_proto {
 lazy_static! {
     static ref QUERY_COUNTER: prometheus::IntCounterVec =
         register_int_counter_vec!("query_count", "Number of queries received", &["type"]).unwrap();
+    static ref QUERY_RESPONSE_TIME: prometheus::HistogramVec =
+        register_histogram_vec!("query_response_time", "Time taken to respond to queries", &["type"]).unwrap();
     static ref RESPONSE_COUNTER: prometheus::IntCounterVec =
         register_int_counter_vec!("response_count", "Number of responses sent", &["type"]).unwrap();
     static ref UPSTREAM_QUERY_COUNTER: prometheus::IntCounterVec =
         register_int_counter_vec!("upstream_query_count", "Number of queries sent to the upstream", &["type"]).unwrap();
+    static ref UPSTREAM_RESPONSE_TIME: prometheus::Histogram =
+        register_histogram!("upstream_response_time", "Time taken by the upstream to respond to queries").unwrap();
     static ref CACHE_COUNTER: prometheus::IntCounterVec =
         register_int_counter_vec!("cache_count", "Number of lookups to the cache", &["type"]).unwrap();
 }
@@ -88,7 +92,10 @@ async fn fetch_and_insert(
     let request = tonic::Request::new(dns_proto::DnsPacket {
         msg: msg.to_bytes().map_err(|_| trust_dns_client::op::ResponseCode::FormErr)?
     });
-    let response = client.query(request).await.map_err(|e| {
+    let timer = UPSTREAM_RESPONSE_TIME.start_timer();
+    let r_response = client.query(request).await;
+    timer.observe_duration();
+    let response = r_response.map_err(|e| {
         error!("Error communicating with upstream: {}", e);
         UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
         let encoder = prometheus::TextEncoder::new();
@@ -194,6 +201,8 @@ impl trust_dns_server::server::RequestHandler for Cache {
                 trust_dns_client::op::OpCode::Query => {
                     debug!("query received: {}", request_message.id());
                     QUERY_COUNTER.with_label_values(&["query"]).inc();
+                    let timer = QUERY_RESPONSE_TIME.with_label_values(&["query"]).start_timer();
+                    let timer_axfr = QUERY_RESPONSE_TIME.with_label_values(&["axfr"]).start_timer();
                     let mut client = self.client.clone();
                     let cache = self.cache.clone();
                     let config = self.config.clone();
@@ -219,6 +228,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                     request_message.op_code(),
                                     trust_dns_client::op::ResponseCode::BADVERS,
                                 ));
+                                timer.observe_duration();
                                 return;
                             }
                             nsid_requested = edns.option(trust_dns_proto::rr::rdata::opt::EdnsCode::NSID).is_some();
@@ -315,6 +325,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         }
                                     }
                                 }
+                                timer_axfr.observe_duration();
                             } else {
                                 let responses: Result<Vec<_>, _> = futures::stream::iter(queries)
                                     .then(|q| {
@@ -354,6 +365,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             Box::new(vec![].iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
                                             Box::new(additionals) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
                                         ));
+                                        timer.observe_duration();
                                     }
                                     Err(e) => {
                                         RESPONSE_COUNTER.with_label_values(&["error"]).inc();
@@ -362,6 +374,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             request_message.op_code(),
                                             e,
                                         ));
+                                        timer.observe_duration();
                                     }
                                 }
                             }
@@ -372,6 +385,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                 trust_dns_client::op::OpCode::Update => {
                     debug!("update received: {}", request_message.id());
                     QUERY_COUNTER.with_label_values(&["update"]).inc();
+                    let timer = QUERY_RESPONSE_TIME.with_label_values(&["update"]).start_timer();
                     let mut client = self.client.clone();
                     let lookup = async move {
                         let request_bytes = request_message.to_bytes();
@@ -426,6 +440,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                 ));
                             }
                         }
+                        timer.observe_duration();
                     };
                     HandleRequest::lookup(lookup)
                 }
