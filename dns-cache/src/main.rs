@@ -3,7 +3,12 @@
 extern crate clap;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate prometheus;
+#[macro_use]
+extern crate lazy_static;
 
+use prometheus::Encoder;
 use futures::future::Future;
 use futures::stream::StreamExt;
 use tokio::sync::Mutex;
@@ -13,6 +18,17 @@ use std::sync::Arc;
 
 pub mod dns_proto {
     tonic::include_proto!("coredns.dns");
+}
+
+lazy_static! {
+    static ref QUERY_COUNTER: prometheus::IntCounterVec =
+        register_int_counter_vec!("query_count", "Number of queries received", &["type"]).unwrap();
+    static ref RESPONSE_COUNTER: prometheus::IntCounterVec =
+        register_int_counter_vec!("response_count", "Number of responses sent", &["type"]).unwrap();
+    static ref UPSTREAM_QUERY_COUNTER: prometheus::IntCounterVec =
+        register_int_counter_vec!("upstream_query_count", "Number of queries sent to the upstream", &["type"]).unwrap();
+    static ref CACHE_COUNTER: prometheus::IntCounterVec =
+        register_int_counter_vec!("cache_count", "Number of lookups to the cache", &["type"]).unwrap();
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -74,13 +90,22 @@ async fn fetch_and_insert(
     });
     let response = client.query(request).await.map_err(|e| {
         error!("Error communicating with upstream: {}", e);
+        UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
+        let encoder = prometheus::TextEncoder::new();
+        let mut buf = Vec::new();
+        encoder.encode(&prometheus::gather(), &mut buf).unwrap();
+        let out = String::from_utf8(buf).unwrap();
+        println!("{}", out);
+
         trust_dns_client::op::ResponseCode::ServFail
     })?;
     let response_msg = trust_dns_proto::op::message::Message::from_bytes(&response.into_inner().msg).map_err(|e| {
         error!("Error parsing response from upstream: {}", e);
+        UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
         trust_dns_client::op::ResponseCode::ServFail
     })?;
 
+    UPSTREAM_QUERY_COUNTER.with_label_values(&["ok"]).inc();
     let new_cache_data = CacheData {
         valid_until: std::time::Instant::now() + std::time::Duration::from_secs(30),
         response_code: response_msg.response_code(),
@@ -118,9 +143,12 @@ async fn lookup_cache_or_fetch(
         if cached_result.valid_until < std::time::Instant::now() {
             debug!("Expired cached item");
             let msg = msg.clone();
+            CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
             tokio::spawn(async move {
                 let _ = fetch_and_insert(cache_key, msg, client, &mut cache).await;
             });
+        } else {
+            CACHE_COUNTER.with_label_values(&["hit"]).inc();
         }
         let mut response_msg = trust_dns_proto::op::message::Message::new();
         let mut edns = trust_dns_proto::op::Edns::new();
@@ -137,6 +165,7 @@ async fn lookup_cache_or_fetch(
         return Ok(response_msg);
     }
 
+    CACHE_COUNTER.with_label_values(&["miss"]).inc();
     let mut response_msg = fetch_and_insert(cache_key, msg, client, &mut cache).await?;
     response_msg.set_authoritative(true);
 
@@ -164,6 +193,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
             trust_dns_client::op::MessageType::Query => match request_message.op_code() {
                 trust_dns_client::op::OpCode::Query => {
                     debug!("query received: {}", request_message.id());
+                    QUERY_COUNTER.with_label_values(&["query"]).inc();
                     let mut client = self.client.clone();
                     let cache = self.cache.clone();
                     let config = self.config.clone();
@@ -182,6 +212,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                     "request edns version greater than 0: {}",
                                     edns.version()
                                 );
+                                RESPONSE_COUNTER.with_label_values(&["invalid_edns"]).inc();
 
                                 let _ = response_handle.send_response(response.error_msg(
                                     request_message.id(),
@@ -218,6 +249,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         Ok(x) => x,
                                         Err(e) => {
                                             error!("Error communicating with upstream: {}", e);
+                                            UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
                                             yield Err(trust_dns_client::op::ResponseCode::ServFail);
                                             return;
                                         }
@@ -227,6 +259,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         Ok(x) => x,
                                         Err(e) => {
                                             error!("Error communicating with upstream: {}", e);
+                                            UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
                                             yield Err(trust_dns_client::op::ResponseCode::ServFail);
                                             return;
                                         }
@@ -235,10 +268,12 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             Ok(x) => x,
                                             Err(e) => {
                                                 error!("Error parsing response from upstream: {}", e);
+                                                UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
                                                 yield Err(trust_dns_client::op::ResponseCode::ServFail);
                                                 return;
                                             }
                                         };
+                                        UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_axfr"]).inc();
                                         yield Ok(response_msg);
                                     }
                                 };
@@ -261,6 +296,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                                 }
                                             }
                                             response.edns(edns);
+                                            RESPONSE_COUNTER.with_label_values(&["ok_axfr"]).inc();
                                             let _ = response_handle.send_response(response.build(
                                                 response_msg.header().to_owned(),
                                                 Box::new(response_msg.answers().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
@@ -270,6 +306,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             ));
                                         }
                                         Err(e) => {
+                                            RESPONSE_COUNTER.with_label_values(&["error_axfr"]).inc();
                                             let _ = response_handle.send_response(response.error_msg(
                                                 request_message.id(),
                                                 request_message.op_code(),
@@ -291,6 +328,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
 
                                 match responses {
                                     Ok(r) => {
+                                        RESPONSE_COUNTER.with_label_values(&["ok"]).inc();
                                         let first_r = r.first().unwrap();
                                         let mut edns = if let Some(edns) = first_r.edns() {
                                             edns.to_owned()
@@ -318,6 +356,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         ));
                                     }
                                     Err(e) => {
+                                        RESPONSE_COUNTER.with_label_values(&["error"]).inc();
                                         let _ = response_handle.send_response(response.error_msg(
                                             request_message.id(),
                                             request_message.op_code(),
@@ -332,6 +371,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                 }
                 trust_dns_client::op::OpCode::Update => {
                     debug!("update received: {}", request_message.id());
+                    QUERY_COUNTER.with_label_values(&["update"]).inc();
                     let mut client = self.client.clone();
                     let lookup = async move {
                         let request_bytes = request_message.to_bytes();
@@ -340,7 +380,8 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                 msg: match request_bytes {
                                     Ok(b) => b,
                                     Err(_) => {
-                                        return Err(trust_dns_client::op::ResponseCode::FormErr);
+                                        RESPONSE_COUNTER.with_label_values(&["invalid_update"]).inc();
+                                        return Err(trust_dns_client::op::ResponseCode::ServFail);
                                     }
                                 }
                             });
@@ -348,20 +389,25 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                 Ok(x) => x,
                                 Err(e) => {
                                     error!("Error communicating with upstream: {}", e);
+                                    UPSTREAM_QUERY_COUNTER.with_label_values(&["error_update"]).inc();
+                                    RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
                                     return Err(trust_dns_client::op::ResponseCode::ServFail);
                                 }
                             };
-                            let mut response = rpc_response.into_inner();
+                            UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_update"]).inc();
+                            let response = rpc_response.into_inner();
                             let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
                                 Ok(x) => x,
                                 Err(e) => {
                                     error!("Error parsing response from upstream: {}", e);
+                                    RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
                                     return Err(trust_dns_client::op::ResponseCode::ServFail);
                                 }
                             };
+                            RESPONSE_COUNTER.with_label_values(&["ok_update"]).inc();
                             Ok(response_msg)
                         }.await;
-                        let mut response = trust_dns_server::authority::MessageResponseBuilder::new(Some(request_message.raw_queries()));
+                        let response = trust_dns_server::authority::MessageResponseBuilder::new(Some(request_message.raw_queries()));
                         match val {
                             Ok(response_msg) => {
                                 let _ = response_handle.send_response(response.build(
@@ -385,6 +431,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                 }
                 c => {
                     warn!("unimplemented op_code: {:?}", c);
+                    QUERY_COUNTER.with_label_values(&["unknown"]).inc();
                     let response = trust_dns_server::authority::MessageResponseBuilder::new(Some(request_message.raw_queries()));
                     let result = response_handle.send_response(response.error_msg(
                         request_message.id(),
@@ -399,6 +446,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                     "got a response as a request from id: {}",
                     request_message.id()
                 );
+                QUERY_COUNTER.with_label_values(&["response"]).inc();
                 let response = trust_dns_server::authority::MessageResponseBuilder::new(Some(request_message.raw_queries()));
 
                 let result = response_handle.send_response(response.error_msg(
@@ -474,6 +522,9 @@ fn main() {
             server_name: args.value_of("name").map(|s| s.to_string().into_bytes())
         }),
     };
+
+    info!("starting prometheus exporter on [::]:9184");
+    prometheus_exporter::start("[::]:9184".parse().unwrap()).unwrap();
 
     let mut server = trust_dns_server::ServerFuture::new(catalog);
 

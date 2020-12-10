@@ -21,6 +21,9 @@ lru = "0.5"
 clap = "2"
 async-stream = "0.3"
 futures-util = "0.3"
+prometheus_exporter = "0.7"
+prometheus = "0.10"
+lazy_static = "1"
 
 [build-dependencies]
 tonic-build = { version = "0.2" }
