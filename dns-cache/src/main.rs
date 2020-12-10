@@ -228,6 +228,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                     request_message.op_code(),
                                     trust_dns_client::op::ResponseCode::BADVERS,
                                 ));
+                                timer_axfr.stop_and_discard();
                                 timer.observe_duration();
                                 return;
                             }
@@ -325,6 +326,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         }
                                     }
                                 }
+                                timer.stop_and_discard();
                                 timer_axfr.observe_duration();
                             } else {
                                 let responses: Result<Vec<_>, _> = futures::stream::iter(queries)
@@ -365,6 +367,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             Box::new(vec![].iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
                                             Box::new(additionals) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
                                         ));
+                                        timer_axfr.stop_and_discard();
                                         timer.observe_duration();
                                     }
                                     Err(e) => {
@@ -374,6 +377,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             request_message.op_code(),
                                             e,
                                         ));
+                                        timer_axfr.stop_and_discard();
                                         timer.observe_duration();
                                     }
                                 }
