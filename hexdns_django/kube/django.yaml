@@ -125,6 +125,8 @@ spec:
             - secretRef:
                 name: hexdns-email
               prefix: "EMAIL_"
+            - secretRef:
+                name: domains-rpc
       containers:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
@@ -155,6 +157,8 @@ spec:
             - secretRef:
                 name: hexdns-email
               prefix: "EMAIL_"
+            - secretRef:
+                name: domains-rpc
 ---
 apiVersion: batch/v1beta1
 kind: CronJob
@@ -212,6 +216,8 @@ spec:
                 - secretRef:
                     name: hexdns-email
                   prefix: "EMAIL_"
+                - secretRef:
+                    name: domains-rpc
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1beta1
@@ -270,6 +276,8 @@ spec:
                 - secretRef:
                     name: hexdns-email
                   prefix: "EMAIL_"
+                - secretRef:
+                    name: domains-rpc
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1beta1
@@ -328,6 +336,8 @@ spec:
                 - secretRef:
                     name: hexdns-email
                   prefix: "EMAIL_"
+                - secretRef:
+                    name: domains-rpc
           restartPolicy: OnFailure
 ---
 apiVersion: apps/v1
@@ -403,6 +413,77 @@ spec:
             - secretRef:
                 name: hexdns-email
               prefix: "EMAIL_"
+            - secretRef:
+                name: domains-rpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-run-rpc
+  labels:
+    app: hexdns
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hexdns
+      part: rpc
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: rpc
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: privkey
+          secret:
+            secretName: hexdns-key-priv
+        - name: domains-pubkey
+          configMap:
+            name: domains-jwt-pub
+      containers:
+        - name: rpc
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["sh", "-c", "python3 manage.py run-rpc"]
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/domains-pubkey/"
+              name: domains-pubkey
+            - mountPath: "/privkey/"
+              name: privkey
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
+            - secretRef:
+                name: domains-rpc
 ---
 apiVersion: v1
 kind: Service
