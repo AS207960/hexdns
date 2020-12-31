@@ -39,8 +39,8 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
         if zone_error:
             raise InvalidZone(detail=zone_error)
 
-        error = views.log_usage(self.request.user, extra=1)
-        if error:
+        status, extra = views.log_usage(self.request.user, extra=1, off_session=True)
+        if status == "error":
             raise BillingError()
 
         priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
@@ -60,8 +60,10 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
         serializer.save(last_modified=timezone.now())
 
     def perform_destroy(self, instance):
+        status, extra = views.log_usage(self.request.user, off_session=True, extra=-1)
+        if status == "error":
+            raise BillingError()
         instance.delete()
-        views.log_usage(self.request.user)
 
 
 class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
@@ -76,8 +78,8 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
         return models.ReverseDNSZone.get_object_list(self.request.auth.token)
 
     def perform_create(self, serializer):
-        error = views.log_usage(self.request.user, extra=1)
-        if error:
+        status, extra = views.log_usage(self.request.user, extra=1, off_session=True)
+        if status == "error":
             raise BillingError()
 
         priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
@@ -97,8 +99,10 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
         serializer.save(last_modified=timezone.now())
 
     def perform_destroy(self, instance):
+        status, extra = views.log_usage(self.request.user, off_session=True, extra=-1)
+        if status == "error":
+            raise BillingError()
         instance.delete()
-        views.log_usage(self.request.user)
 
 
 class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
@@ -117,8 +121,8 @@ class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
         if zone_error:
             raise InvalidZone(detail=zone_error)
 
-        error = views.log_usage(self.request.user, extra=1)
-        if error:
+        status, extra = views.log_usage(self.request.user, extra=1, off_session=True)
+        if status == "error":
             raise BillingError()
 
         priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
@@ -134,8 +138,10 @@ class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
+        status, extra = views.log_usage(self.request.user, off_session=True, extra=-1)
+        if status == "error":
+            raise BillingError()
         instance.delete()
-        views.log_usage(self.request.user)
 
 
 class DNSZoneRecordViewSet(viewsets.ModelViewSet):

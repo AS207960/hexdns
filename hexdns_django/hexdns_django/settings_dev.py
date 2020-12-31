@@ -133,6 +133,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
+EXTERNAL_URL_BASE = "http://localhost:8002"
 STATIC_URL = "/static/"
 
 with open(os.path.join(BASE_DIR, "secrets/keycloak.json")) as f:
@@ -165,10 +166,12 @@ if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
 BILLING_URL = "http://localhost:8001"
 FEEDBACK_URL = "http://localhost:8003"
 DOMAINS_URL = "http://localhost:8000"
-BILLING_PLAN_ID = "0021a973-35c2-4f92-b1d0-167b97717bae"
+BILLING_PLAN_ID = "billing_recurringplan_c66432f6b3c544b1b88615fcdb6f9b79"
 
 RESOLVER_ADDR = "2a0d:1a40:7900::2"
 RESOLVER_PORT = 53
+
+RABBITMQ_RPC_URL = "amqp://guest:guest@localhost:5672/rpc"
 
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [

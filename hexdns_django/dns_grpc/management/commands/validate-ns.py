@@ -98,6 +98,16 @@ def query_authoritative_ns(domain):
 class Command(BaseCommand):
     help = 'Checks that every zone is pointed to us'
 
+    @staticmethod
+    def increment_zone_fail(zone):
+        if zone.active:
+            zone.num_check_fails += 1
+            if zone.num_check_fails >= 5:
+                print(f"Setting {zone} to inactive")
+                zone.active = False
+                mail_invalid(zone.get_user(), zone)
+            zone.save()
+
     def handle(self, *args, **options):
         for zone in list(models.DNSZone.objects.all()) + list(models.SecondaryDNSZone.objects.all()):
             try:
@@ -108,11 +118,7 @@ class Command(BaseCommand):
 
             if not ns:
                 print(f"{zone} does not exist")
-                if zone.active:
-                    print(f"Setting {zone} to inactive")
-                    zone.active = False
-                    zone.save()
-                    mail_invalid(zone.get_user(), zone)
+                self.increment_zone_fail(zone)
                 continue
 
             is_valid = all(any(rr.rdata.label == wns for rr in ns) for wns in WANTED_NS)
@@ -121,13 +127,9 @@ class Command(BaseCommand):
                 print(f"{zone} is valid")
                 if not zone.active:
                     print(f"Setting {zone} to active")
-                    zone.active = True
-                    zone.save()
-                    mail_valid(zone.get_user(), zone)
+                zone.active = True
+                zone.num_check_fails = 0
+                zone.save()
             else:
                 print(f"{zone} is invalid")
-                if zone.active:
-                    print(f"Setting {zone} to inactive")
-                    zone.active = False
-                    zone.save()
-                    mail_invalid(zone.get_user(), zone)
+                self.increment_zone_fail(zone)

@@ -59,7 +59,7 @@ def make_zone_digest(zone_name: str):
     return digest, tag
 
 
-def log_usage(user, extra=0, can_reject=True):
+def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=None):
     client_token = django_keycloak_auth.clients.get_access_token()
     resources = django_keycloak_auth.clients.get_uma_client().resource_set_list(client_token, owner=user.username)
     user_zone_count = models.DNSZone.objects.filter(resource_id__in=resources, charged=True).count() \
@@ -70,48 +70,42 @@ def log_usage(user, extra=0, can_reject=True):
         r = requests.post(f"{settings.BILLING_URL}/subscribe_user/{user.username}/", json={
             "plan_id": settings.BILLING_PLAN_ID,
             "initial_usage": user_zone_count,
-            "can_reject": can_reject
+            "can_reject": can_reject,
+            "off_session": off_session,
+            "redirect_uri": redirect_uri
         }, headers={
             "Authorization": f"Bearer {client_token}"
         })
-        if r.status_code == 404:
-            return mark_safe(
-                'Unable to charge your account. '
-                'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">set-up</a> '
-                'your account.'
-            )
-        elif r.status_code == 402:
-            return mark_safe(
-                'Unable to charge your account. '
-                'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> '
-                'your account.'
-            )
-        elif r.status_code == 200:
-            subscription_id = r.json()["id"]
-            user.account.subscription_id = subscription_id
-            user.save()
-            return None
+        data = r.json()
+        if r.status_code in (200, 302):
+            user.account.subscription_id = data["id"]
+            user.account.subscription_active = False
+            user.account.save()
+            if r.status_code == 302:
+                return "redirect", data["redirect_uri"]
+            elif r.status_code == 200:
+                return "ok", None
         else:
-            return 'There was an unexpected error'
+            return "error", 'There was an unexpected error'
     else:
         r = requests.post(
             f"{settings.BILLING_URL}/log_usage/{user.account.subscription_id}/", json={
                 "usage": user_zone_count,
-                "can_reject": can_reject
+                "can_reject": can_reject,
+                "off_session": off_session,
+                "redirect_uri": redirect_uri
             }, headers={
                 "Authorization": f"Bearer {client_token}"
             }
         )
-        if r.status_code == 402:
-            return mark_safe(
-                'Unable to charge your account. '
-                'Please <a href="https://billing.as207960.net" class="alert-link" target="_blank">top-up</a> '
-                'your account.'
-            )
-        elif r.status_code == 200:
-            return None
+        data = r.json()
+        if r.status_code in (200, 302):
+            if r.status_code == 302:
+                return "redirect", data["redirect_uri"]
+            elif r.status_code == 200:
+                return "ok", None
         else:
-            return 'There was an unexpected error'
+            return "error", 'There was an unexpected error'
 
 
 @login_required
@@ -119,7 +113,10 @@ def zones(request):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zones = models.DNSZone.get_object_list(access_token)
 
-    return render(request, "dns_grpc/zones.html", {"zones": user_zones})
+    return render(request, "dns_grpc/zones.html", {
+        "zones": user_zones,
+        "account": request.user.account
+    })
 
 
 @login_required
@@ -165,9 +162,12 @@ def create_zone(request):
             if zone_error:
                 form.errors['zone_root'] = (zone_error,)
             else:
-                error = log_usage(request.user, extra=1)
-                if error:
-                    form.errors['__all__'] = (error,)
+                status, extra = log_usage(
+                    request.user, extra=1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('zones'),
+                    can_reject=True, off_session=False
+                )
+                if status == "error":
+                    form.errors['__all__'] = (extra,)
                 else:
                     priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
                     priv_key_bytes = priv_key.private_bytes(
@@ -182,6 +182,8 @@ def create_zone(request):
                         zsk_private=priv_key_bytes
                     )
                     zone_obj.save()
+                    if status == "redirect":
+                        return redirect(extra)
                     return redirect('edit_zone', zone_obj.id)
     else:
         form = forms.ZoneForm()
@@ -312,9 +314,20 @@ def delete_zone(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
-        user_zone.delete()
-        log_usage(request.user)
-        return redirect('zones')
+        status, extra = log_usage(
+            request.user, extra=-1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('zones'),
+            can_reject=True, off_session=False
+        )
+        if status == "error":
+            return render(request, "dns_grpc/delete_zone.html", {
+                "zone": user_zone,
+                "error": extra
+            })
+        else:
+            user_zone.delete()
+            if status == "redirect":
+                return redirect(extra)
+            return redirect('zones')
     else:
         return render(request, "dns_grpc/delete_zone.html", {
             "zone": user_zone
@@ -385,9 +398,12 @@ def create_szone(request):
             if zone_error:
                 form.errors['zone_root'] = (zone_error,)
             else:
-                error = log_usage(request.user, extra=1)
-                if error:
-                    form.errors['__all__'] = (error,)
+                status, extra = log_usage(
+                    request.user, extra=1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('szones'),
+                    can_reject=True, off_session=False
+                )
+                if status == "error":
+                    form.errors['__all__'] = (extra,)
                 else:
                     zone_obj = models.SecondaryDNSZone(
                         zone_root=zone_root_txt,
@@ -395,6 +411,9 @@ def create_szone(request):
                         primary=primary_server
                     )
                     zone_obj.save()
+
+                    if status == "redirect":
+                        return redirect(extra)
                     return redirect('edit_szone', zone_obj.id)
     else:
         form = forms.SecondaryZoneForm()
@@ -470,9 +489,20 @@ def delete_szone(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
-        user_zone.delete()
-        log_usage(request.user)
-        return redirect('szones')
+        status, extra = log_usage(
+            request.user, extra=-1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('szones'),
+            can_reject=True, off_session=False
+        )
+        if status == "error":
+            return render(request, "dns_grpc/delete_szone.html", {
+                "zone": user_zone,
+                "error": extra
+            })
+        else:
+            user_zone.delete()
+            if status == "redirect":
+                return redirect(extra)
+            return redirect('szones')
     else:
         return render(request, "dns_grpc/delete_szone.html", {
             "zone": user_zone

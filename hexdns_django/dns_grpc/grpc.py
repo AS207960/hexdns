@@ -192,7 +192,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 record_name = qname.stripSuffix(zone_root)
                 if len(record_name.label) == 0:
                     record_name = DNSLabel("@")
-                return zone, record_name
+                account = zone.get_user().account
+                if account.subscription_active:
+                    return zone, record_name
+                else:
+                    return None, None
         return None, None
 
     def find_secondary_zone(
@@ -202,7 +206,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for zone in zones:
             zone_root = DNSLabel(zone.zone_root)
             if qname.matchSuffix(zone_root):
-                return zone, qname
+                account = zone.get_user().account
+                if account.subscription_active:
+                    return zone, qname
+                else:
+                    return None, None
         return None, None
 
     def find_rzone(
@@ -237,7 +245,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 continue
 
             if addr in zone_network:
-                return zone, addr
+                account = zone.get_user().account
+                if account.subscription_active:
+                    return zone, addr
+                else:
+                    return None, None
 
         return None, None
 

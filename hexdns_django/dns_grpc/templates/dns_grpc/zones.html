@@ -13,6 +13,15 @@
         </div>
     </section>
     <div class="container my-3">
+        {% if not account.subscription_active and account.subscription_id %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Inactive subscription</h4>
+                <p>
+                    Your HexDNS subscription is not currently active. We won't be serving any of your zones until the
+                    subscription is active.
+                </p>
+            </div>
+        {% endif %}
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="thead-dark">
