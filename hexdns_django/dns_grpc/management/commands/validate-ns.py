@@ -27,7 +27,7 @@ def mail_valid(user, zone):
         subject='HexDNS Zone Activated',
         body=txt_content,
         to=[user.email],
-        bcc=['q@as207960.net'],
+        bcc=['email-log@as207960.net'],
         reply_to=['Glauca Support <hello@glauca.digital>']
     )
     email.attach_alternative(html_content, "text/html")
@@ -46,7 +46,7 @@ def mail_invalid(user, zone):
         subject='HexDNS Zone Inactive',
         body=txt_content,
         to=[user.email],
-        bcc=['q@as207960.net'],
+        bcc=['email-log@as207960.net'],
         reply_to=['Glauca Support <hello@glauca.digital>']
     )
     email.attach_alternative(html_content, "text/html")
