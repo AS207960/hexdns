@@ -216,8 +216,20 @@ def create_domains_zone(request):
             "back_url": referrer
         })
 
+    r = requests.post(
+        f"{settings.DOMAINS_URL}/api/internal/domains/{domain_token['domain_id']}/set_dns/",
+        headers={
+            "Authorization": f"Bearer {client_token}"
+        }
+    )
+    r.raise_for_status()
+
     existing_zone = models.DNSZone.objects.filter(zone_root=domain_token["domain"]).first()
     if existing_zone:
+        existing_zone.active = True
+        existing_zone.save()
+        request.session["zone_notice"] = "We've updated the DNS servers for your domain to point to HexDNS. " \
+                                         "It may take up to 24 hours for the updates to propagate."
         return redirect('edit_zone', existing_zone.id)
 
     zone_root = domain_token["domain"].lower()
@@ -227,14 +239,6 @@ def create_domains_zone(request):
             "error": zone_error,
             "back_url": referrer
         })
-
-    r = requests.post(
-        f"{settings.DOMAINS_URL}/api/internal/domains/{domain_token['domain_id']}/set_dns/",
-        headers={
-            "Authorization": f"Bearer {client_token}"
-        }
-    )
-    r.raise_for_status()
 
     priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
     priv_key_bytes = priv_key.private_bytes(
@@ -247,9 +251,12 @@ def create_domains_zone(request):
         last_modified=timezone.now(),
         user=request.user,
         zsk_private=priv_key_bytes,
-        charged=False
+        charged=False,
+        active=True,
     )
     zone_obj.save()
+    request.session["zone_notice"] = "We've updated the DNS servers for your domain to point to HexDNS. " \
+                                     "It may take up to 24 hours for the updates to propagate."
     return redirect('edit_zone', zone_obj.id)
 
 
@@ -300,7 +307,8 @@ def edit_zone(request, zone_id):
             "zone": user_zone,
             "dnssec_tag": dnssec_tag,
             "dnssec_digest": dnssec_digest,
-            "sharing_uri": sharing_uri
+            "sharing_uri": sharing_uri,
+            "notice": request.session.pop("zone_notice", None)
         },
     )
 

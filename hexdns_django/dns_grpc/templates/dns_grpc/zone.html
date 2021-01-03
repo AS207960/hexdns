@@ -32,6 +32,11 @@
                 </p>
             </div>
         {% endif %}
+        {% if notice %}
+            <div class="alert alert-info" role="alert">
+                <p class="mb-0 lead">{{ notice }}</p>
+            </div>
+        {% endif %}
         <h2>DNSSEC</h2>
         <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
         <b>DS digest:</b> {{ dnssec_digest }}<br/>
