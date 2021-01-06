@@ -76,12 +76,12 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
         }, headers={
             "Authorization": f"Bearer {client_token}"
         })
-        data = r.json()
         if r.status_code in (200, 302):
             user.account.subscription_id = data["id"]
             user.account.subscription_active = False
             user.account.save()
             if r.status_code == 302:
+                data = r.json()
                 return "redirect", data["redirect_uri"]
             elif r.status_code == 200:
                 return "ok", None
@@ -98,9 +98,9 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
                 "Authorization": f"Bearer {client_token}"
             }
         )
-        data = r.json()
         if r.status_code in (200, 302):
             if r.status_code == 302:
+                data = r.json()
                 return "redirect", data["redirect_uri"]
             elif r.status_code == 200:
                 return "ok", None
