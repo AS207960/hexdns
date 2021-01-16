@@ -8,6 +8,7 @@ import dnslib
 import sentry_sdk
 import datetime
 import hmac
+import requests
 import django.core.exceptions
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -192,8 +193,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 record_name = qname.stripSuffix(zone_root)
                 if len(record_name.label) == 0:
                     record_name = DNSLabel("@")
-                account = zone.get_user().account
-                if account.subscription_active:
+                try:
+                    account = zone.get_user().account
+                    active = account.subscription_active
+                except requests.exceptions.RequestException:
+                    active = True
+                if active:
                     return zone, record_name
                 else:
                     return None, None
@@ -206,8 +211,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for zone in zones:
             zone_root = DNSLabel(zone.zone_root)
             if qname.matchSuffix(zone_root):
-                account = zone.get_user().account
-                if account.subscription_active:
+                try:
+                    account = zone.get_user().account
+                    active = account.subscription_active
+                except requests.exceptions.RequestException:
+                    active = True
+                if active:
                     return zone, qname
                 else:
                     return None, None
@@ -245,8 +254,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 continue
 
             if addr in zone_network:
-                account = zone.get_user().account
-                if account.subscription_active:
+                try:
+                    account = zone.get_user().account
+                    active = account.subscription_active
+                except requests.exceptions.RequestException:
+                    active = True
+                if active:
                     return zone, addr
                 else:
                     return None, None
