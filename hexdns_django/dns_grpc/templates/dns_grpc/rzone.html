@@ -2,7 +2,7 @@
 {% block content %}
     <section class="stripe">
         <div class="container py-3">
-            <div class="jumbotron my-0">
+            <div class="bg-light p-3 rounded my-4">
                 <h1>Edit {{ zone.zone_root_address }}/{{ zone.zone_root_prefix }}</h1>
 
                 <div class="row">
@@ -38,7 +38,7 @@
         <h2>PTR records <a href="{% url 'create_r_ptr_record' zone.id %}" class="btn btn-success">New</a></h2>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
-                <thead class="thead-dark">
+                <thead class="table-dark">
                 <tr>
                     <th>Record address</th>
                     <th>Pointer</th>
@@ -75,7 +75,7 @@
         <h2>NS records <a href="{% url 'create_r_ns_record' zone.id %}" class="btn btn-success">New</a></h2>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
-                <thead class="thead-dark">
+                <thead class="table-dark">
                 <tr>
                     <th>Record address</th>
                     <th>Name server</th>

@@ -11,9 +11,10 @@ class ZoneForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Create"))
 
 
@@ -24,9 +25,10 @@ class SecondaryZoneForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
 
@@ -34,9 +36,10 @@ class AddressRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "address", "ttl", "auto_reverse"
@@ -57,9 +60,10 @@ class DynamicAddressRecordForm(forms.ModelForm):
         self.fields['id'].disabled = True
         self.fields['id'].required = False
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "id", "password", "ttl"
@@ -76,9 +80,10 @@ class ANAMERecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "alias", "ttl"
         )
@@ -94,9 +99,10 @@ class CNAMERecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "alias", "ttl"
         )
@@ -112,9 +118,10 @@ class MXRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "exchange", "priority", "ttl",
@@ -131,9 +138,10 @@ class NSRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "nameserver", "ttl",
@@ -150,9 +158,10 @@ class TXTRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"), "data", "ttl",
         )
@@ -168,9 +177,10 @@ class SRVRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "priority", "weight", "port", "target", "ttl",
@@ -187,9 +197,10 @@ class CAARecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "flag", "tag", "value", "ttl",
@@ -206,9 +217,10 @@ class NAPTRRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "order",
@@ -231,9 +243,10 @@ class SSHFPRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "host_key", "ttl",
@@ -250,9 +263,10 @@ class DSRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "key_tag", "algorithm", "digest_type", "digest", "ttl",
@@ -269,9 +283,10 @@ class LOCRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             crispy_forms.layout.Row(
@@ -297,9 +312,10 @@ class HINFORecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "cpu", "os", "ttl",
@@ -316,9 +332,10 @@ class RPRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
             "mailbox", "txt", "ttl",
@@ -337,9 +354,10 @@ class UpdateSecretForm(forms.ModelForm):
         self.helper = crispy_forms.helper.FormHelper()
         self.fields['id'].disabled = True
         self.fields['id'].required = False
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}"),
             "type",
@@ -357,9 +375,10 @@ class ReversePTRRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             "record_address", "pointer", "ttl",
         )
@@ -375,9 +394,10 @@ class ReverseNSRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-4"
-        self.helper.field_class = "col-lg-8"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             "record_address", "record_prefix", "nameserver", "ttl",
         )
@@ -395,9 +415,10 @@ class ZoneImportForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-2"
-        self.helper.field_class = "col-lg-10"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-2'
+        self.helper.field_class = 'col-lg-10 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.layout.HTML("""
                 <div class="alert alert-info" role="alert">
@@ -415,9 +436,10 @@ class GithubPagesForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-2"
-        self.helper.field_class = "col-lg-10"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-2'
+        self.helper.field_class = 'col-lg-20 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             "record_name",
         )
@@ -458,9 +480,10 @@ class DMARCForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.helper.form_class = "form-horizontal"
-        self.helper.label_class = "col-lg-3"
-        self.helper.field_class = "col-lg-9"
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-3'
+        self.helper.field_class = 'col-lg-9 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             "policy",
             "subdomain_policy",

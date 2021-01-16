@@ -23,7 +23,7 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'zones' %}">My zones</a>
                     </li>
@@ -82,10 +82,29 @@
 
 <footer class="footer mt-auto py-3">
     <div class="container">
-        <span class="text-muted"><a href="https://glau.ca/contact">Contact Us</a></span> |
-        AS207960 Cyfyngedig, trading as Glauca, is a limited company registered in Wales under company number 12417574
+        <p>
+            <span class="text-muted"><a href="https://glauca.digital/">Our homepage</a></span> |
+            <span class="text-muted"><a href="https://glauca.digital/contact/">Contact Us</a></span>
+        </p>
+        <p>
+            AS207960 Cyfyngedig, trading as {{ site.title }}, is:
+        </p>
+        <ul>
+            <li>
+                a limited company registered in Wales (&#x2116
+                <a href="https://find-and-update.company-information.service.gov.uk/company/12417574">12417574</a>)
+            </li>
+            <li>
+                a registered data controller with the Information Commissioner's Office (&#x2116
+                <a href="https://as207960.net/assets/docs/ico_registration.pdf">ZA782876</a>)
+            </li>
+            <li>
+                registered for VAT in the EU (&#x2116 EU372013983)
+            </li>
+        </ul>
     </div>
 </footer>
+
 <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
         integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous">
 </script>
