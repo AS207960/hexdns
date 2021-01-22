@@ -98,12 +98,6 @@ async fn fetch_and_insert(
     let response = r_response.map_err(|e| {
         error!("Error communicating with upstream: {}", e);
         UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
-        let encoder = prometheus::TextEncoder::new();
-        let mut buf = Vec::new();
-        encoder.encode(&prometheus::gather(), &mut buf).unwrap();
-        let out = String::from_utf8(buf).unwrap();
-        println!("{}", out);
-
         trust_dns_client::op::ResponseCode::ServFail
     })?;
     let response_msg = trust_dns_proto::op::message::Message::from_bytes(&response.into_inner().msg).map_err(|e| {

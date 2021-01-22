@@ -1219,15 +1219,15 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 if record_name.matchSuffix(nameserver.record_name):
                     ns_found = True
                     try:
-                        buffer = dnslib.DNSBuffer(nameserver.rdata)
-                        ns = dnslib.NS.parse(buffer, len(nameserver.rdata)).label
+                        buffer = dnslib.DNSBuffer(bytes(nameserver.rdata))
+                        ns = dnslib.NS.parse(buffer, len(bytes(nameserver.rdata))).label
                     except (dnslib.DNSError, ValueError):
                         ns = None
                     dns_res.add_auth(
                         dnslib.RR(
                             nameserver.record_name,
                             QTYPE.NS,
-                            rdata=dnslib.RD(nameserver.rdata),
+                            rdata=dnslib.RD(bytes(nameserver.rdata)),
                             ttl=nameserver.ttl,
                         )
                     )
@@ -1241,7 +1241,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                                 dnslib.RR(
                                     nameserver.record_name,
                                     QTYPE.DS,
-                                    rdata=dnslib.RD(record.rdata),
+                                    rdata=dnslib.RD(bytes(record.rdata)),
                                     ttl=record.ttl,
                                 )
                             )
@@ -1252,7 +1252,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             )
                             for record in nsec_records:
                                 dns_res.add_answer(dnslib.RR(
-                                    query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(record.rdata)
+                                    query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(bytes(record.rdata))
                                 ))
                     if ns:
                         additional_records = zone.secondarydnszonerecord_set.filter(
@@ -1265,7 +1265,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                                 dnslib.RR(
                                     ar.record_name,
                                     ar.rtype,
-                                    rdata=dnslib.RD(ar.rdata),
+                                    rdata=dnslib.RD(bytes(ar.rdata)),
                                     ttl=ar.ttl,
                                 )
                             )
@@ -1282,7 +1282,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             ).first()
             if cname_record:
                 dns_res.add_answer(dnslib.RR(
-                    query_name, QTYPE.CNAME, ttl=cname_record.ttl, rdata=dnslib.RD(cname_record.rdata)
+                    query_name, QTYPE.CNAME, ttl=cname_record.ttl, rdata=dnslib.RD(bytes(cname_record.rdata))
                 ))
                 try:
                     buffer = dnslib.DNSBuffer(cname_record.rdata)
@@ -1298,7 +1298,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 rtype=int(dns_res.q.qtype)
             )
             for record in records:
-                dns_res.add_answer(dnslib.RR(query_name, record.rtype, ttl=record.ttl, rdata=dnslib.RD(record.rdata)))
+                dns_res.add_answer(dnslib.RR(query_name, record.rtype, ttl=record.ttl, rdata=dnslib.RD(bytes(record.rdata))))
             if not len(records):
                 lookup_cname(record_name)
 
@@ -1315,14 +1315,14 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         break
                     prev = o
                 if prev:
-                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=prev.ttl, rdata=dnslib.RD(prev.rdata)))
+                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=prev.ttl, rdata=dnslib.RD(bytes(prev.rdata))))
             if not len(dns_res.a):
                 records = zone.secondarydnszonerecord_set.filter(
                     record_name=str(record_name),
                     rtype=int(QTYPE.NSEC)
                 )
                 for record in records:
-                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(record.rdata)))
+                    dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(bytes(record.rdata))))
             covered_rtype = {}
             rrsig_records = {}
             for a in dns_res.a:
@@ -1350,21 +1350,21 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     rrsig = rrsig_records[a.rname].get(a.rtype)
                     if rrsig:
                         dns_res.add_answer(
-                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(bytes(rrsig.rdata)))
                         )
             for a in dns_res.auth:
                 if a.rtype not in covered_rtype[a.rname]:
                     rrsig = rrsig_records[a.rname].get(a.rtype)
                     if rrsig:
                         dns_res.add_auth(
-                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(bytes(rrsig.rdata)))
                         )
             for a in dns_res.ar:
                 if a.rtype not in covered_rtype[a.rname]:
                     rrsig = rrsig_records[a.rname].get(a.rtype)
                     if rrsig:
                         dns_res.add_ar(
-                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(rrsig.rdata))
+                            dnslib.RR(a.rname, dnslib.QTYPE.RRSIG, ttl=rrsig.ttl, rdata=dnslib.RD(bytes(rrsig.rdata)))
                         )
 
     def handle_query(self, dns_req: dnslib.DNSRecord):
