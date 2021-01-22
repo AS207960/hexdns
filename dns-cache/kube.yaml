@@ -25,7 +25,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cache
-          image: as207960/dns-cache:6
+          image: as207960/dns-cache:10
           args:
             - "-a"
             - "::"
@@ -34,6 +34,7 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 53
+            - containerPort: 9184
           env:
             - name: DNS_SERVER_NAME
               valueFrom:
