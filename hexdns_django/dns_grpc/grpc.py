@@ -1316,7 +1316,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     prev = o
                 if prev:
                     dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=prev.ttl, rdata=dnslib.RD(bytes(prev.rdata))))
-            if not len(dns_res.a):
+            if not len(dns_res.rr):
                 records = zone.secondarydnszonerecord_set.filter(
                     record_name=str(record_name),
                     rtype=int(QTYPE.NSEC)
@@ -1325,7 +1325,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     dns_res.add_auth(dnslib.RR(query_name, QTYPE.NSEC, ttl=record.ttl, rdata=dnslib.RD(bytes(record.rdata))))
             covered_rtype = {}
             rrsig_records = {}
-            for a in dns_res.a:
+            for a in dns_res.rr:
                 covered_rtype[a.rname] = []
             for a in dns_res.auth:
                 covered_rtype[a.rname] = []
@@ -1345,7 +1345,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     except (dnslib.DNSError, ValueError):
                         pass
                 rrsig_records[rname] = out_records
-            for a in dns_res.a:
+            for a in dns_res.rr:
                 if a.rtype not in covered_rtype[a.rname]:
                     rrsig = rrsig_records[a.rname].get(a.rtype)
                     if rrsig:
