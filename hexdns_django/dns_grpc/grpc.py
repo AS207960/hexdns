@@ -1333,7 +1333,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 covered_rtype[a.rname] = []
             for rname in covered_rtype.keys():
                 records = zone.secondarydnszonerecord_set.filter(
-                    record_name=str(rname.rname),
+                    record_name=str(rname),
                     rtype=int(dnslib.QTYPE.RRSIG)
                 )
                 out_records = {}
