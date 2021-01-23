@@ -295,6 +295,7 @@ spec:
           annotations:
             cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
         spec:
+          shareProcessNamespace: true
           volumes:
             - name: static
               persistentVolumeClaim:
@@ -312,7 +313,7 @@ spec:
             - name: django
               image: as207960/hexdns-django:(version)
               imagePullPolicy: Always
-              command: ["sh", "-c", "python3 manage.py transfer-secondary"]
+              command: ["sh", "-c", "python3 manage.py transfer-secondary; pkill tayga"]
               volumeMounts:
                 - mountPath: "/app/static/"
                   name: static
