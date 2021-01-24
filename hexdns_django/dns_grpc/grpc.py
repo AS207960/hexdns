@@ -1040,7 +1040,24 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             zone_root = network_to_apra(zone_network)
         else:
             return
-        if not len(dns_res.rr) and not len(dns_res.auth):
+        has_any = len(dns_res.rr) or len(dns_res.auth)
+        has_soa = False
+        for r in dns_res.rr:
+            if r.rtype == QTYPE.SOA:
+                has_soa = True
+                break
+        has_requested = False
+        if has_any:
+            for r in dns_res.rr:
+                if r.rname == query_name:
+                    has_requested = True
+                    break
+            if not has_requested:
+                for r in dns_res.auth:
+                    if r.rname == query_name:
+                        has_requested = True
+                        break
+        if not has_requested:
             if is_dnssec:
                 names = [b"\x00"]
                 names.extend(query_name.label)
@@ -1077,24 +1094,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             ttl=86400,
                         )
                     )
-            dns_res.add_auth(
-                dnslib.RR(
-                    zone_root,
-                    QTYPE.SOA,
-                    rdata=dnslib.SOA(
-                        NAMESERVERS[0],
-                        "noc.as207960.net",
-                        (
-                            int(zone.last_modified.timestamp()),
-                            86400,
-                            7200,
-                            3600000,
-                            172800,
+            if not has_soa:
+                dns_res.add_auth(
+                    dnslib.RR(
+                        zone_root,
+                        QTYPE.SOA,
+                        rdata=dnslib.SOA(
+                            NAMESERVERS[0],
+                            "noc.as207960.net",
+                            (
+                                int(zone.last_modified.timestamp()),
+                                86400,
+                                7200,
+                                3600000,
+                                172800,
+                            ),
                         ),
-                    ),
-                    ttl=86400,
+                        ttl=86400,
+                    )
                 )
-            )
 
         if is_dnssec:
             def sign_section(section, add_fn, priv_key, sign_ns=False):
@@ -1404,24 +1422,25 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         if not is_rdns:
             if dns_req.q.qtype == QTYPE.SOA:
-                dns_res.add_answer(
-                    dnslib.RR(
-                        zone.zone_root,
-                        QTYPE.SOA,
-                        rdata=dnslib.SOA(
-                            NAMESERVERS[0],
-                            "noc.as207960.net",
-                            (
-                                int(zone.last_modified.timestamp()),
-                                86400,
-                                7200,
-                                3600000,
-                                172800,
+                if str(record_name) == "@.":
+                    dns_res.add_answer(
+                        dnslib.RR(
+                            zone.zone_root,
+                            QTYPE.SOA,
+                            rdata=dnslib.SOA(
+                                NAMESERVERS[0],
+                                "noc.as207960.net",
+                                (
+                                    int(zone.last_modified.timestamp()),
+                                    86400,
+                                    7200,
+                                    3600000,
+                                    172800,
+                                ),
                             ),
-                        ),
-                        ttl=86400,
+                            ttl=86400,
+                        )
                     )
-                )
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
                 return dns_res
             elif dns_req.q.qtype in [QTYPE.A, QTYPE.AAAA]:
