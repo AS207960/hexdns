@@ -124,6 +124,7 @@ class ReverseDNSZone(models.Model):
     zsk_private = models.TextField(blank=True, null=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=True, blank=True)
+    num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
 
     def __init__(self, *args, user=None, **kwargs):
@@ -194,6 +195,7 @@ class SecondaryDNSZone(models.Model):
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
+    num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
 
     def __init__(self, *args, user=None, **kwargs):
