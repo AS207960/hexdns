@@ -78,6 +78,11 @@
         left: -5px;
         position: absolute;
     }
+    @media (prefers-reduced-motion) {
+        .cyber::after {
+            animation: none;
+        }
+    }
 </style>
 
 <footer class="footer mt-auto py-3">
