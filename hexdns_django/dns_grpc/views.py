@@ -283,14 +283,16 @@ def create_domain_zone_list(request):
             "Authorization": f"Bearer {client_token}"
         }
     )
-    r.raise_for_status()
-    data = r.json()
 
     domains = []
-    for domain in data["domains"]:
-        zone_error = valid_zone(domain["domain"])
-        domain["error"] = zone_error
-        domains.append(domain)
+
+    if r.status_code != 404:
+        r.raise_for_status()
+        data = r.json()
+        for domain in data["domains"]:
+            zone_error = valid_zone(domain["domain"])
+            domain["error"] = zone_error
+            domains.append(domain)
 
     return render(request, "dns_grpc/domain_zones.html", {
         "domains": domains
