@@ -273,7 +273,14 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             zone: models.DNSZone,
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
-        return model.objects.filter(record_name=search_name, zone=zone)
+        records = model.objects.filter(record_name=search_name, zone=zone)
+        if records.count():
+            return records
+        else:
+            labels = list(rname.label)
+            labels[0] = b"*"
+            wildcard_search_name = ".".join(map(lambda n: n.decode(), labels))
+            return model.objects.filter(record_name=wildcard_search_name, zone=zone)
 
     def any_records(
             self, rname: DNSLabel, zone: models.DNSZone, include_cname: bool = True
@@ -344,7 +351,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
 
         if qtype in [QTYPE.A, QTYPE.AAAA]:
-            records = self.find_records(models.AddressRecord, search_name, zone)
+            records = self.find_records(models.AddressRecord, rname, zone)
             for record in records:
                 address = ipaddress.ip_address(record.address)
                 if type(address) == ipaddress.IPv4Address and qtype == QTYPE.A:
@@ -511,23 +518,23 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             address = ipaddress.ip_address(record.address)
             if type(address) == ipaddress.IPv4Address and dns_res.q.qtype == QTYPE.A:
                 addr_found = True
-                dns_res.add_answer(record.to_rr())
+                dns_res.add_answer(record.to_rr(query_name))
             elif type(address) == ipaddress.IPv6Address and dns_res.q.qtype == QTYPE.AAAA:
                 addr_found = True
-                dns_res.add_answer(record.to_rr())
+                dns_res.add_answer(record.to_rr(query_name))
         if not addr_found:
             records = self.find_records(models.DynamicAddressRecord, record_name, zone)
             for record in records:
                 if dns_res.q.qtype == QTYPE.A and record.current_ipv4:
                     addr_found = True
-                    dns_res.add_answer(record.to_rr_v4())
+                    dns_res.add_answer(record.to_rr_v4(query_name))
                 elif dns_res.q.qtype == QTYPE.AAAA and record.current_ipv6:
                     addr_found = True
-                    dns_res.add_answer(record.to_rr_v6())
+                    dns_res.add_answer(record.to_rr_v6(query_name))
         if not addr_found:
             records = self.find_records(models.ANAMERecord, record_name, zone)
             for record in records:
-                rrs = record.to_rrs(dns_res.q.qtype)
+                rrs = record.to_rrs(dns_res.q.qtype, query_name)
                 if rrs:
                     addr_found = True
                     for rr in rrs:
@@ -546,12 +553,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             records = self.find_records(models.AddressRecord, record_name, zone)
             for record in records:
                 addr_found = True
-                dns_res.add_ar(record.to_rr())
+                dns_res.add_ar(record.to_rr(query_name))
             if not addr_found:
                 records = self.find_records(models.DynamicAddressRecord, record_name, zone)
                 for record in records:
-                    v4_rr = record.to_rr_v4()
-                    v6_rr = record.to_rr_v6()
+                    v4_rr = record.to_rr_v4(query_name)
+                    v6_rr = record.to_rr_v6(query_name)
 
                     if v4_rr:
                         dns_res.add_ar(v4_rr)
@@ -560,7 +567,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             if not addr_found:
                 records = self.find_records(models.ANAMERecord, record_name, zone)
                 for record in records:
-                    rrs = record.to_rrs(dns_res.q.qtype)
+                    rrs = record.to_rrs(dns_res.q.qtype, query_name)
                     for rr in rrs:
                         dns_res.add_answer(rr)
 
@@ -574,7 +581,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.MXRecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_mx
@@ -590,7 +597,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.NSRecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if record_name == "@":
             for ns in NAMESERVERS:
                 dns_res.add_answer(
@@ -611,7 +618,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.TXTRecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_txt
@@ -627,7 +634,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.SRVRecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_srv
@@ -643,7 +650,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.CAARecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_caa
@@ -659,7 +666,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.NAPTRRecord, record_name, zone)
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_naptr
@@ -675,7 +682,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.SSHFPRecord, record_name, zone)
         for record in records:
-            for rr in record.to_rrs():
+            for rr in record.to_rrs(query_name):
                 dns_res.add_answer(rr)
         if not len(records):
             self.lookup_cname(
@@ -807,7 +814,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.DSRecord, record_name, zone)
         for record in records:
-            rr = record.to_rr()
+            rr = record.to_rr(query_name)
             if rr:
                 dns_res.add_answer(rr)
         if not len(records):
@@ -826,7 +833,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         records = self.find_records(models.LOCRecord, record_name, zone)  # type: typing.List[models.LOCRecord]
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
 
         if not len(records):
             self.lookup_cname(
@@ -843,7 +850,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.HINFORecord, record_name, zone)  # type: typing.List[models.HINFORecord]
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_hinfo
@@ -859,7 +866,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         records = self.find_records(models.RPRecord, record_name, zone)  # type: typing.List[models.RPRecord]
         for record in records:
-            dns_res.add_answer(record.to_rr())
+            dns_res.add_answer(record.to_rr(query_name))
 
         if not len(records):
             self.lookup_cname(

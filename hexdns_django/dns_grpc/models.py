@@ -345,18 +345,18 @@ class AddressRecord(DNSZoneRecord):
         self.ttl = rr.ttl
         self.address = str(rr.rdata)
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         address = ipaddress.ip_address(self.address)
         if type(address) == ipaddress.IPv4Address:
             return dnslib.RR(
-                self.dns_label,
+                query_name,
                 dnslib.QTYPE.A,
                 rdata=dnslib.A(address.compressed),
                 ttl=self.ttl,
             )
         elif type(address) == ipaddress.IPv6Address:
             return dnslib.RR(
-                self.dns_label,
+                query_name,
                 dnslib.QTYPE.AAAA,
                 rdata=dnslib.AAAA(address.compressed),
                 ttl=self.ttl,
@@ -372,23 +372,23 @@ class DynamicAddressRecord(DNSZoneRecord):
     class Meta:
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
-    def to_rr_v4(self):
+    def to_rr_v4(self, query_name):
         if not self.current_ipv4:
             return None
 
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.A,
             rdata=dnslib.A(self.current_ipv4),
             ttl=self.ttl,
         )
 
-    def to_rr_v6(self):
+    def to_rr_v6(self, query_name):
         if not self.current_ipv6:
             return None
 
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.AAAA,
             rdata=dnslib.AAAA(self.current_ipv6),
             ttl=self.ttl,
@@ -403,7 +403,7 @@ class ANAMERecord(DNSZoneRecord):
         self.alias = self.alias.lower()
         return super().save(*args, **kwargs)
 
-    def to_rrs(self, qtype):
+    def to_rrs(self, qtype, query_name):
         out = []
         question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
         res_pkt = question.send(
@@ -412,7 +412,7 @@ class ANAMERecord(DNSZoneRecord):
         res = dnslib.DNSRecord.parse(res_pkt)
         for rr in res.rr:
             out.append(dnslib.RR(
-                self.dns_label,
+                query_name                ,
                 qtype,
                 rdata=rr.rdata,
                 ttl=self.ttl
@@ -420,11 +420,11 @@ class ANAMERecord(DNSZoneRecord):
 
         return out
 
-    def to_rrs_v4(self):
-        return self.to_rrs(dnslib.QTYPE.A)
+    def to_rrs_v4(self, query_name):
+        return self.to_rrs(dnslib.QTYPE.A, query_name)
 
-    def to_rrs_v6(self):
-        return self.to_rrs(dnslib.QTYPE.AAAA)
+    def to_rrs_v6(self, query_name):
+        return self.to_rrs(dnslib.QTYPE.AAAA, query_name)
 
     class Meta:
         verbose_name = "ANAME record"
@@ -489,9 +489,9 @@ class MXRecord(DNSZoneRecord):
         self.exchange = self.exchange.lower()
         return super().save(*args, **kwargs)
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.MX,
             rdata=dnslib.MX(self.exchange, self.priority),
             ttl=self.ttl,
@@ -527,9 +527,9 @@ class NSRecord(DNSZoneRecord):
         self.nameserver = self.nameserver.lower()
         return super().save(*args, **kwargs)
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.NS,
             rdata=dnslib.NS(self.nameserver),
             ttl=self.ttl,
@@ -561,9 +561,9 @@ class TXTRecord(DNSZoneRecord):
         self.ttl = rr.ttl
         self.data = "".join([x.decode(errors='replace') for x in rr.rdata.data])
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.TXT,
             rdata=dnslib.TXT(
                 [
@@ -609,9 +609,9 @@ class SRVRecord(DNSZoneRecord):
         self.port = rr.rdata.port
         self.target = str(rr.rdata.target)
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.SRV,
             rdata=dnslib.SRV(
                 self.priority, self.weight, self.port, self.target
@@ -651,9 +651,9 @@ class CAARecord(DNSZoneRecord):
         self.tag = rr.rdata.tag
         self.value = rr.rdata.value
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.CAA,
             rdata=dnslib.CAA(
                 flags=self.flag, tag=self.tag, value=self.value
@@ -702,9 +702,9 @@ class NAPTRRecord(DNSZoneRecord):
         self.regexp = rr.rdata.regexp,
         self.replacement = rr.rdata.replacement
     
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.NAPTR,
             rdata=dnslib.NAPTR(
                 order=self.order,
@@ -742,7 +742,7 @@ class SSHFPRecord(DNSZoneRecord):
         except NotImplementedError as e:
             raise ValidationError({"host_key": f"Invalid key type: {e}"})
         
-    def to_rrs(self):
+    def to_rrs(self, query_name):
         out = []
         pubkey = self.key
         if pubkey.key_type == b"ssh-rsa":
@@ -759,7 +759,6 @@ class SSHFPRecord(DNSZoneRecord):
         sha1_rd.extend(hashlib.sha1(pubkey._decoded_key).digest())
         sha256_rd = bytearray(struct.pack("!BB", algo_num, 2))
         sha256_rd.extend(hashlib.sha256(pubkey._decoded_key).digest())
-        query_name = self.dns_label
         out.append(
             dnslib.RR(
                 query_name, dnslib.QTYPE.SSHFP, rdata=dnslib.RD(sha1_rd), ttl=self.ttl,
@@ -841,7 +840,7 @@ class DSRecord(DNSZoneRecord):
         self.digest_type = digest_type
         self.digest = codecs.encode(digest, "hex").decode()
             
-    def to_rr(self):
+    def to_rr(self, query_name):
         ds_data = bytearray(
             struct.pack(
                 "!HBB", self.key_tag, self.algorithm, self.digest_type
@@ -852,7 +851,7 @@ class DSRecord(DNSZoneRecord):
             return None
         ds_data.extend(digest_data)
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.DS,
             rdata=dnslib.RD(ds_data),
             ttl=self.ttl,
@@ -936,7 +935,7 @@ class LOCRecord(DNSZoneRecord):
         self.hp = hp
         self.vp = vp
 
-    def to_rr(self):
+    def to_rr(self, query_name):
         def enc_size(value):
             size_exp = int(math.floor(math.log10(value)) if value != 0 else 0)
             size_man = int(value / (10 ** size_exp))
@@ -952,7 +951,7 @@ class LOCRecord(DNSZoneRecord):
             lat, long, alt
         ))
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.LOC,
             rdata=dnslib.RD(loc_data),
             ttl=self.ttl
@@ -991,9 +990,9 @@ class HINFORecord(DNSZoneRecord):
         self.cpu = rdata.data[0].decode(errors='replace')
         self.os = rdata.data[1].decode(errors='replace')
     
-    def to_rr(self):
+    def to_rr(self, query_name):
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.HINFO,
             rdata=dnslib.TXT([self.cpu, self.os]),
             ttl=self.ttl
@@ -1035,12 +1034,12 @@ class RPRecord(DNSZoneRecord):
         self.mailbox = str(rdata_buffer.decode_name())
         self.txt = str(rdata_buffer.decode_name())
     
-    def to_rr(self):
+    def to_rr(self, query_name):
         buffer = dnslib.DNSBuffer()
         buffer.encode_name(dnslib.DNSLabel(self.mailbox))
         buffer.encode_name(dnslib.DNSLabel(self.txt))
         return dnslib.RR(
-            self.dns_label,
+            query_name,
             dnslib.QTYPE.RP,
             rdata=dnslib.RD(buffer.data),
             ttl=self.ttl
