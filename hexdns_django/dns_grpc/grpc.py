@@ -186,7 +186,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     def find_zone(
             self, qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
-        zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        zones = models.DNSZone.objects.order_by(Length("zone_root").desc())
         for zone in zones:
             zone_root = DNSLabel(zone.zone_root)
             if qname.matchSuffix(zone_root):
@@ -207,7 +207,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     def find_secondary_zone(
             self, qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
-        zones = models.SecondaryDNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        zones = models.SecondaryDNSZone.objects.order_by(Length("zone_root").desc())
         for zone in zones:
             zone_root = DNSLabel(zone.zone_root)
             if qname.matchSuffix(zone_root):
@@ -247,7 +247,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         except ValueError:
             return None, None
 
-        zones = models.ReverseDNSZone.objects.filter(active=True).order_by("-zone_root_prefix")
+        zones = models.ReverseDNSZone.objects.order_by("-zone_root_prefix")
         for zone in zones:
             zone_network = zone.network
             if not zone_network:
@@ -1585,7 +1585,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         )
 
         zone = None
-        zones = models.DNSZone.objects.filter(active=True).order_by(Length("zone_root").desc())
+        zones = models.DNSZone.objects.order_by(Length("zone_root").desc())
         for z in zones:
             zone_root = DNSLabel(z.zone_root)
             if query_name == zone_root:
