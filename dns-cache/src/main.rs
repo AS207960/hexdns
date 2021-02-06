@@ -88,6 +88,7 @@ async fn fetch_and_insert(
     msg: trust_dns_proto::op::message::Message,
     mut client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: &mut Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
+    new: bool
 ) -> Result<trust_dns_proto::op::message::Message, trust_dns_client::op::ResponseCode> {
     let request = tonic::Request::new(dns_proto::DnsPacket {
         msg: msg.to_bytes().map_err(|_| trust_dns_client::op::ResponseCode::FormErr)?
@@ -107,14 +108,16 @@ async fn fetch_and_insert(
     })?;
 
     UPSTREAM_QUERY_COUNTER.with_label_values(&["ok"]).inc();
-    let new_cache_data = CacheData {
-        valid_until: std::time::Instant::now() + std::time::Duration::from_secs(30),
-        response_code: response_msg.response_code(),
-        answers: response_msg.answers().to_vec(),
-        name_servers: response_msg.name_servers().to_vec(),
-        additionals: response_msg.additionals().to_vec(),
-    };
-    cache.lock().await.put(cache_key, new_cache_data);
+    if response_msg.response_code() != trust_dns_client::op::ResponseCode::ServFail || new {
+        let new_cache_data = CacheData {
+            valid_until: std::time::Instant::now() + std::time::Duration::from_secs(30),
+            response_code: response_msg.response_code(),
+            answers: response_msg.answers().to_vec(),
+            name_servers: response_msg.name_servers().to_vec(),
+            additionals: response_msg.additionals().to_vec(),
+        };
+        cache.lock().await.put(cache_key, new_cache_data);
+    }
 
     Ok(response_msg)
 }
@@ -146,7 +149,7 @@ async fn lookup_cache_or_fetch(
             let msg = msg.clone();
             CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
             tokio::spawn(async move {
-                let _ = fetch_and_insert(cache_key, msg, client, &mut cache).await;
+                let _ = fetch_and_insert(cache_key, msg, client, &mut cache, false).await;
             });
         } else {
             CACHE_COUNTER.with_label_values(&["hit"]).inc();
@@ -167,7 +170,7 @@ async fn lookup_cache_or_fetch(
     }
 
     CACHE_COUNTER.with_label_values(&["miss"]).inc();
-    let mut response_msg = fetch_and_insert(cache_key, msg, client, &mut cache).await?;
+    let mut response_msg = fetch_and_insert(cache_key, msg, client, &mut cache, true).await?;
     response_msg.set_authoritative(true);
 
     Ok(response_msg)
