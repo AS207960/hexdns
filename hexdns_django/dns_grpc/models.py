@@ -9,6 +9,7 @@ import django_keycloak_auth.clients
 import dnslib
 import codecs
 import sshpubkeys
+import socket
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -406,9 +407,12 @@ class ANAMERecord(DNSZoneRecord):
     def to_rrs(self, qtype, query_name):
         out = []
         question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
-        res_pkt = question.send(
-            settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
-        )
+        try:
+            res_pkt = question.send(
+                settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
+            )
+        except socket.timeout:
+            raise Exception(f"Failed to get address for {self.alias}: timeout")
         res = dnslib.DNSRecord.parse(res_pkt)
         for rr in res.rr:
             out.append(dnslib.RR(
