@@ -498,9 +498,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ttl=cname_record.ttl,
                 )
             )
-            zone, record_name = self.find_zone(DNSLabel(cname_record.alias))
-            if zone:
-                func(dns_res, record_name, zone, cname_record.alias, is_dnssec)
+            new_zone, record_name = self.find_zone(DNSLabel(cname_record.alias))
+            if new_zone and new_zone != zone:
+                func(dns_res, record_name, new_zone, cname_record.alias, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
