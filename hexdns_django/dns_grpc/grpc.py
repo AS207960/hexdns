@@ -498,9 +498,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ttl=cname_record.ttl,
                 )
             )
-            new_zone, record_name = self.find_zone(DNSLabel(cname_record.alias))
-            if new_zone and new_zone != zone:
-                func(dns_res, record_name, new_zone, cname_record.alias, is_dnssec)
+            new_zone, new_record_name = self.find_zone(DNSLabel(cname_record.alias))
+            if new_zone and new_zone != zone and record_name != new_record_name:
+                func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
@@ -2154,12 +2154,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         try:
             dns_res = self.handle_query(dns_req)
         except Exception as e:
-            print(e)
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
-            return dns_res
+            return self.make_resp(dns_res)
 
         res = self.make_resp(dns_res)
         return res
@@ -2181,7 +2180,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             traceback.print_exc()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
-            yield dns_res
+            yield self.make_resp(dns_res)
             return
 
         for res in dns_res:
@@ -2199,13 +2198,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         try:
             dns_res = self.handle_update_query(dns_req)
         except Exception as e:
-            print(e)
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
-            return dns_res
+            return self.make_resp(dns_res)
 
-        print(dns_res)
         res = self.make_resp(dns_res)
         return res
