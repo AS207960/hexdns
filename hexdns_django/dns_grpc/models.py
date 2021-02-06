@@ -412,7 +412,7 @@ class ANAMERecord(DNSZoneRecord):
         res = dnslib.DNSRecord.parse(res_pkt)
         for rr in res.rr:
             out.append(dnslib.RR(
-                query_name                ,
+                query_name,
                 qtype,
                 rdata=rr.rdata,
                 ttl=self.ttl
