@@ -405,22 +405,47 @@ class ANAMERecord(DNSZoneRecord):
         return super().save(*args, **kwargs)
 
     def to_rrs(self, qtype, query_name):
+        alias_label = dnslib.DNSLabel(self.alias)
+        zone_label = dnslib.DNSLabel(self.zone.zone_root)
+
         out = []
-        question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
-        try:
-            res_pkt = question.send(
-                settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
-            )
-        except socket.timeout:
-            raise Exception(f"Failed to get address for {self.alias}: timeout")
-        res = dnslib.DNSRecord.parse(res_pkt)
-        for rr in res.rr:
-            out.append(dnslib.RR(
-                query_name,
-                qtype,
-                rdata=rr.rdata,
-                ttl=self.ttl
-            ))
+
+        if alias_label.matchSuffix(zone_label):
+            own_record_name = alias_label.stripSuffix(zone_label)
+            search_name = ".".join(map(lambda n: n.decode(), own_record_name.label))
+            own_records = self.zone.addressrecord_set.filter(record_name=search_name)
+            for r in own_records:
+                address = ipaddress.ip_address(r.address)
+                if type(address) == ipaddress.IPv4Address and qtype == dnslib.QTYPE.A:
+                    out.append(dnslib.RR(
+                        query_name,
+                        dnslib.QTYPE.A,
+                        rdata=dnslib.A(address.compressed),
+                        ttl=self.ttl,
+                    ))
+                elif type(address) == ipaddress.IPv6Address and qtype == dnslib.QTYPE.AAAA:
+                    out.append(dnslib.RR(
+                        query_name,
+                        dnslib.QTYPE.AAAA,
+                        rdata=dnslib.AAAA(address.compressed),
+                        ttl=self.ttl,
+                    ))
+        else:
+            question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
+            try:
+                res_pkt = question.send(
+                    settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
+                )
+            except socket.timeout:
+                raise Exception(f"Failed to get address for {self.alias}: timeout")
+            res = dnslib.DNSRecord.parse(res_pkt)
+            for rr in res.rr:
+                out.append(dnslib.RR(
+                    query_name,
+                    qtype,
+                    rdata=rr.rdata,
+                    ttl=self.ttl
+                ))
 
         return out
 
