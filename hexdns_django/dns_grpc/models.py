@@ -10,6 +10,7 @@ import dnslib
 import codecs
 import sshpubkeys
 import socket
+from django.core.validators import ip_address_validators
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -310,6 +311,10 @@ class ReverseDNSZoneRecord(models.Model):
         abstract = True
 
     def clean(self):
+        try:
+            ipaddress.ip_address(self.record_address)
+        except ValueError:
+            return
         zone_network = ipaddress.ip_network(
             (self.zone.zone_root_address, self.zone.zone_root_prefix)
         )
