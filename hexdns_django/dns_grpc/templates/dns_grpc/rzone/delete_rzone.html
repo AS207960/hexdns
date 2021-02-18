@@ -2,8 +2,8 @@
 {% block content %}
     <div class="container my-3">
         <div class="bg-light p-3 rounded">
-            <h1 class="display-4">Delete secondary zone</h1>
-            <b>Zone name: </b> {{ zone.zone_root }}
+            <h1 class="display-4">Delete reverse zone</h1>
+            <b>Zone: </b> {{ zone.zone_root_address }}/{{ zone.zone_root_prefix }}
             <hr class="my-4">
             {% if error %}
                 <div class="alert alert-danger">
@@ -13,7 +13,11 @@
             <p>Are you sure you want to delete this zone?</p>
             <form action="" method="post">
                 {% csrf_token %}
-                <a class="btn btn-primary btn-md" href="{% url 'edit_szone' zone.id %}" role="button">Cancel</a>
+                {% if back_url %}
+                    <a class="btn btn-primary btn-md" href="{{ back_url }}" role="button">Cancel</a>
+                {% else %}
+                    <a class="btn btn-primary btn-md" href="{% url 'edit_rzone' zone.id %}" role="button">Cancel</a>
+                {% endif %}
                 <button type="submit" name="delete" value="true" class="btn btn-danger">
                     &#x1f5d1; Delete
                 </button>

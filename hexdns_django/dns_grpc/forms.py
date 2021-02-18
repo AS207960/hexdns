@@ -3,6 +3,56 @@ from . import models
 import crispy_forms.helper
 import crispy_forms.layout
 import crispy_forms.bootstrap
+from django.contrib.auth import get_user_model
+
+
+class UserChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return f"{obj.first_name} {obj.last_name} - {obj.email} ({obj.username})"
+
+
+class AdminZoneForm(forms.Form):
+    zone_root = forms.CharField()
+    user = UserChoiceField(get_user_model().objects.all())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Create"))
+
+
+class AdminReverseZoneForm(forms.Form):
+    zone_root_address = forms.GenericIPAddressField()
+    zone_root_prefix = forms.IntegerField(min_value=0, max_value=128)
+    user = UserChoiceField(get_user_model().objects.all())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Create"))
+
+
+class AdminSecondaryZoneForm(forms.Form):
+    zone_root = forms.CharField()
+    primary_server = forms.CharField()
+    user = UserChoiceField(get_user_model().objects.all())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Create"))
 
 
 class ZoneForm(forms.Form):

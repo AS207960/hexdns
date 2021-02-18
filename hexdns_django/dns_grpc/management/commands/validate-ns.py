@@ -11,7 +11,7 @@ WANTED_NS = [dnslib.DNSLabel('ns1.as207960.net'), dnslib.DNSLabel('ns2.as207960.
 
 
 def mail_valid(user, zone):
-    feedback_url = views.get_feedback_url(
+    feedback_url = views.utils.get_feedback_url(
         f"HexDNS for {zone.zone_root}", zone.id
     )
 

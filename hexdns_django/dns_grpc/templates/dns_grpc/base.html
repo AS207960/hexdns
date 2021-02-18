@@ -19,7 +19,8 @@
                 <img src="https://as207960.net/assets/img/logo.svg" height="75" alt="">
                 <span class="navbar-brand mb-0 h1">Glauca</span>
             </a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -33,6 +34,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'szones' %}">My secondary zones</a>
                     </li>
+                    {% if perms.dns_grpc.access_admin %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'admin_index' %}">Admin</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="https://portal.glauca.digital" target="_blank">Service portal</a>
                     </li>
@@ -63,6 +69,7 @@
         position: relative;
         height: 200px;
     }
+
     .cyber::after {
         content: " ";
         background-image: url(/static/dns_grpc/img/cyber_plain.png);
@@ -78,6 +85,7 @@
         left: -5px;
         position: absolute;
     }
+
     @media (prefers-reduced-motion) {
         .cyber::after {
             animation: none;
