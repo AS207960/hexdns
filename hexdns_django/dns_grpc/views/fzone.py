@@ -122,17 +122,11 @@ def create_domains_zone(request):
             "back_url": referrer
         })
 
-    priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
-    priv_key_bytes = priv_key.private_bytes(
-        encoding=Encoding.PEM,
-        format=PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=NoEncryption()
-    ).decode()
     zone_obj = models.DNSZone(
         zone_root=domain_token["domain"],
         last_modified=timezone.now(),
         user=request.user,
-        zsk_private=priv_key_bytes,
+        zsk_private=utils.get_priv_key_bytes(),
         charged=False,
         active=True,
     )
