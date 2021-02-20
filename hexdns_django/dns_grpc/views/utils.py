@@ -58,7 +58,7 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
         if r.status_code in (200, 302):
             data = r.json()
             user.account.subscription_id = data["id"]
-            user.account.subscription_active = False
+            user.account.subscription_active = True
             user.account.save()
             if r.status_code == 302:
                 return "redirect", data["redirect_uri"]
