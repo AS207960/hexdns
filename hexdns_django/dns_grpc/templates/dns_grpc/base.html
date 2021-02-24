@@ -39,6 +39,11 @@
                             <a class="nav-link" href="{% url 'admin_index' %}">Admin</a>
                         </li>
                     {% endif %}
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'oidc_logout' %}">Logout</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="https://portal.glauca.digital" target="_blank">Service portal</a>
                     </li>
