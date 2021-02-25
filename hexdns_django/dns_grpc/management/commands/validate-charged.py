@@ -13,9 +13,6 @@ class Command(BaseCommand):
         client_token = django_keycloak_auth.clients.get_access_token()
 
         for zone in models.DNSZone.objects.all():
-            if zone.charged:
-                continue
-
             user = zone.get_user()
 
             if user.username not in user_zones:
@@ -42,11 +39,11 @@ class Command(BaseCommand):
 
             for zone in data["zones"]:
                 if zone.zone_root in domains:
-                    if not domains[zone.zone_root]:
+                    if not domains[zone.zone_root] and not zone.charged:
                         print(f"Setting {zone.zone_root} to charged")
                         zone.charged = True
                         zone.save()
-                    else:
+                    elif domains[zone.zone_root] and zone.charged:
                         print(f"Setting {zone.zone_root} to uncharged")
                         zone.charged = False
                         zone.save()
