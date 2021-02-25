@@ -31,6 +31,14 @@ class Command(BaseCommand):
             }, headers={
                 "Authorization": f"Bearer {client_token}"
             })
+            if r.status_code == 404:
+                for zone in data["zones"]:
+                    if not zone.charged:
+                        print(f"Setting {zone.zone_root} to charged")
+                        zone.charged = True
+                        zone.save()
+                continue
+                
             r.raise_for_status()
             rdata = r.json()
             domains = {}
