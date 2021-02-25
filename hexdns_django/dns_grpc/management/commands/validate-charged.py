@@ -46,5 +46,9 @@ class Command(BaseCommand):
                         print(f"Setting {zone.zone_root} to charged")
                         zone.charged = True
                         zone.save()
+                    else:
+                        print(f"Setting {zone.zone_root} to uncharged")
+                        zone.charged = False
+                        zone.save()
 
             views.utils.log_usage(data["user"], off_session=True)
