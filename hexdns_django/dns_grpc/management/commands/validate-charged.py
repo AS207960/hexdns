@@ -47,4 +47,4 @@ class Command(BaseCommand):
                         zone.charged = True
                         zone.save()
 
-            views.log_usage(data["user"], off_session=True)
+            views.utils.log_usage(data["user"], off_session=True)
