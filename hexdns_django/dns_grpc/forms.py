@@ -545,3 +545,35 @@ class DMARCForm(forms.Form):
             "failure_feedback"
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Generate"))
+
+
+class AdditionalCDSForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneAdditionalCDS
+        fields = "__all__"
+        exclude = ("dns_zone", "id",)
+
+
+class AdditionalCDNSKEYForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneAdditionalCDNSKEY
+        fields = "__all__"
+        exclude = ("dns_zone", "id",)

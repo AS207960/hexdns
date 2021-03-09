@@ -9,6 +9,7 @@ import sentry_sdk
 import datetime
 import hmac
 import requests
+import base64
 import django.core.exceptions
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -748,35 +749,49 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
-            if isinstance(zone, models.DNSZone):
-                zone_root = zone.zone_root
-            elif isinstance(zone, models.ReverseDNSZone):
-                zone_network = ipaddress.ip_network(
-                    (zone.zone_root_address, zone.zone_root_prefix)
+            if zone.cds_disable:
+                ds_data = bytearray(struct.pack("!HBB", 0, 0, 0))
+                ds_data.extend(b'\x00')
+                dns_res.add_answer(
+                    dnslib.RR(query_name, QTYPE.CDS, rdata=dnslib.RD(ds_data), ttl=86400)
                 )
-                zone_root = network_to_apra(zone_network)
             else:
-                return
+                if isinstance(zone, models.DNSZone):
+                    zone_root = zone.zone_root
+                elif isinstance(zone, models.ReverseDNSZone):
+                    zone_network = ipaddress.ip_network(
+                        (zone.zone_root_address, zone.zone_root_prefix)
+                    )
+                    zone_root = network_to_apra(zone_network)
+                else:
+                    return
 
-            pub_key = self.priv_key.public_key()
-            nums = pub_key.public_numbers()
-            buffer = dnslib.DNSBuffer()
-            rd = dnslib.DNSKEY(
-                257,
-                3,
-                13,
-                nums.x.to_bytes(32, byteorder="big")
-                + nums.y.to_bytes(32, byteorder="big"),
-            )
-            buffer.encode_name(dnslib.DNSLabel(zone_root))
-            rd.pack(buffer)
-            digest = hashlib.sha256(buffer.data).digest()
-            tag = make_key_tag(pub_key, flags=257)
-            ds_data = bytearray(struct.pack("!HBB", tag, 13, 2))
-            ds_data.extend(digest)
-            dns_res.add_answer(
-                dnslib.RR(query_name, QTYPE.CDS, rdata=dnslib.RD(ds_data), ttl=86400)
-            )
+                pub_key = self.priv_key.public_key()
+                nums = pub_key.public_numbers()
+                buffer = dnslib.DNSBuffer()
+                rd = dnslib.DNSKEY(
+                    257,
+                    3,
+                    13,
+                    nums.x.to_bytes(32, byteorder="big")
+                    + nums.y.to_bytes(32, byteorder="big"),
+                )
+                buffer.encode_name(dnslib.DNSLabel(zone_root))
+                rd.pack(buffer)
+                digest = hashlib.sha256(buffer.data).digest()
+                tag = make_key_tag(pub_key, flags=257)
+                ds_data = bytearray(struct.pack("!HBB", tag, 13, 2))
+                ds_data.extend(digest)
+                dns_res.add_answer(
+                    dnslib.RR(query_name, QTYPE.CDS, rdata=dnslib.RD(ds_data), ttl=86400)
+                )
+
+                for cds in zone.additional_cds.all():
+                    ds_data = bytearray(struct.pack("!HBB", cds.key_tag, cds.algorithm, cds.digest_type))
+                    ds_data.extend(bytes.fromhex(cds.digest))
+                    dns_res.add_answer(
+                        dnslib.RR(query_name, QTYPE.CDS, rdata=dnslib.RD(ds_data), ttl=86400)
+                    )
 
     def lookup_cdnskey(
             self,
@@ -787,22 +802,53 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             is_dnssec: bool,
     ):
         if record_name == DNSLabel("@"):
-            pub_key = self.priv_key.public_key()
-            nums = pub_key.public_numbers()
-            dns_res.add_answer(
-                dnslib.RR(
-                    query_name,
-                    QTYPE.CDNSKEY,
-                    rdata=dnslib.DNSKEY(
-                        257,
-                        3,
-                        13,
-                        nums.x.to_bytes(32, byteorder="big")
-                        + nums.y.to_bytes(32, byteorder="big"),
-                    ),
-                    ttl=86400,
+            if zone.cds_disable:
+                dns_res.add_answer(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.CDNSKEY,
+                        rdata=dnslib.DNSKEY(
+                            0,
+                            0,
+                            0,
+                            b'\x00'
+                        ),
+                        ttl=86400,
+                    )
                 )
-            )
+
+            else:
+                pub_key = self.priv_key.public_key()
+                nums = pub_key.public_numbers()
+                dns_res.add_answer(
+                    dnslib.RR(
+                        query_name,
+                        QTYPE.CDNSKEY,
+                        rdata=dnslib.DNSKEY(
+                            257,
+                            3,
+                            13,
+                            nums.x.to_bytes(32, byteorder="big")
+                            + nums.y.to_bytes(32, byteorder="big"),
+                        ),
+                        ttl=86400,
+                    )
+                )
+
+                for cdnskey in zone.additional_cdnskey.all():
+                    dns_res.add_answer(
+                        dnslib.RR(
+                            query_name,
+                            QTYPE.CDNSKEY,
+                            rdata=dnslib.DNSKEY(
+                                cdnskey.flags,
+                                cdnskey.protocol,
+                                cdnskey.algorithm,
+                                base64.b64decode(cdnskey.public_key)
+                            ),
+                            ttl=86400,
+                        )
+                    )
 
     def lookup_ds(
             self,

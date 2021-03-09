@@ -223,22 +223,6 @@ def delete_zone(request, zone_id):
             "zone": user_zone
         })
 
-
-@login_required
-def edit_zone_tsig(request, zone_id):
-    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
-    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
-
-    if not user_zone.has_scope(access_token, 'edit'):
-        raise PermissionDenied
-
-    return render(
-        request,
-        "dns_grpc/fzone/zone_tsig.html",
-        {"zone": user_zone, },
-    )
-
-
 @login_required
 def create_address_record(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
@@ -1325,8 +1309,7 @@ def delete_rp_record(request, record_id):
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    if request.method == "POST":
-        if request.POST.get("delete") == "true":
+    if request.method == "POST" and request.POST.get("delete") == "true":
             user_record.zone.last_modified = timezone.now()
             user_record.zone.save()
             user_record.delete()
@@ -1336,6 +1319,182 @@ def delete_rp_record(request, record_id):
         request,
         "dns_grpc/fzone/delete_record.html",
         {"title": "Delete RP record", "record": user_record, },
+    )
+
+
+@login_required
+def edit_zone_cds(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.zone_root)
+    dnskey = utils.get_dnskey()
+    return render(
+        request,
+        "dns_grpc/fzone/zone_cds.html",
+        {
+            "zone": user_zone,
+            "dnssec_digest": dnssec_digest,
+            "dnssec_tag": dnssec_tag,
+            "dnskey": dnskey
+        },
+    )
+
+
+@login_required
+def disable_zone_cds(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("disable") == "true":
+        user_zone.cds_disable = True
+        user_zone.last_modified = timezone.now()
+        user_zone.save()
+        return redirect('edit_zone_cds', user_zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/disable_cds.html",
+        {
+            "zone": user_zone,
+        },
+    )
+
+
+@login_required
+def enable_zone_cds(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    user_zone.cds_disable = False
+    user_zone.last_modified = timezone.now()
+    user_zone.save()
+    return redirect('edit_zone_cds', user_zone.id)
+
+
+@login_required
+def create_zone_cds(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AdditionalCDSForm(request.POST, instance=models.DNSZoneAdditionalCDS(dns_zone=user_zone))
+        if record_form.is_valid():
+            user_zone.last_modified = timezone.now()
+            user_zone.save()
+            record_form.save()
+            return redirect("edit_zone_cds", user_zone.id)
+    else:
+        record_form = forms.AdditionalCDSForm(instance=models.DNSZoneAdditionalCDS(dns_zone=user_zone))
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create additional CDS record", "form": record_form, },
+    )
+
+
+@login_required
+def create_zone_cdnskey(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AdditionalCDNSKEYForm(request.POST, instance=models.DNSZoneAdditionalCDNSKEY(dns_zone=user_zone))
+        if record_form.is_valid():
+            user_zone.last_modified = timezone.now()
+            user_zone.save()
+            record_form.save()
+            return redirect("edit_zone_cds", user_zone.id)
+    else:
+        record_form = forms.AdditionalCDNSKEYForm(instance=models.DNSZoneAdditionalCDNSKEY(dns_zone=user_zone))
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create additional CDNSKEY record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_cds(request, zone_id, cds_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+    cdnskey_obj = get_object_or_404(models.DNSZoneAdditionalCDS, id=cds_id)
+
+    if not user_zone.has_scope(access_token, 'edit') or cdnskey_obj.dns_zone != user_zone:
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("delete") == "true":
+        user_zone.last_modified = timezone.now()
+        user_zone.save()
+        cdnskey_obj.delete()
+        return redirect("edit_zone_cds", user_zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_cds.html",
+        {
+            "title": "Delete additional CDS",
+            "zone": user_zone,
+            "record": f"{cdnskey_obj.key_tag} {cdnskey_obj.algorithm} {cdnskey_obj.digest_type} {cdnskey_obj.digest.upper()}"
+        },
+    )
+
+
+@login_required
+def delete_zone_cdnskey(request, zone_id, cdnskey_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+    cdnskey_obj = get_object_or_404(models.DNSZoneAdditionalCDNSKEY, id=cdnskey_id)
+
+    if not user_zone.has_scope(access_token, 'edit') or cdnskey_obj.dns_zone != user_zone:
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("delete") == "true":
+        user_zone.last_modified = timezone.now()
+        user_zone.save()
+        cdnskey_obj.delete()
+        return redirect("edit_zone_cds", user_zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_cds.html",
+        {
+            "title": "Delete additional CDNSKEY",
+            "zone": user_zone,
+            "record": f"{cdnskey_obj.flags} {cdnskey_obj.protocol} {cdnskey_obj.algorithm} {cdnskey_obj.public_key}"
+        },
+    )
+
+
+@login_required
+def edit_zone_tsig(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    return render(
+        request,
+        "dns_grpc/fzone/zone_tsig.html",
+        {"zone": user_zone, },
     )
 
 

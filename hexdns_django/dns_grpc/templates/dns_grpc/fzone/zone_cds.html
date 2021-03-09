@@ -1,0 +1,95 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <section class="stripe">
+        <div class="container py-3">
+            <div class="bg-light p-3 rounded my-0">
+                <h1>Edit {{ zone.zone_root }} CDS <span class="badge p-2 bg-primary">Beta</span></h1>
+                <p>
+                    We're still working on refining this feature, but we feel its polished enough to let people try it
+                    out. Don't expect perfection at this stage.
+                </p>
+                <div class="row">
+                    <div class="col">
+                        <div class="btn-group">
+                            <a href="{% url 'edit_zone' zone.id %}" class="btn btn-primary">Back to zone</a>
+                            {% if not zone.cds_disable %}
+                                <a href="{% url 'disable_zone_cds' zone.id %}" class="btn btn-danger">Disable CDS</a>
+                            {% else %}
+                                <a href="{% url 'enable_zone_cds' zone.id %}" class="btn btn-success">Enable CDS</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div class="container pt-3 pt-md-5">
+        <h2>
+            Currently published CDS/CDNSKEY
+            {% if not zone.cds_disable %}
+                <div class="btn-group">
+                    <a href="{% url 'create_zone_cds' zone.id %}" class="btn btn-success">New CDS</a>
+                    <a href="{% url 'create_zone_cdnskey' zone.id %}" class="btn btn-success">New CDNSKEY</a>
+                </div>
+            {% endif %}
+        </h2>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                <tr>
+                    <th>Record type</th>
+                    <th>Record</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if not zone.cds_disable %}
+                    <tr>
+                        <td colspan="3">HexDNS keys</td>
+                    </tr>
+                    <tr>
+                        <th>CDS</th>
+                        <td>{{ dnssec_tag }} 13 2 {{ dnssec_digest|upper }}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <th>CDNSKEY</th>
+                        <td>{{ dnskey }}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td colspan="3">Additional custom keys</td>
+                    </tr>
+                    {% for cds in zone.additional_cds.all %}
+                        <tr>
+                            <th>CDS</th>
+                            <td>{{ cds.key_tag }} {{ cds.algorithm }} {{ cds.digest_type }} {{ cds.digest|upper }}</td>
+                            <td>
+                                <a href="{% url 'delete_zone_cds' zone.id cds.id %}" class="btn btn-danger btn-sm">Delete</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    {% for cdnskey in zone.additional_cdnskey.all %}
+                        <tr>
+                            <th>CDNSKEY</th>
+                            <td>{{ cdnskey.flags }} {{ cdnskey.protocol }} {{ cdnskey.algorithm }} {{ cdnskey.public_key }}</td>
+                            <td>
+                                <a href="{% url 'delete_zone_cdnskey' zone.id cdnskey.id %}" class="btn btn-danger btn-sm">Delete</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <th>CDS</th>
+                        <td>0 0 0 00</td>
+                    </tr>
+                    <tr>
+                        <th>CDNSKEY</th>
+                        <td>0 3 0 0</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

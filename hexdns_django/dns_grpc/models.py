@@ -10,7 +10,6 @@ import dnslib
 import codecs
 import sshpubkeys
 import socket
-from django.core.validators import ip_address_validators
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -45,6 +44,7 @@ class DNSZone(models.Model):
     active = models.BooleanField(default=False, blank=True)
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
+    cds_disable = models.BooleanField(default=False, blank=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -92,6 +92,38 @@ class DNSZone(models.Model):
         return self.zone_root
 
 
+def hex_validator(value):
+    try:
+        bytes.fromhex(value)
+    except ValueError:
+        raise ValidationError("Value is not valid hex")
+
+
+def b64_validator(value):
+    try:
+        base64.b64decode(value)
+    except binascii.Error:
+        raise ValidationError("Value is not valid Base64")
+
+
+class DNSZoneAdditionalCDS(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneadditionalcds", primary_key=True)
+    dns_zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE, related_name='additional_cds')
+    key_tag = models.SmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(65535)])
+    algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    digest_type = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    digest = models.TextField(validators=[hex_validator])
+
+
+class DNSZoneAdditionalCDNSKEY(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneadditionalcdnskey", primary_key=True)
+    dns_zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE, related_name='additional_cdnskey')
+    flags = models.SmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(65535)])
+    protocol = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    public_key = models.TextField(validators=[b64_validator])
+
+
 def make_update_secret():
     return secrets.token_bytes(64)
 
@@ -128,6 +160,7 @@ class ReverseDNSZone(models.Model):
     active = models.BooleanField(default=True, blank=True)
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
+    cds_disable = models.BooleanField(default=False, blank=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -189,6 +222,24 @@ class ReverseDNSZone(models.Model):
         return f"{self.zone_root_address}/{self.zone_root_prefix}"
 
 
+class ReverseDNSZoneAdditionalCDS(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzoneadditionalcds", primary_key=True)
+    dns_zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE, related_name='additional_cds')
+    key_tag = models.SmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(65535)])
+    algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    digest_type = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    digest = models.TextField(validators=[hex_validator])
+
+
+class ReverseDNSZoneAdditionalCDNSKEY(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzoneadditionalcdnskey", primary_key=True)
+    dns_zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE, related_name='additional_cdnskey')
+    flags = models.SmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(65535)])
+    protocol = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
+    public_key = models.TextField(validators=[b64_validator])
+
+
 class SecondaryDNSZone(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_szone", primary_key=True)
     zone_root = models.CharField(max_length=255, db_index=True)
@@ -199,6 +250,7 @@ class SecondaryDNSZone(models.Model):
     error = models.BooleanField(default=False, blank=True)
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
+    cds_disable = models.BooleanField(default=False, blank=True)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user

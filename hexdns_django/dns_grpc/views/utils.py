@@ -87,15 +87,19 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
             return "error", 'There was an unexpected error'
 
 
-def make_zone_digest(zone_name: str):
-    buffer = dnslib.DNSBuffer()
+def get_dnskey():
     nums = settings.DNSSEC_PUBKEY.public_numbers()
-    rd = dnslib.DNSKEY(
+    return dnslib.DNSKEY(
         257,
         3,
         13,
         nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big"),
     )
+
+
+def make_zone_digest(zone_name: str):
+    buffer = dnslib.DNSBuffer()
+    rd = get_dnskey()
     buffer.encode_name(dnslib.DNSLabel(zone_name))
     rd.pack(buffer)
     digest = hashlib.sha256(buffer.data).hexdigest()

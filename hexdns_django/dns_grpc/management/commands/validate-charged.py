@@ -10,7 +10,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         user_zones = {}
-        client_token = django_keycloak_auth.clients.get_access_token()
 
         for zone in models.DNSZone.objects.all():
             user = zone.get_user()
@@ -24,6 +23,7 @@ class Command(BaseCommand):
                 user_zones[user.username]["zones"].append(zone)
 
         for user, data in user_zones.items():
+            client_token = django_keycloak_auth.clients.get_access_token()
             r = requests.put(f"{settings.DOMAINS_URL}/api/internal/domains/{user}/", json={
                 "domains": list(map(lambda z: {
                     "domain": z.zone_root
@@ -38,7 +38,7 @@ class Command(BaseCommand):
                         zone.charged = True
                         zone.save()
                 continue
-                
+
             r.raise_for_status()
             rdata = r.json()
             domains = {}
