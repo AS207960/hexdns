@@ -4,6 +4,7 @@ import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
 import dns_grpc.models
+import as207960_utils.models
 
 
 class Migration(migrations.Migration):
@@ -21,7 +22,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='DNSZoneAdditionalCDS',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', as207960_utils.models.TypedUUIDField(data_type='hexdns_zoneadditionalcds', primary_key=True, serialize=False)),
                 ('key_tag', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(65535)])),
                 ('algorithm', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(255)])),
                 ('digest_type', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(255)])),
@@ -32,7 +33,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='DNSZoneAdditionalCDNSKEY',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', as207960_utils.models.TypedUUIDField(data_type='hexdns_zoneadditionalcdnskey', primary_key=True, serialize=False)),
                 ('flags', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(65535)])),
                 ('protocol', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(255)])),
                 ('algorithm', models.SmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(255)])),
