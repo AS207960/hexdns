@@ -1566,6 +1566,18 @@ def delete_zone_secret(request, record_id):
     )
 
 
+def long_txt_from_zone(rd, _origin=None):
+    parts = list(map(lambda d: d.encode(), rd))
+    out = []
+    for p in parts:
+        out.extend([p[n:n+255] for n in range(0, len(p), 255)])
+
+    return dnslib.TXT(out)
+
+
+dnslib.TXT.fromZone = long_txt_from_zone
+
+
 @login_required
 def import_zone_file(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
