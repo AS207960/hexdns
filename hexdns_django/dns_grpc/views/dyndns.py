@@ -78,7 +78,7 @@ def update_ip(request):
         dyn_obj.current_ipv4 = str(client_ip)
     elif isinstance(client_ip, ipaddress.IPv6Address):
         if str(client_ip) == dyn_obj.current_ipv6:
-            return HttpResponse(f"nochg {dyn_obj.current_ipv4}")
+            return HttpResponse(f"nochg {dyn_obj.current_ipv6}")
         dyn_obj.current_ipv6 = str(client_ip)
 
     dyn_obj.zone.last_modified = timezone.now()
