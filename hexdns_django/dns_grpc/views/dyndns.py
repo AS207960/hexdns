@@ -46,12 +46,10 @@ def update_ip(request):
 
     username, password = auth
 
-    try:
-        obj_id = uuid.UUID(username)
-    except ValueError:
+    dyn_obj = models.DynamicAddressRecord.objects.filter(id=username).first()
+    if not dyn_obj:
         return HttpResponseBadRequest("nohost")
 
-    dyn_obj = get_object_or_404(models.DynamicAddressRecord, id=obj_id)
     if dyn_obj.password != password:
         return HttpResponseForbidden("badauth")
 
