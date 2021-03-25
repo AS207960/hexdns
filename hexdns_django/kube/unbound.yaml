@@ -14,10 +14,9 @@ data:
         access-control: ::/0 allow
         auto-trust-anchor-file: /var/run/unbound/root.key
         logfile: ""
-        log-servfail: yes
+        log-servfail: no
         verbosity: 1
-        statistics-interval: 600
-        statistics-cumulative: yes
+        statistics-interval: 0
         target-fetch-policy: "0 0 0 0 0"
         module-config: "dns64 validator iterator"
         dns64-prefix: 2a0d:1a40:7900:6:0:2::/96
