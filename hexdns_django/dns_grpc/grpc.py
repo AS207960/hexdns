@@ -10,6 +10,7 @@ import datetime
 import hmac
 import requests
 import base64
+import sys
 import django.core.exceptions
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -2144,7 +2145,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                             models.RPRecord, models.CNAMERecord
                     ):
                         for record in self.find_records(m, record_name, zone):
-                            record_rr = record.to_rr()
+                            record_rr = record.to_rr(rr.rname)
                             if not can_manage(record_rr.rtype, rr.rname):
                                 dns_res.header.rcode = RCODE.NOTAUTH
                                 sign_resp()
@@ -2195,6 +2196,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         except Exception as e:
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
@@ -2214,9 +2217,10 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         try:
             dns_res = self.handle_axfr_query(dns_req)
         except Exception as e:
-            print(e)
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
             yield self.make_resp(dns_res)
@@ -2239,6 +2243,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         except Exception as e:
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
             dns_res = dns_req.reply()
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
