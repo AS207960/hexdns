@@ -51,6 +51,7 @@ data:
   EMAIL_HOST_USER: "apikey"
   EMAIL_PORT: "25"
   EMAIL_FROM: "Glauca HexDNS <dns@glauca.digital>"
+  PYTHONUNBUFFERED: "TRUE"
 ---
 kind: ConfigMap
 apiVersion: v1

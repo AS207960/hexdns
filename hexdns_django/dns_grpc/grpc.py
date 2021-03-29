@@ -2020,7 +2020,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     return dns_res
 
             elif rr.rclass == getattr(CLASS, "*"):
-                if rr.rdata != '' or rr.rtype not in supported_types + [QTYPE.ANY] or rr.ttl != 0:
+                if rr.rdata != '' or rr.rtype not in supported_types + (QTYPE.ANY,) or rr.ttl != 0:
                     dns_res.header.rcode = RCODE.FORMERR
                     sign_resp()
                     return dns_res
