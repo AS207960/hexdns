@@ -168,7 +168,8 @@ class ReverseDNSZone(models.Model):
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
-        return cls.objects.filter(resource_id__in=as207960_utils.models.get_object_ids(access_token, 'reverse-zone', action))
+        return cls.objects.filter(
+            resource_id__in=as207960_utils.models.get_object_ids(access_token, 'reverse-zone', action))
 
     @classmethod
     def has_class_scope(cls, access_token: str, action='view'):
@@ -258,7 +259,8 @@ class SecondaryDNSZone(models.Model):
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
-        return cls.objects.filter(resource_id__in=as207960_utils.models.get_object_ids(access_token, 'secondary-zone', action))
+        return cls.objects.filter(
+            resource_id__in=as207960_utils.models.get_object_ids(access_token, 'secondary-zone', action))
 
     @classmethod
     def has_class_scope(cls, access_token: str, action='view'):
@@ -495,6 +497,8 @@ class ANAMERecord(DNSZoneRecord):
                 )
             except socket.timeout:
                 raise Exception(f"Failed to get address for {self.alias}: timeout")
+            except struct.error:
+                raise Exception(f"Failed to get address for {self.alias}: invalid response")
             res = dnslib.DNSRecord.parse(res_pkt)
             for rr in res.rr:
                 out.append(dnslib.RR(
@@ -541,6 +545,14 @@ class CNAMERecord(DNSZoneRecord):
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
         return super().save(*args, **kwargs)
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.CNAME,
+            rdata=dnslib.CNAME(self.alias),
+            ttl=self.ttl,
+        )
 
     class Meta:
         verbose_name = "CNAME record"
@@ -787,7 +799,7 @@ class NAPTRRecord(DNSZoneRecord):
         self.service = rr.rdata.service,
         self.regexp = rr.rdata.regexp,
         self.replacement = rr.rdata.replacement
-    
+
     def to_rr(self, query_name):
         return dnslib.RR(
             query_name,
@@ -827,7 +839,7 @@ class SSHFPRecord(DNSZoneRecord):
             raise ValidationError({"host_key": f"Invalid key: {e}"})
         except NotImplementedError as e:
             raise ValidationError({"host_key": f"Invalid key type: {e}"})
-        
+
     def to_rrs(self, query_name):
         out = []
         pubkey = self.key
@@ -925,7 +937,7 @@ class DSRecord(DNSZoneRecord):
         self.algorithm = algorithm
         self.digest_type = digest_type
         self.digest = codecs.encode(digest, "hex").decode()
-            
+
     def to_rr(self, query_name):
         ds_data = bytearray(
             struct.pack(
@@ -1027,7 +1039,7 @@ class LOCRecord(DNSZoneRecord):
             size_man = int(value / (10 ** size_exp))
 
             return ((size_man << 4) & 0xF0) + (size_exp & 0x0F)
-        
+
         lat = int(self.latitude * 3600 * 1000) + 2 ** 31
         long = int(self.longitude * 3600 * 1000) + 2 ** 31
         alt = int((self.altitude + 100000) * 100)
@@ -1075,7 +1087,7 @@ class HINFORecord(DNSZoneRecord):
         self.ttl = rr.ttl
         self.cpu = rdata.data[0].decode(errors='replace')
         self.os = rdata.data[1].decode(errors='replace')
-    
+
     def to_rr(self, query_name):
         return dnslib.RR(
             query_name,
@@ -1119,7 +1131,7 @@ class RPRecord(DNSZoneRecord):
         self.ttl = rr.ttl
         self.mailbox = str(rdata_buffer.decode_name())
         self.txt = str(rdata_buffer.decode_name())
-    
+
     def to_rr(self, query_name):
         buffer = dnslib.DNSBuffer()
         buffer.encode_name(dnslib.DNSLabel(self.mailbox))

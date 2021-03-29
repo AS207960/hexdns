@@ -491,14 +491,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
         if cname_record:
-            dns_res.add_answer(
-                dnslib.RR(
-                    query_name,
-                    QTYPE.CNAME,
-                    rdata=dnslib.CNAME(cname_record.alias),
-                    ttl=cname_record.ttl,
-                )
-            )
+            dns_res.add_answer(cname_record.to_rr(query_name))
             new_zone, new_record_name = self.find_zone(DNSLabel(cname_record.alias))
             if new_zone and new_zone != zone and record_name != new_record_name:
                 func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
@@ -2026,7 +2019,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     return dns_res
 
             elif rr.rclass == getattr(CLASS, "*"):
-                if rr.rdata != '' or rr.rtype not in supported_types or rr.ttl != 0:
+                if rr.rdata != '' or rr.rtype not in supported_types + [QTYPE.ANY] or rr.ttl != 0:
                     dns_res.header.rcode = RCODE.FORMERR
                     sign_resp()
                     return dns_res
@@ -2166,7 +2159,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
                     if records is not None:
                         for record in records:
-                            record_rr = record.to_rr()
+                            record_rr = record.to_rr(rr.rname)
                             if record_rr.rtype == rr.rtype:
                                 record.delete()
 
