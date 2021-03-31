@@ -524,6 +524,11 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
+  topologyKeys:
+    - kubernetes.io/hostname
+    - topology.kubernetes.io/zone
+    - topology.kubernetes.io/region
+    - '*'
 ---
 apiVersion: v1
 kind: Service
@@ -538,3 +543,8 @@ spec:
   ports:
     - port: 50051
       targetPort: 50051
+  topologyKeys:
+    - kubernetes.io/hostname
+    - topology.kubernetes.io/zone
+    - topology.kubernetes.io/region
+    - '*'
