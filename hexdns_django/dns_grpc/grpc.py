@@ -2176,7 +2176,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     return dns_res
 
                 for record in records:
-                    record_rr = record.to_rr()
+                    record_rr = record.to_rr(rr.rname)
                     if rr.rdata == record_rr.rdata and record_rr.rtype == rr.rtype:
                         record.delete()
 
