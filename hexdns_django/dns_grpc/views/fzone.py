@@ -4,6 +4,7 @@ import secrets
 import requests
 import dnslib
 import django_keycloak_auth.clients
+from django.http import HttpResponse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -1639,6 +1640,42 @@ def import_zone_file(request, zone_id):
         "dns_grpc/fzone/edit_record.html",
         {"title": "Zone file import", "form": import_form},
     )
+
+
+@login_required
+def export_zone_file(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not zone_obj.has_scope(access_token, 'view'):
+        raise PermissionDenied
+
+    zone_out = [
+        f"$ORIGIN {zone_obj.zone_root}"
+    ]
+
+    for record in zone_obj.dynamicaddressrecord_set.all():
+        v4_rr = record.to_rr_v4(record.dns_label)
+        v6_rr = record.to_rr_v4(record.dns_label)
+        if v4_rr:
+            zone_out.append(v4_rr.toZone())
+        if v6_rr:
+            zone_out.append(v6_rr.toZone())
+
+    for record_type in (
+            zone_obj.addressrecord_set, zone_obj.cnamerecord_set, zone_obj.mxrecord_set, zone_obj.nsrecord_set,
+            zone_obj.txtrecord_set, zone_obj.srvrecord_set, zone_obj.caarecord_set, zone_obj.naptrrecord_set,
+            zone_obj.dsrecord_set, zone_obj.locrecord_set, zone_obj.hinforecord_set, zone_obj.rprecord_set
+    ):
+        for record in record_type.all():
+            zone_out.append(record.to_rr(record.dns_label).toZone())
+
+    for record in zone_obj.sshfprecord_set.all():
+        zone_out.extend(map(lambda r: r.toZone(), record.to_rrs(record.dns_label)))
+
+    resp = HttpResponse("\n".join(zone_out), status=200, content_type="text/dns")
+    resp["Content-Disposition"] = f'attachment; filename="{zone_obj.zone_root}.txt'
+    return resp
 
 
 @login_required

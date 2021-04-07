@@ -161,6 +161,27 @@ spec:
             - secretRef:
                 name: domains-rpc
 ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-django
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: django
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: hexdns
+          part: nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+---
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
@@ -175,6 +196,10 @@ spec:
         metadata:
           annotations:
             cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: validate-ns
+            part-type: cronjob
         spec:
           volumes:
             - name: static
@@ -235,6 +260,10 @@ spec:
         metadata:
           annotations:
             cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: validate-charged
+            part-type: cronjob
         spec:
           volumes:
             - name: static
@@ -295,6 +324,10 @@ spec:
         metadata:
           annotations:
             cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: transfer-secondary
+            part-type: cronjob
         spec:
           shareProcessNamespace: true
           volumes:
@@ -365,6 +398,18 @@ spec:
               securityContext:
                 privileged: true
           restartPolicy: OnFailure
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-cronjob
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part-type: cronjob
+  policyTypes:
+  - Ingress
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -442,6 +487,27 @@ spec:
             - secretRef:
                 name: domains-rpc
 ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-grpc
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: grpc
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: hexdns
+          part: cache
+    ports:
+    - protocol: TCP
+      port: 50051
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -510,6 +576,18 @@ spec:
               prefix: "EMAIL_"
             - secretRef:
                 name: domains-rpc
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-rpc
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: rpc
+  policyTypes:
+  - Ingress
 ---
 apiVersion: v1
 kind: Service

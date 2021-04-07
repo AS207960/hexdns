@@ -8,6 +8,7 @@ urlpatterns = [
     path("setup_domain_zone_list/", views.fzone.create_domain_zone_list, name="create_domain_zone_list"),
     path("zone/<str:zone_id>/", views.fzone.edit_zone, name="edit_zone"),
     path("zone/<str:zone_id>/import_zone_file/", views.fzone.import_zone_file, name="import_zone_file"),
+    path("zone/<str:zone_id>/export_zone_file/", views.fzone.export_zone_file, name="export_zone_file"),
     path("zone/<str:zone_id>/generate_dmarc/", views.fzone.generate_dmarc, name="generate_dmarc"),
     path("zone/<str:zone_id>/setup_gsutie/", views.fzone.setup_gsuite, name="setup_gsuite"),
     path("zone/<str:zone_id>/setup_github_pages/", views.fzone.setup_github_pages, name="setup_github_pages"),

@@ -17,7 +17,7 @@
       <sourceFolder url="file://$MODULE_DIR$/dns-cache/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/dns-cache/target" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.8 (hexdns)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (hexdns)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Bundled Protobuf Distribution" level="application" />
   </component>
@@ -28,8 +28,5 @@
         <option value="$MODULE_DIR$/hexdns_django/venv/lib/python3.8/site-packages/django/forms/templates" />
       </list>
     </option>
-  </component>
-  <component name="TestRunnerService">
-    <option name="PROJECT_TEST_RUNNER" value="Unittests" />
   </component>
 </module>

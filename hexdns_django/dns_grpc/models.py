@@ -821,6 +821,22 @@ class NAPTRRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
+class SSHFP(dnslib.RD):
+    attrs = ('algorithm', 'fingerprint_type', 'fingerprint')
+
+    def __init__(self, algorithm, fingerprint_type, fingerprint):
+        self.algorithm = algorithm
+        self.fingerprint_type = fingerprint_type
+        self.fingerprint = fingerprint
+
+    def pack(self, buffer):
+        buffer.pack("!BB", self.algorithm, self.fingerprint_type)
+        buffer.append(self.fingerprint)
+
+    def __repr__(self):
+        return f"{self.algorithm} {self.fingerprint_type} {binascii.hexlify(self.fingerprint).decode()}"
+
+
 class SSHFPRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonesshfprecord", primary_key=True)
     host_key = models.TextField(verbose_name="Host key (from /etc/ssh/ssh_host_ed25519_key.pub etc.)")
@@ -853,18 +869,22 @@ class SSHFPRecord(DNSZoneRecord):
             algo_num = 4
         else:
             return []
-        sha1_rd = bytearray(struct.pack("!BB", algo_num, 1))
-        sha1_rd.extend(hashlib.sha1(pubkey._decoded_key).digest())
-        sha256_rd = bytearray(struct.pack("!BB", algo_num, 2))
-        sha256_rd.extend(hashlib.sha256(pubkey._decoded_key).digest())
         out.append(
             dnslib.RR(
-                query_name, dnslib.QTYPE.SSHFP, rdata=dnslib.RD(sha1_rd), ttl=self.ttl,
+                query_name, dnslib.QTYPE.SSHFP, rdata=SSHFP(
+                    algo_num,
+                    1,
+                    hashlib.sha1(pubkey._decoded_key).digest()
+                ), ttl=self.ttl,
             )
         )
         out.append(
             dnslib.RR(
-                query_name, dnslib.QTYPE.SSHFP, rdata=dnslib.RD(sha256_rd), ttl=self.ttl,
+                query_name, dnslib.QTYPE.SSHFP, rdata=SSHFP(
+                    algo_num,
+                    2,
+                    hashlib.sha256(pubkey._decoded_key).digest()
+                ), ttl=self.ttl,
             )
         )
         return out
@@ -873,6 +893,23 @@ class SSHFPRecord(DNSZoneRecord):
         verbose_name = "SSHFP record"
         verbose_name_plural = "SSHFP records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+
+class DS(dnslib.RD):
+    attrs = ('key_tag', 'algorithm', 'digest_type', 'digest')
+
+    def __init__(self, key_tag, algorithm, digest_type, digest):
+        self.key_tag = key_tag
+        self.algorithm = algorithm
+        self.digest_type = digest_type
+        self.digest = digest
+
+    def pack(self, buffer):
+        buffer.pack("!HBB", self.key_tag, self.algorithm, self.digest_type)
+        buffer.append(self.digest)
+
+    def __repr__(self):
+        return f"{self.key_tag} {self.algorithm} {self.digest_type} {binascii.hexlify(self.digest).decode()}"
 
 
 class DSRecord(DNSZoneRecord):
@@ -914,7 +951,7 @@ class DSRecord(DNSZoneRecord):
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
         tags_len = struct.calcsize("!HBB")
-        key_tag, algorithm, digest_type = struct.pack("!HBB", rr.rdata.data)
+        key_tag, algorithm, digest_type = struct.unpack("!HBB", rr.rdata.data)
         digest = rr.rdata.data[tags_len:]
         return cls(
             zone=zone,
@@ -929,7 +966,7 @@ class DSRecord(DNSZoneRecord):
     def update_from_rr(self, rr):
         record_name = self.dns_label_to_record_name(rr.rname, self.zone)
         tags_len = struct.calcsize("!HBB")
-        key_tag, algorithm, digest_type = struct.pack("!HBB", rr.rdata.data)
+        key_tag, algorithm, digest_type = struct.unpack("!HBB", rr.rdata.data)
         digest = rr.rdata.data[tags_len:]
         self.record_name = record_name
         self.ttl = rr.ttl
@@ -939,19 +976,13 @@ class DSRecord(DNSZoneRecord):
         self.digest = codecs.encode(digest, "hex").decode()
 
     def to_rr(self, query_name):
-        ds_data = bytearray(
-            struct.pack(
-                "!HBB", self.key_tag, self.algorithm, self.digest_type
-            )
-        )
         digest_data = self.digest_bin
         if not digest_data:
             return None
-        ds_data.extend(digest_data)
         return dnslib.RR(
             query_name,
             dnslib.QTYPE.DS,
-            rdata=dnslib.RD(ds_data),
+            rdata=DS(self.key_tag, self.algorithm, self.digest_type, digest_data),
             ttl=self.ttl,
         )
 
@@ -959,6 +990,48 @@ class DSRecord(DNSZoneRecord):
         verbose_name = "DS record"
         verbose_name_plural = "DS records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+
+class LOC(dnslib.RD):
+    attrs = ('lat', 'long', 'altitude', 'size', 'hp', 'vp')
+
+    def __init__(self, lat, long, altitude, size, hp, vp):
+        self.lat = lat
+        self.long = long
+        self.altitude = altitude
+        self.size = size
+        self.hp = hp
+        self.vp = vp
+
+    def pack(self, buffer):
+        def enc_size(value):
+            size_exp = int(math.floor(math.log10(value)) if value != 0 else 0)
+            size_man = int(value / (10 ** size_exp))
+
+            return ((size_man << 4) & 0xF0) + (size_exp & 0x0F)
+
+        lat = int(self.lat * 3600 * 1000) + 2 ** 31
+        long = int(self.long * 3600 * 1000) + 2 ** 31
+        alt = int((self.altitude + 100000) * 100)
+
+        buffer.pack(
+            "!BBBBIII", 0, enc_size(self.size * 100), enc_size(self.hp * 100), enc_size(self.vp * 100),
+            lat, long, alt
+        )
+
+    def __repr__(self):
+        lat_abs = abs(self.lat)
+        lat_d = int(lat_abs)
+        lat_m = int((lat_abs - lat_d) * 60)
+        lat_s = round((lat_abs - lat_d - lat_m/60) * 3600)
+        long_abs = abs(self.long)
+        long_d = int(long_abs)
+        long_m = int((long_abs - long_d) * 60)
+        long_s = round((long_abs - long_d - long_m/60) * 3600)
+
+        return f"{lat_d} {lat_m} {lat_s} {'N' if self.lat >= 0 else 'S'} " \
+               f"{long_d} {long_m} {long_s} {'E' if self.long >= 0 else 'W'} " \
+               f"{self.altitude:.2f}m {self.size:.2f}m {self.hp:.2f}m {self.vp:.2f}m"
 
 
 class LOCRecord(DNSZoneRecord):
@@ -1034,24 +1107,12 @@ class LOCRecord(DNSZoneRecord):
         self.vp = vp
 
     def to_rr(self, query_name):
-        def enc_size(value):
-            size_exp = int(math.floor(math.log10(value)) if value != 0 else 0)
-            size_man = int(value / (10 ** size_exp))
-
-            return ((size_man << 4) & 0xF0) + (size_exp & 0x0F)
-
-        lat = int(self.latitude * 3600 * 1000) + 2 ** 31
-        long = int(self.longitude * 3600 * 1000) + 2 ** 31
-        alt = int((self.altitude + 100000) * 100)
-
-        loc_data = bytearray(struct.pack(
-            "!BBBBIII", 0, enc_size(self.size * 100), enc_size(self.hp * 100), enc_size(self.vp * 100),
-            lat, long, alt
-        ))
         return dnslib.RR(
             query_name,
             dnslib.QTYPE.LOC,
-            rdata=dnslib.RD(loc_data),
+            rdata=LOC(
+                self.latitude, self.longitude, self.altitude, self.size, self.hp, self.vp
+            ),
             ttl=self.ttl
         )
 
@@ -1102,6 +1163,21 @@ class HINFORecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
+class RP(dnslib.RD):
+    attrs = ('mbox', 'txt')
+
+    def __init__(self, mbox, txt):
+        self.mbox = mbox
+        self.txt = txt
+
+    def pack(self, buffer):
+        buffer.encode_name(self.mbox)
+        buffer.encode_name(self.txt)
+
+    def __repr__(self):
+        return f"{self.mbox} {self.txt}"
+
+
 class RPRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonerprecord", primary_key=True)
     mailbox = models.CharField(max_length=255)
@@ -1133,13 +1209,10 @@ class RPRecord(DNSZoneRecord):
         self.txt = str(rdata_buffer.decode_name())
 
     def to_rr(self, query_name):
-        buffer = dnslib.DNSBuffer()
-        buffer.encode_name(dnslib.DNSLabel(self.mailbox))
-        buffer.encode_name(dnslib.DNSLabel(self.txt))
         return dnslib.RR(
             query_name,
             dnslib.QTYPE.RP,
-            rdata=dnslib.RD(buffer.data),
+            rdata=RP(dnslib.DNSLabel(self.mailbox), dnslib.DNSLabel(self.txt)),
             ttl=self.ttl
         )
 
