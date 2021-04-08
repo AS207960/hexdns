@@ -138,7 +138,7 @@ spec:
       targetPort: 80
       name: nginx
 ---
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: hexdns-ingress
@@ -155,6 +155,9 @@ spec:
     http:
       paths:
       - path: /
+        pathType: Prefix
         backend:
-          serviceName: hexdns-nginx
-          servicePort: 80
+          service:
+            name: hexdns-nginx
+            port:
+              number: 80
