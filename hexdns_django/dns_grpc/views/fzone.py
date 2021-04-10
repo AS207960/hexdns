@@ -1595,7 +1595,7 @@ def import_zone_file(request, zone_id):
             p = dnslib.ZoneParser(zone_data, origin=suffix)
             try:
                 records = list(p)
-            except (dnslib.DNSError, ValueError) as e:
+            except (dnslib.DNSError, ValueError, IndexError) as e:
                 import_form.errors["zone_data"] = (f"Invalid zone file: {str(e)}",)
             else:
                 for record in records:
