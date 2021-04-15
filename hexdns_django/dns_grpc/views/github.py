@@ -154,6 +154,8 @@ def oauth_callback(request):
     }, headers={
         "Accept": "application/json"
     })
+    print(settings.EXTERNAL_URL_BASE + request.path)
+    print(r.text)
     if r.status_code != 200:
         return HttpResponseBadRequest()
 
