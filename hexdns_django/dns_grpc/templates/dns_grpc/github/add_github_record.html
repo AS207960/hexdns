@@ -1,0 +1,44 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <h1>Setup GitHub Pages</h1>
+        <div class="row">
+            <div class="col col-md-6">
+                {% if not app_installed %}
+                <div class="card h-100">
+                    <div class="card-body d-flex justify-content-center flex-column">
+                        <h2>Link your GitHub account to deploy straight from HexDNS</h2>
+                        <a href="{% url 'github_oauth_login' %}?redirect={{ request.path }}" class="btn btn-success btn-lg w-100">
+                            Continue with GitHub
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                    <h2>Select a repository to deploy from</h2>
+                    {% for repo in repositories %}
+                        <div class="card">
+                            <div class="card-header">{{ repo.full_name }}</div>
+                            <div class="card-body">
+                                <h5 class="card-title">{{ repo.name }}</h5>
+                                {% if repo.description %}
+                                    <p class="card-body">{{ repo.description }}</p>
+                                {% endif %}
+                                <a href="{% url 'setup_github_pages_repo' zone.id repo.owner.login repo.name %}" class="btn btn-primary mt-2">Deploy repo</a>
+                                <a href="{{ repo.html_url }}" class="btn btn-secondary mt-2" target="_blank">View repo</a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="col col-md-6">
+                <div class="card">
+                    <div class="card-body d-flex justify-content-center flex-column">
+                        <h2>Or, just create the record</h2>
+                        {% crispy record_form record_form.helper %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

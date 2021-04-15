@@ -1,0 +1,13 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <h1>{{ title }}</h1>
+        <h2>For repository: {{ repo_name }}</h2>
+        <div class="row d-flex flex-column align-items-center">
+            <div class="col col-md-6">
+                {% crispy form form.helper %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

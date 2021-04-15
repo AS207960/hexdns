@@ -1673,6 +1673,10 @@ def export_zone_file(request, zone_id):
     for record in zone_obj.sshfprecord_set.all():
         zone_out.extend(map(lambda r: r.toZone(), record.to_rrs(record.dns_label)))
 
+    for record in zone_obj.githubpagesrecord_set.all():
+        zone_out.extend(map(lambda r: r.toZone(), record.to_rrs_v4(record.dns_label)))
+        zone_out.extend(map(lambda r: r.toZone(), record.to_rrs_v6(record.dns_label)))
+
     resp = HttpResponse("\n".join(zone_out), status=200, content_type="text/dns")
     resp["Content-Disposition"] = f'attachment; filename="{zone_obj.zone_root}.txt'
     return resp
@@ -1754,40 +1758,4 @@ def setup_gsuite(request, zone_id):
         request,
         "dns_grpc/fzone/setup_gsuite.html",
         {"zone": zone_obj},
-    )
-
-
-@login_required
-def setup_github_pages(request, zone_id):
-    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
-    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
-
-    if not zone_obj.has_scope(access_token, 'edit'):
-        raise PermissionDenied
-
-    if request.method == "POST":
-        gen_form = forms.GithubPagesForm(request.POST)
-        if gen_form.is_valid():
-            zone_obj.addressrecord_set.filter(record_name=gen_form.cleaned_data['record_name']).delete()
-            for a in (
-                    "185.199.108.153",
-                    "185.199.109.153",
-                    "185.199.110.153",
-                    "185.199.111.153"
-            ):
-                addr = models.AddressRecord(
-                    zone=zone_obj,
-                    address=a,
-                    record_name=gen_form.cleaned_data['record_name'],
-                    ttl=3600,
-                )
-                addr.save()
-            return redirect('edit_zone', zone_obj.id)
-    else:
-        gen_form = forms.GithubPagesForm()
-
-    return render(
-        request,
-        "dns_grpc/fzone/edit_record.html",
-        {"title": "Setup for GitHub Pages", "form": gen_form},
     )

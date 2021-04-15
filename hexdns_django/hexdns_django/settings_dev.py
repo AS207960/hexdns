@@ -32,7 +32,7 @@ SECRET_KEY = "pb9=mpf!@sphhhjc=074!%)g4!ek#3#onh)+5d4rdkmnl*mp4x"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "hexdns.eu.ngrok.io"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -138,6 +138,8 @@ STATIC_URL = "/static/"
 
 with open(os.path.join(BASE_DIR, "secrets/keycloak.json")) as f:
     keycloak_conf = json.load(f)
+with open(os.path.join(BASE_DIR, "secrets/github.json")) as f:
+    github_conf = json.load(f)
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "Glauca HexDNS <dns@glauca.digital>"
@@ -147,6 +149,13 @@ KEYCLOAK_REALM = keycloak_conf["realm"]
 OIDC_CLIENT_ID = keycloak_conf["client_id"]
 OIDC_CLIENT_SECRET = keycloak_conf["client_secret"]
 OIDC_SCOPES = keycloak_conf["scopes"]
+
+GITHUB_APP_NAME = github_conf["app_name"]
+GITHUB_APP_ID = github_conf["app_id"]
+GITHUB_CLIENT_ID = github_conf["client_id"]
+GITHUB_CLIENT_SECRET = github_conf["client_secret"]
+GITHUB_PRIVATE_KEY = github_conf["private_key"]
+GITHUB_WEBHOOK_SECRET = github_conf["webhook_secret"]
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
 

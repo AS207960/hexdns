@@ -487,13 +487,34 @@ class GithubPagesForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
         self.helper.use_custom_control = False
-        self.helper.form_class = 'form-horizontal'
-        self.helper.label_class = 'col-lg-2'
-        self.helper.field_class = 'col-lg-20 my-1'
+        self.helper.field_class = 'my-2'
         self.helper.layout = crispy_forms.layout.Layout(
             "record_name",
         )
-        self.helper.add_input(crispy_forms.layout.Submit("submit", "Setup"))
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Submit"))
+
+
+class GithubPagesSetupForm(forms.Form):
+    record_name = forms.CharField(max_length=255, initial="@", label="Record name (@ for zone root)")
+    source_path = forms.ChoiceField(initial="/", label="Source directory", choices=(
+        ("/", "/ (root)"),
+        ("/docs", "/docs"),
+    ))
+    source_branch = forms.ChoiceField()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-3'
+        self.helper.field_class = 'col-lg-9 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            "record_name",
+            "source_path",
+            "source_branch"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
 
 
 class DMARCForm(forms.Form):

@@ -10,6 +10,7 @@ import dnslib
 import codecs
 import sshpubkeys
 import socket
+import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -1258,3 +1259,54 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
         verbose_name = "NS record"
         verbose_name_plural = "NS records"
         indexes = [models.Index(fields=['record_address', 'zone'])]
+
+
+class GitHubState(models.Model):
+    user = models.ForeignKey(Account, on_delete=models.CASCADE)
+    state = models.UUIDField(default=uuid.uuid4)
+    redirect_uri = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.state)
+
+    class Meta:
+        verbose_name = "GitHub state"
+
+
+class GitHubInstallation(models.Model):
+    installation_id = models.PositiveIntegerField()
+    user = models.ForeignKey(Account, on_delete=models.SET_NULL, blank=True, null=True)
+    access_token = models.TextField(blank=True, null=True)
+    access_token_expires_at = models.DateTimeField(blank=True, null=True)
+    user_access_token = models.TextField(blank=True, null=True)
+    user_access_token_expires_at = models.DateTimeField(blank=True, null=True)
+    user_refresh_token = models.TextField(blank=True, null=True)
+    user_refresh_token_expires_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.installation_id)
+
+    class Meta:
+        verbose_name = "GitHub installation"
+
+
+class GitHubPagesRecord(DNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_githubpagesrecord", primary_key=True)
+    repo_owner = models.CharField(max_length=255, blank=True, null=True)
+    repo_name = models.CharField(max_length=255, blank=True, null=True)
+
+    def to_rrs_v4(self, query_name):
+        return [dnslib.RR(
+            query_name,
+            dnslib.QTYPE.A,
+            rdata=dnslib.A(a),
+            ttl=self.ttl,
+        ) for a in ["185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153"]]
+
+    def to_rrs_v6(self, _query_name):
+        return []
+
+    class Meta:
+        verbose_name = "GitHub Pages record"
+        verbose_name_plural = "GitHub Pages records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]

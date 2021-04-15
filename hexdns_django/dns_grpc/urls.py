@@ -11,7 +11,8 @@ urlpatterns = [
     path("zone/<str:zone_id>/export_zone_file/", views.fzone.export_zone_file, name="export_zone_file"),
     path("zone/<str:zone_id>/generate_dmarc/", views.fzone.generate_dmarc, name="generate_dmarc"),
     path("zone/<str:zone_id>/setup_gsutie/", views.fzone.setup_gsuite, name="setup_gsuite"),
-    path("zone/<str:zone_id>/setup_github_pages/", views.fzone.setup_github_pages, name="setup_github_pages"),
+    path("zone/<str:zone_id>/setup_github_pages/", views.github.setup_github_pages, name="setup_github_pages"),
+    path("zone/<str:zone_id>/setup_github_pages/<str:owner>/<str:repo>/", views.github.setup_github_pages_repo, name="setup_github_pages_repo"),
     path("zone/<str:zone_id>/cds/", views.fzone.edit_zone_cds, name="edit_zone_cds"),
     path("zone/<str:zone_id>/cds/disable/", views.fzone.disable_zone_cds, name="disable_zone_cds"),
     path("zone/<str:zone_id>/cds/enable/", views.fzone.enable_zone_cds, name="enable_zone_cds"),
@@ -208,6 +209,17 @@ urlpatterns = [
         views.fzone.delete_rp_record,
         name="delete_rp_record",
     ),
+    path("records/github/<str:record_id>/", views.github.edit_github_pages_record, name="edit_github_record"),
+    path(
+        "records/github/<str:record_id>/rebuild/",
+        views.github.github_pages_record_rebuild,
+        name="github_record_rebuild"
+    ),
+    path(
+        "records/github/<str:record_id>/delete/",
+        views.github.delete_github_pages_record,
+        name="delete_github_record",
+    ),
     path("reverse/", views.rzone.rzones, name="rzones"),
     path("rzone/<str:zone_id>/", views.rzone.edit_rzone, name="edit_rzone"),
     path(
@@ -245,6 +257,9 @@ urlpatterns = [
     path("szone/<str:zone_id>/", views.szone.view_szone, name="view_szone"),
     path("szone/<str:zone_id>/edit/", views.szone.edit_szone, name="edit_szone"),
     path("delete_szone/<str:zone_id>/", views.szone.delete_szone, name="delete_szone"),
+    path("github_oauth_login/", views.github.oauth_login, name="github_oauth_login"),
+    path("github_oauth_callback/", views.github.oauth_callback, name="github_oauth_callback"),
+    path("github_app_webhook/", views.github.webhook),
     path("dns_admin/", views.admin.index, name="admin_index"),
     path("dns_admin/create_zone/", views.admin.create_zone, name="admin_create_zone"),
     path("dns_admin/create_rzone/", views.admin.create_rzone, name="admin_create_rzone"),
