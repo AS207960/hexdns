@@ -27,8 +27,8 @@ def make_app_token() -> str:
 
 def get_installation_token(installation: models.GitHubInstallation) -> str:
     now = timezone.now()
-    if installation.access_token and installation.access_token_expires_at:
-        if installation.access_token_expires_at > now:
+    if installation.access_token:
+        if (installation.access_token_expires_at and installation.access_token_expires_at > now) or (not installation.access_token_expires_at):
             return installation.access_token
 
     r = requests.post(
@@ -40,7 +40,7 @@ def get_installation_token(installation: models.GitHubInstallation) -> str:
     r.raise_for_status()
     r_data = r.json()
     access_token = r_data.get("token")
-    expiry = dateutil.parser.isoparse(r_data.get("expires_at"))
+    expiry = dateutil.parser.isoparse(r_data.get("expires_at")) if r_data.get("expires_at") else None
     installation.access_token = access_token
     installation.access_token_expires_at = expiry
     installation.save()
@@ -163,11 +163,11 @@ def oauth_callback(request):
     r_data = r.json()
     now = timezone.now()
     access_token = r_data.get("access_token")
-    access_token_expires_in = datetime.timedelta(seconds=int(r_data.get("expires_in")))
-    access_token_expires_at = now + access_token_expires_in
+    access_token_expires_in = datetime.timedelta(seconds=int(r_data.get("expires_in"))) if r_data.get("expires_in") else None
+    access_token_expires_at = now + access_token_expires_in if access_token_expires_in else None
     refresh_token = r_data.get("refresh_token")
-    refresh_token_expires_in = datetime.timedelta(seconds=int(r_data.get("refresh_token_expires_in")))
-    refresh_token_expires_at = now + refresh_token_expires_in
+    refresh_token_expires_in = datetime.timedelta(seconds=int(r_data.get("refresh_token_expires_in"))) if r_data.get("refresh_token_expires_in") else None
+    refresh_token_expires_at = now + refresh_token_expires_in if refresh_token_expires_in else None
 
     if not installation:
         installations = _github_get_all("https://api.github.com/user/installations", "installations", headers={
