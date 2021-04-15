@@ -52,6 +52,9 @@ data:
   EMAIL_PORT: "25"
   EMAIL_FROM: "Glauca HexDNS <dns@glauca.digital>"
   PYTHONUNBUFFERED: "TRUE"
+  GITHUB_APP_NAME: "glauca-hexdns"
+  GITHUB_APP_ID: "110438"
+  GITHUB_CLIENT_ID: "Iv1.3bc70034ccad6abe"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -127,6 +130,9 @@ spec:
                 name: hexdns-email
               prefix: "EMAIL_"
             - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
                 name: domains-rpc
       containers:
         - name: gunicorn
@@ -158,6 +164,9 @@ spec:
             - secretRef:
                 name: hexdns-email
               prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
             - secretRef:
                 name: domains-rpc
 ---
@@ -243,6 +252,9 @@ spec:
                     name: hexdns-email
                   prefix: "EMAIL_"
                 - secretRef:
+                    name: hexdns-github
+                  prefix: "GITHUB_"
+                - secretRef:
                     name: domains-rpc
           restartPolicy: OnFailure
 ---
@@ -306,6 +318,9 @@ spec:
                 - secretRef:
                     name: hexdns-email
                   prefix: "EMAIL_"
+                - secretRef:
+                    name: hexdns-github
+                  prefix: "GITHUB_"
                 - secretRef:
                     name: domains-rpc
           restartPolicy: OnFailure
@@ -379,6 +394,9 @@ spec:
                 - secretRef:
                     name: hexdns-email
                   prefix: "EMAIL_"
+                - secretRef:
+                    name: hexdns-github
+                  prefix: "GITHUB_"
                 - secretRef:
                     name: domains-rpc
             - name: clatd
@@ -485,6 +503,9 @@ spec:
                 name: hexdns-email
               prefix: "EMAIL_"
             - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
                 name: domains-rpc
 ---
 apiVersion: networking.k8s.io/v1
@@ -574,6 +595,9 @@ spec:
             - secretRef:
                 name: hexdns-email
               prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
             - secretRef:
                 name: domains-rpc
 ---
