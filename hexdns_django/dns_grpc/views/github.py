@@ -149,7 +149,7 @@ def oauth_callback(request):
         "client_id": settings.GITHUB_CLIENT_ID,
         "client_secret": settings.GITHUB_CLIENT_SECRET,
         "code": request.GET["code"],
-        "redirect_uri": settings.EXTARNAL_URL_BASE + request.path,
+        "redirect_uri": settings.EXTERNAL_URL_BASE + request.path,
         "state": str(state.state)
     }, headers={
         "Accept": "application/json"
