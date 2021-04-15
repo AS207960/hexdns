@@ -98,7 +98,7 @@ def oauth_login(request):
     state = models.GitHubState(user=request.user.account)
 
     if "redirect" in request.GET:
-        state.redirect_uri = request.build_absolute_uri(request.GET["redirect"])
+        state.redirect_uri = settings.EXTARNAL_URL_BASE + request.GET["redirect"])
 
     state.save()
     request.session["github_state_id"] = state.id
@@ -149,7 +149,7 @@ def oauth_callback(request):
         "client_id": settings.GITHUB_CLIENT_ID,
         "client_secret": settings.GITHUB_CLIENT_SECRET,
         "code": request.GET["code"],
-        "redirect_uri": request.build_absolute_uri(),
+        "redirect_uri": settings.EXTARNAL_URL_BASE + request.path
         "state": str(state.state)
     }, headers={
         "Accept": "application/json"
