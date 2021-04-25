@@ -77,7 +77,7 @@ spec:
   ingress:
 #  - from:
 #    - podSelector: {}
-   - ports:
+  - ports:
     - protocol: TCP
       port: 5053
     - protocol: UDP
