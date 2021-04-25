@@ -295,7 +295,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.DynamicAddressRecord.filter(zone=zone).filter(
+        elif models.DynamicAddressRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
