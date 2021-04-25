@@ -336,6 +336,7 @@ class DNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
+        order = ['record_name']
 
     @property
     def dns_label(self):
@@ -364,6 +365,7 @@ class ReverseDNSZoneRecord(models.Model):
 
     class Meta:
         abstract = True
+        order = ['record_address']
 
     def clean(self):
         try:

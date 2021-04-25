@@ -288,60 +288,67 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             self, rname: DNSLabel, zone: models.DNSZone, include_cname: bool = True
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
-        if models.AddressRecord.objects.filter(
-                record_name=search_name, zone=zone
+        labels = list(rname.label)
+        labels[0] = b"*"
+        wildcard_search_name = ".".join(map(lambda n: n.decode(), labels))
+        if models.AddressRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.DynamicAddressRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.DynamicAddressRecord.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.CNAMERecord.objects.filter(
-                record_name=search_name, zone=zone
-        ).count() and include_cname:
-            return True
-        elif models.MXRecord.objects.filter(record_name=search_name, zone=zone).count():
-            return True
-        elif models.NSRecord.objects.filter(record_name=search_name, zone=zone).count():
-            return True
-        elif models.TXTRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif include_cname and models.CNAMERecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.SRVRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.MXRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.CAARecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.NSRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.NAPTRRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.TXTRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.SSHFPRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.SRVRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.DSRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.CAARecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.ANAMERecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.NAPTRRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.LOCRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.SSHFPRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.HINFORecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.DSRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.RPRecord.objects.filter(
-                record_name=search_name, zone=zone
+        elif models.ANAMERecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
+        ).count():
+            return True
+        elif models.LOCRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
+        ).count():
+            return True
+        elif models.HINFORecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
+        ).count():
+            return True
+        elif models.RPRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
         else:
@@ -490,12 +497,15 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             is_dnssec: bool,
             func,
     ):
-        cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
-        if cname_record:
-            dns_res.add_answer(cname_record.to_rr(query_name))
-            new_zone, new_record_name = self.find_zone(DNSLabel(cname_record.alias))
-            if new_zone and new_zone != zone and record_name != new_record_name:
-                func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
+        if not self.any_records(record_name, zone, include_cname=False):
+            cname_record = self.find_records(models.CNAMERecord, record_name, zone).first()
+            if cname_record:
+                dns_res.add_answer(cname_record.to_rr(query_name))
+                new_zone, new_record_name = self.find_zone(DNSLabel(cname_record.alias))
+                if new_zone and new_zone != zone and record_name != new_record_name:
+                    func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
+            else:
+                self.lookup_referral(dns_res, record_name, zone, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
@@ -2099,7 +2109,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         return
 
                     for record in records:
-                        record_rr = record.to_rr()
+                        record_rr = record.to_rr(rr.rname)
 
                         if rr.rdata == record_rr.rdata:
                             record.update_from_rr(rr)
