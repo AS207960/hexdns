@@ -289,7 +289,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
     ):
         search_name = ".".join(map(lambda n: n.decode(), rname.label))
         labels = list(rname.label)
-        labels[0] = b"*"
+        if len(labels):
+            labels[0] = b"*"
         wildcard_search_name = ".".join(map(lambda n: n.decode(), labels))
         if models.AddressRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
