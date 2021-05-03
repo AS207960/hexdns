@@ -2205,6 +2205,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         try:
             dns_res = self.handle_query(dns_req)
+        except models.DNSError as e:
+            print(e.message, flush=True)
+            dns_res = dns_req.reply()
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return self.make_resp(dns_res)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
@@ -2228,6 +2233,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         try:
             dns_res = self.handle_axfr_query(dns_req)
+        except models.DNSError as e:
+            print(e.message, flush=True)
+            dns_res = dns_req.reply()
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return self.make_resp(dns_res)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             traceback.print_exc()
@@ -2252,6 +2262,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         try:
             dns_res = self.handle_update_query(dns_req)
+        except models.DNSError as e:
+            print(e.message, flush=True)
+            dns_res = dns_req.reply()
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return self.make_resp(dns_res)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             traceback.print_exc()

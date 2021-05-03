@@ -20,6 +20,12 @@ from django.dispatch import receiver
 import as207960_utils.models
 
 
+class DNSError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super.__init__(message)
+
+
 class Account(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     subscription_id = models.CharField(max_length=255, blank=True, null=True)
@@ -499,9 +505,9 @@ class ANAMERecord(DNSZoneRecord):
                     settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
                 )
             except socket.timeout:
-                raise Exception(f"Failed to get address for {self.alias}: timeout")
+                raise DNSError(f"Failed to get address for {self.alias}: timeout")
             except struct.error:
-                raise Exception(f"Failed to get address for {self.alias}: invalid response")
+                raise DNSError(f"Failed to get address for {self.alias}: invalid response")
             res = dnslib.DNSRecord.parse(res_pkt)
             for rr in res.rr:
                 out.append(dnslib.RR(
