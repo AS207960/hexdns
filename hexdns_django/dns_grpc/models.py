@@ -23,7 +23,7 @@ import as207960_utils.models
 class DNSError(Exception):
     def __init__(self, message):
         self.message = message
-        super.__init__(message)
+        super().__init__(message)
 
 
 class Account(models.Model):
