@@ -12,3 +12,9 @@ service DnsService {
     rpc AXFRQuery (DnsPacket) returns (stream DnsPacket);
     rpc UpdateQuery (DnsPacket) returns (DnsPacket);
 }
+
+message ClearCache {
+    string label = 1;
+    uint32 dns_class = 2;
+    uint32 record_type = 3;
+}

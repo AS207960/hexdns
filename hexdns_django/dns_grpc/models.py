@@ -18,7 +18,8 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import as207960_utils.models
-
+from .proto import dns_pb2
+from . import apps
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -388,6 +389,21 @@ class ReverseDNSZoneRecord(models.Model):
         return self.record_address
 
 
+def send_flush_cache_message(label: dnslib.DNSLabel, qclass: dnslib.CLASS, qtype: dnslib.QTYPE):
+    clear_cache_msg = dns_pb2.ClearCache(
+        label=str(label),
+        dns_class=int(qclass),
+        record_type=int(qtype),
+    )
+    pika_client = apps.PikaClient()
+
+    def pub(channel):
+        channel.exchange_declare(exchange='hexdns_flush', exchange_type='fanout', durable=True)
+        channel.basic_publish(exchange='hexdns_flush', routing_key='', body=clear_cache_msg.SerializeToString())
+
+    pika_client.get_channel(pub)
+
+
 class AddressRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zoneaddressrecord", primary_key=True)
     address = models.GenericIPAddressField(verbose_name="Address (IPv4/IPv6)")
@@ -430,6 +446,11 @@ class AddressRecord(DNSZoneRecord):
                 rdata=dnslib.AAAA(address.compressed),
                 ttl=self.ttl,
             )
+        
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
+        return super().save(*args, **kwargs)
 
 
 class DynamicAddressRecord(DNSZoneRecord):
@@ -463,6 +484,11 @@ class DynamicAddressRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
+        return super().save(*args, **kwargs)
+
 
 class ANAMERecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zoneanamerecord", primary_key=True)
@@ -470,6 +496,8 @@ class ANAMERecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
         return super().save(*args, **kwargs)
 
     def to_rrs(self, qtype, query_name):
@@ -553,6 +581,8 @@ class CNAMERecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
+        send_flush_cache_message(self.dns_label, getattr(dnslib.CLASS, "*"), dnslib.QTYPE.CNAME)
+        send_flush_cache_message(self.alias, getattr(dnslib.CLASS, "*"), dnslib.QTYPE.ANY)
         return super().save(*args, **kwargs)
 
     def to_rr(self, query_name):
@@ -594,6 +624,7 @@ class MXRecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.exchange = self.exchange.lower()
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.MX)
         return super().save(*args, **kwargs)
 
     def to_rr(self, query_name):
@@ -632,6 +663,7 @@ class NSRecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.nameserver = self.nameserver.lower()
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.NS)
         return super().save(*args, **kwargs)
 
     def to_rr(self, query_name):
@@ -685,6 +717,10 @@ class TXTRecord(DNSZoneRecord):
         verbose_name = "TXT record"
         verbose_name_plural = "TXT records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+        
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.TXT)
+        return super().save(*args, **kwargs)
 
 
 class SRVRecord(DNSZoneRecord):
@@ -730,6 +766,10 @@ class SRVRecord(DNSZoneRecord):
         verbose_name = "SRV record"
         verbose_name_plural = "SRV records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+        
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.SRV)
+        return super().save(*args, **kwargs)
 
 
 class CAARecord(DNSZoneRecord):
@@ -772,6 +812,10 @@ class CAARecord(DNSZoneRecord):
         verbose_name = "CAA record"
         verbose_name_plural = "CAA records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.CAA)
+        return super().save(*args, **kwargs)
 
 
 class NAPTRRecord(DNSZoneRecord):
@@ -828,6 +872,10 @@ class NAPTRRecord(DNSZoneRecord):
         verbose_name = "NAPTR record"
         verbose_name_plural = "NAPTR records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.NAPTR)
+        return super().save(*args, **kwargs)
 
 
 class SSHFP(dnslib.RD):
@@ -902,6 +950,10 @@ class SSHFPRecord(DNSZoneRecord):
         verbose_name = "SSHFP record"
         verbose_name_plural = "SSHFP records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.SSHFP)
+        return super().save(*args, **kwargs)
 
 
 class DS(dnslib.RD):
@@ -999,6 +1051,10 @@ class DSRecord(DNSZoneRecord):
         verbose_name = "DS record"
         verbose_name_plural = "DS records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.DS)
+        return super().save(*args, **kwargs)
 
 
 class LOC(dnslib.RD):
@@ -1130,6 +1186,10 @@ class LOCRecord(DNSZoneRecord):
         verbose_name_plural = "LOC records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.LOC)
+        return super().save(*args, **kwargs)
+
 
 class HINFORecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonehinforecord", primary_key=True)
@@ -1171,6 +1231,10 @@ class HINFORecord(DNSZoneRecord):
         verbose_name_plural = "HINFO records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.HINFO)
+        return super().save(*args, **kwargs)
+
 
 class RP(dnslib.RD):
     attrs = ('mbox', 'txt')
@@ -1195,6 +1259,7 @@ class RPRecord(DNSZoneRecord):
     def save(self, *args, **kwargs):
         self.mailbox = self.mailbox.lower()
         self.txt = self.txt.lower()
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.RP)
         return super().save(*args, **kwargs)
 
     @classmethod

@@ -8,12 +8,13 @@ extern crate prometheus;
 #[macro_use]
 extern crate lazy_static;
 
-use prometheus::Encoder;
 use futures::future::Future;
 use futures::stream::StreamExt;
 use tokio::sync::Mutex;
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
+use prost::Message;
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 pub mod dns_proto {
@@ -35,7 +36,27 @@ lazy_static! {
         register_int_counter_vec!("cache_count", "Number of lookups to the cache", &["type"]).unwrap();
 }
 
-#[derive(PartialEq, Eq, Hash)]
+const KNOWN_RECORD_TYPES: [trust_dns_proto::rr::record_type::RecordType; 17] = [
+    trust_dns_proto::rr::record_type::RecordType::A,
+    trust_dns_proto::rr::record_type::RecordType::AAAA,
+    trust_dns_proto::rr::record_type::RecordType::CAA,
+    trust_dns_proto::rr::record_type::RecordType::CNAME,
+    trust_dns_proto::rr::record_type::RecordType::HINFO,
+    trust_dns_proto::rr::record_type::RecordType::HTTPS,
+    trust_dns_proto::rr::record_type::RecordType::MX,
+    trust_dns_proto::rr::record_type::RecordType::NAPTR,
+    trust_dns_proto::rr::record_type::RecordType::NS,
+    trust_dns_proto::rr::record_type::RecordType::OPENPGPKEY,
+    trust_dns_proto::rr::record_type::RecordType::PTR,
+    trust_dns_proto::rr::record_type::RecordType::SOA,
+    trust_dns_proto::rr::record_type::RecordType::SRV,
+    trust_dns_proto::rr::record_type::RecordType::SSHFP,
+    trust_dns_proto::rr::record_type::RecordType::SVCB,
+    trust_dns_proto::rr::record_type::RecordType::TLSA,
+    trust_dns_proto::rr::record_type::RecordType::TXT
+];
+
+#[derive(PartialEq, Eq, Hash, Debug)]
 struct CacheKey {
     name: trust_dns_proto::rr::domain::Name,
     qclass: trust_dns_proto::rr::dns_class::DNSClass,
@@ -88,7 +109,7 @@ async fn fetch_and_insert(
     msg: trust_dns_proto::op::message::Message,
     mut client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: &mut Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
-    new: bool
+    new: bool,
 ) -> Result<trust_dns_proto::op::message::Message, trust_dns_client::op::ResponseCode> {
     let request = tonic::Request::new(dns_proto::DnsPacket {
         msg: msg.to_bytes().map_err(|_| trust_dns_client::op::ResponseCode::FormErr)?
@@ -110,7 +131,7 @@ async fn fetch_and_insert(
     UPSTREAM_QUERY_COUNTER.with_label_values(&["ok"]).inc();
     if response_msg.response_code() != trust_dns_client::op::ResponseCode::ServFail || new {
         let new_cache_data = CacheData {
-            valid_until: std::time::Instant::now() + std::time::Duration::from_secs(30),
+            valid_until: std::time::Instant::now() + std::time::Duration::from_secs(300),
             response_code: response_msg.response_code(),
             answers: response_msg.answers().to_vec(),
             name_servers: response_msg.name_servers().to_vec(),
@@ -177,7 +198,7 @@ async fn lookup_cache_or_fetch(
 }
 
 struct Config {
-    server_name: Option<Vec<u8>>
+    server_name: Option<Vec<u8>>,
 }
 
 struct Cache {
@@ -189,7 +210,7 @@ struct Cache {
 impl trust_dns_server::server::RequestHandler for Cache {
     type ResponseFuture = HandleRequest;
 
-    fn handle_request<R: trust_dns_server::server::ResponseHandler>(&self, request: trust_dns_server::server::Request, response_handle: R) -> Self::ResponseFuture {
+    fn handle_request<R: trust_dns_server::server::ResponseHandler>(&self, request: trust_dns_server::server::Request, mut response_handle: R) -> Self::ResponseFuture {
         let request_message = request.message;
         trace!("request: {:?}", request_message);
 
@@ -297,7 +318,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                             };
                                             if nsid_requested {
                                                 if let Some(server_name) = &config.server_name {
-                                                    edns.set_option(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                                    edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
                                                         trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
                                                         server_name.to_vec(),
                                                     ))
@@ -347,7 +368,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         };
                                         if nsid_requested {
                                             if let Some(server_name) = &config.server_name {
-                                                edns.set_option(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                                edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
                                                     trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
                                                     server_name.to_vec(),
                                                 ))
@@ -511,6 +532,13 @@ fn main() {
             .required(true)
             .help("gRPC upstream server (e.g. http://[::1]:50051)")
             .takes_value(true))
+        .arg(clap::Arg::with_name("rpc_server")
+            .short("r")
+            .long("rpc-server")
+            .env("RABBITMQ_RPC_URL")
+            .help("Connection URL for the RabbitMQ server")
+            .takes_value(true)
+            .required(false))
         .get_matches();
 
     let ip_addrs = clap::values_t_or_exit!(args, "addr", std::net::IpAddr);
@@ -519,9 +547,8 @@ fn main() {
     let sockaddrs: Vec<std::net::SocketAddr> = ip_addrs.into_iter()
         .map(|a| std::net::SocketAddr::new(a, port)).collect();
 
-    let mut runtime = tokio::runtime::Builder::new()
+    let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .threaded_scheduler()
         .build()
         .expect("failed to initialize Tokio Runtime");
 
@@ -530,10 +557,11 @@ fn main() {
     ).expect("Unable to connect to upstream server");
 
     let tcp_request_timeout = std::time::Duration::from_secs(5);
+    let server_cache = Arc::new(Mutex::new(lru::LruCache::new(65535)));
 
     let catalog = Cache {
         client,
-        cache: Arc::new(Mutex::new(lru::LruCache::new(65535))),
+        cache: server_cache.clone(),
         config: Arc::new(Config {
             server_name: args.value_of("name").map(|s| s.to_string().into_bytes())
         }),
@@ -541,6 +569,122 @@ fn main() {
 
     info!("starting prometheus exporter on [::]:9184");
     prometheus_exporter::start("[::]:9184".parse().unwrap()).unwrap();
+
+    if let Some(rpc_url) = args.value_of("rpc_server") {
+        let rpc_url = rpc_url.to_owned();
+        runtime.spawn_blocking(move || {
+            loop {
+                info!("Starting RabbitMQ listener");
+                let mut amqp_conn = amiquip::Connection::insecure_open(&rpc_url).expect("Unable to connect to RabbitMQ server");
+                let amqp_channel = amqp_conn.open_channel(None).expect("Unable to open RabbitMQ channel");
+
+                let listen_queue = amqp_channel.queue_declare("", amiquip::QueueDeclareOptions {
+                    exclusive: true,
+                    ..amiquip::QueueDeclareOptions::default()
+                }).expect("Unable to declare RabbitMQ queue");
+                let flush_exchange = amqp_channel.exchange_declare(
+                    amiquip::ExchangeType::Fanout,
+                    "hexdns_flush",
+                    amiquip::ExchangeDeclareOptions {
+                        durable: true,
+                        ..amiquip::ExchangeDeclareOptions::default()
+                    },
+                ).expect("Unable to declare RabbitMQ exchange");
+                amqp_channel.queue_bind(
+                    listen_queue.name(), flush_exchange.name(), "",
+                    amiquip::FieldTable::new(),
+                ).expect("Unable to bind RabbitMQ queue to exchange");
+                let flush_consumer = listen_queue.consume(amiquip::ConsumerOptions::default()).expect("Unable to start consuming on RabbitMQ queue");
+                info!("RabbitMQ listener started");
+                for message in flush_consumer.receiver().iter() {
+                    let server_cache = server_cache.clone();
+                    match message {
+                        amiquip::ConsumerMessage::Delivery(delivery) => {
+                            flush_consumer.ack(delivery.clone()).unwrap();
+                            let body = delivery.body.clone();
+                            match dns_proto::ClearCache::decode(&body[..]) {
+                                Ok(clear_message) => {
+                                    trace!("Got clear cache message: {:#?}", clear_message);
+                                    let name = match trust_dns_proto::rr::domain::Name::from_str(&clear_message.label) {
+                                        Ok(n) => n,
+                                        Err(_) => continue
+                                    };
+                                    let qclass = match trust_dns_proto::rr::dns_class::DNSClass::from_u16(clear_message.dns_class as u16) {
+                                        Ok(n) => n,
+                                        Err(_) => continue
+                                    };
+                                    let qtype = trust_dns_proto::rr::record_type::RecordType::from(clear_message.record_type as u16);
+                                    let mut keys_to_clear = vec![];
+
+                                    let mut add_key = |qclass| {
+                                        if qtype.is_any() {
+                                            for qtype in &KNOWN_RECORD_TYPES {
+                                                keys_to_clear.push(CacheKey {
+                                                    name: name.clone(),
+                                                    qclass,
+                                                    qtype: *qtype,
+                                                    is_dnssec: false,
+                                                });
+                                                keys_to_clear.push(CacheKey {
+                                                    name: name.clone(),
+                                                    qclass,
+                                                    qtype: *qtype,
+                                                    is_dnssec: true,
+                                                });
+                                            }
+                                        } else {
+                                            keys_to_clear.push(CacheKey {
+                                                name: name.clone(),
+                                                qclass,
+                                                qtype,
+                                                is_dnssec: false,
+                                            });
+                                            keys_to_clear.push(CacheKey {
+                                                name: name.clone(),
+                                                qclass,
+                                                qtype,
+                                                is_dnssec: true,
+                                            });
+                                        }
+                                    };
+
+                                    if qclass == trust_dns_proto::rr::dns_class::DNSClass::ANY {
+                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::IN);
+                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::CH);
+                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::HS);
+                                    } else {
+                                        add_key(qclass);
+                                    }
+
+                                    trace!("Going to clear keys: {:#?}", keys_to_clear);
+
+                                    tokio::spawn(async move {
+                                        for key in keys_to_clear {
+                                            server_cache.lock().await.pop(&key);
+                                        }
+                                    });
+                                }
+                                Err(e) => {
+                                    warn!("Unable to decode RPC message: {}", e);
+                                }
+                            }
+                        }
+                        amiquip::ConsumerMessage::ServerClosedChannel(err)
+                        | amiquip::ConsumerMessage::ServerClosedConnection(err) => {
+                            error!("Error or RabbitMQ, restarting: {}", err);
+                        }
+                        amiquip::ConsumerMessage::ClientCancelled
+                        | amiquip::ConsumerMessage::ServerCancelled
+                        | amiquip::ConsumerMessage::ClientClosedChannel
+                        | amiquip::ConsumerMessage::ClientClosedConnection => {
+                            break;
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::new(15, 0));
+            }
+        });
+    }
 
     let mut server = trust_dns_server::ServerFuture::new(catalog);
 
@@ -556,7 +700,10 @@ fn main() {
                 .expect("could not lookup local address")
         );
 
-        runtime.enter(|| server.register_socket(udp_socket, &runtime));
+        {
+            let _guard = runtime.enter();
+            server.register_socket(udp_socket)
+        }
     }
 
     for tcp_listener in &sockaddrs {
@@ -571,11 +718,11 @@ fn main() {
                 .expect("could not lookup local address")
         );
 
-        runtime.enter(|| {
-            server
-                .register_listener(tcp_listener, tcp_request_timeout, &runtime)
-                .expect("could not register TCP listener")
-        });
+
+        {
+            let _guard = runtime.enter();
+            server.register_listener(tcp_listener, tcp_request_timeout)
+        }
     }
 
     info!("Server starting up");
