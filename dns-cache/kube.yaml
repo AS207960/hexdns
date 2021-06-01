@@ -25,7 +25,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cache
-          image: as207960/dns-cache:11
+          image: as207960/dns-cache:12
           args:
             - "-a"
             - "::"
