@@ -12,7 +12,8 @@ urlpatterns = [
     path("zone/<str:zone_id>/generate_dmarc/", views.fzone.generate_dmarc, name="generate_dmarc"),
     path("zone/<str:zone_id>/setup_gsutie/", views.fzone.setup_gsuite, name="setup_gsuite"),
     path("zone/<str:zone_id>/setup_github_pages/", views.github.setup_github_pages, name="setup_github_pages"),
-    path("zone/<str:zone_id>/setup_github_pages/<str:owner>/<str:repo>/", views.github.setup_github_pages_repo, name="setup_github_pages_repo"),
+    path("zone/<str:zone_id>/setup_github_pages/<str:owner>/<str:repo>/", views.github.setup_github_pages_repo,
+         name="setup_github_pages_repo"),
     path("zone/<str:zone_id>/cds/", views.fzone.edit_zone_cds, name="edit_zone_cds"),
     path("zone/<str:zone_id>/cds/disable/", views.fzone.disable_zone_cds, name="disable_zone_cds"),
     path("zone/<str:zone_id>/cds/enable/", views.fzone.enable_zone_cds, name="enable_zone_cds"),
@@ -46,12 +47,8 @@ urlpatterns = [
         views.fzone.create_cname_record,
         name="create_cname_record",
     ),
-    path(
-        "zone/<str:zone_id>/new_mx/", views.fzone.create_mx_record, name="create_mx_record"
-    ),
-    path(
-        "zone/<str:zone_id>/new_ns/", views.fzone.create_ns_record, name="create_ns_record"
-    ),
+    path("zone/<str:zone_id>/new_mx/", views.fzone.create_mx_record, name="create_mx_record"),
+    path("zone/<str:zone_id>/new_ns/", views.fzone.create_ns_record, name="create_ns_record"),
     path(
         "zone/<str:zone_id>/new_txt/",
         views.fzone.create_txt_record,
@@ -67,28 +64,13 @@ urlpatterns = [
         views.fzone.create_caa_record,
         name="create_caa_record",
     ),
-    path(
-        "zone/<str:zone_id>/new_naptr/",
-        views.fzone.create_naptr_record,
-        name="create_naptr_record",
-    ),
-    path(
-        "zone/<str:zone_id>/new_sshfp/",
-        views.fzone.create_sshfp_record,
-        name="create_sshfp_record",
-    ),
-    path(
-        "zone/<str:zone_id>/new_ds/", views.fzone.create_ds_record, name="create_ds_record"
-    ),
-    path(
-        "zone/<str:zone_id>/new_loc/", views.fzone.create_loc_record, name="create_loc_record"
-    ),
-    path(
-        "zone/<str:zone_id>/new_hinfo/", views.fzone.create_hinfo_record, name="create_hinfo_record"
-    ),
-    path(
-        "zone/<str:zone_id>/new_rp/", views.fzone.create_rp_record, name="create_rp_record"
-    ),
+    path("zone/<str:zone_id>/new_naptr/", views.fzone.create_naptr_record, name="create_naptr_record"),
+    path("zone/<str:zone_id>/new_sshfp/", views.fzone.create_sshfp_record, name="create_sshfp_record"),
+    path("zone/<str:zone_id>/new_ds/", views.fzone.create_ds_record, name="create_ds_record"),
+    path("zone/<str:zone_id>/new_loc/", views.fzone.create_loc_record, name="create_loc_record"),
+    path("zone/<str:zone_id>/new_hinfo/", views.fzone.create_hinfo_record, name="create_hinfo_record"),
+    path("zone/<str:zone_id>/new_rp/", views.fzone.create_rp_record, name="create_rp_record"),
+    path("zone/<str:zone_id>/new_https/", views.fzone.create_https_record, name="create_https_record"),
     path(
         "records/address/<str:record_id>/",
         views.fzone.edit_address_record,
@@ -208,6 +190,12 @@ urlpatterns = [
         "records/rp/<str:record_id>/delete/",
         views.fzone.delete_rp_record,
         name="delete_rp_record",
+    ),
+    path("records/https/<str:record_id>/", views.fzone.edit_https_record, name="edit_https_record"),
+    path(
+        "records/https/<str:record_id>/delete/",
+        views.fzone.delete_https_record,
+        name="delete_https_record",
     ),
     path("records/github/<str:record_id>/", views.github.edit_github_pages_record, name="edit_github_record"),
     path(

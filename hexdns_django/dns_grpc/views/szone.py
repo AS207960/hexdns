@@ -126,7 +126,7 @@ def delete_szone(request, zone_id):
 
     if request.method == "POST" and request.POST.get("delete") == "true":
         status, extra = utils.log_usage(
-            user_zone.get_user(), extra=-1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('szones'),
+            user_zone.get_user(), extra=-1 if user_zone.charged else 0, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('szones'),
             can_reject=True, off_session=False
         )
         if status == "error":

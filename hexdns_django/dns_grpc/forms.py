@@ -1,3 +1,5 @@
+import typing
+
 from django import forms
 from . import models
 import crispy_forms.helper
@@ -396,6 +398,88 @@ class RPRecordForm(forms.ModelForm):
         model = models.RPRecord
         fields = "__all__"
         exclude = ("id", "zone")
+
+
+class SVCBBaseRecordForm(forms.ModelForm):
+    EXTRA_INPUTS: typing.List
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.label_class = 'mt-1'
+        self.helper.field_class = 'mb-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.layout.Fieldset(
+                "Record name",
+                crispy_forms.layout.Div(
+                    crispy_forms.layout.Div(
+                        crispy_forms.bootstrap.PrependedText("port", "_"),
+                        css_class='col-md-3'
+                    ),
+                    crispy_forms.layout.Div(
+                        crispy_forms.bootstrap.PrependedText("scheme", "_"),
+                        css_class='col-md-3'
+                    ),
+                    crispy_forms.layout.Div(
+                        crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+                        css_class='col-md-6'
+                    ),
+                    css_class='row'
+                ),
+                "ttl"
+            ),
+            crispy_forms.layout.Fieldset(
+                "Target",
+                "priority",
+                crispy_forms.layout.Div(
+                    crispy_forms.layout.Div("target", css_class='col-md-9'),
+                    crispy_forms.layout.Div("target_port", css_class='col-md-3'),
+                    css_class='row'
+                ),
+                "target_port_mandatory" if "target_port_mandatory" in self.fields else None,
+            ),
+            crispy_forms.layout.Fieldset(
+                "Scheme specific",
+                 *self.EXTRA_INPUTS,
+            ),
+            crispy_forms.layout.Fieldset(
+                "TLS ECH",
+                crispy_forms.layout.Field("ech", rows=3),
+                "ech_mandatory" if "ech_mandatory" in self.fields else None,
+            ),
+            crispy_forms.layout.Fieldset(
+                "TLS ALPNs",
+                crispy_forms.layout.Field("alpns", rows=3),
+                "alpn_mandatory" if "alpn_mandatory" in self.fields else None,
+                "no_default_alpn",
+                "no_default_alpn_mandatory" if "no_default_alpn_mandatory" in self.fields else None,
+            ),
+            crispy_forms.layout.Fieldset(
+                "IP address hints",
+                crispy_forms.layout.Field("ipv4_hints", rows=3),
+                "ipv4_hints_mandatory" if "ipv4_hints_mandatory" in self.fields else None,
+                crispy_forms.layout.Field("ipv6_hints", rows=3),
+                "ipv6_hints_mandatory" if "ipv6_hints_mandatory" in self.fields else None,
+            ),
+            crispy_forms.layout.Fieldset(
+                "Misc",
+                "extra_params"
+            ),
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.SVCBBaseRecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
+class HTTPSRecordForm(SVCBBaseRecordForm):
+    EXTRA_INPUTS = ("http2_support",)
+
+    class Meta(SVCBBaseRecordForm.Meta):
+        model = models.HTTPSRecord
 
 
 class UpdateSecretForm(forms.ModelForm):

@@ -5,6 +5,7 @@ import struct
 import math
 import secrets
 import hashlib
+
 import django_keycloak_auth.clients
 import dnslib
 import codecs
@@ -19,7 +20,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 import as207960_utils.models
 from .proto import dns_pb2
-from . import apps
+from . import apps, svcb
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -411,7 +412,7 @@ class AddressRecord(DNSZoneRecord):
         default=False, verbose_name="Automatically serve reverse PTR records"
     )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     @classmethod
@@ -459,7 +460,7 @@ class DynamicAddressRecord(DNSZoneRecord):
     current_ipv6 = models.GenericIPAddressField(protocol='ipv6', blank=True, null=True)
     password = models.CharField(max_length=255)
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def to_rr_v4(self, query_name):
@@ -553,7 +554,7 @@ class ANAMERecord(DNSZoneRecord):
     def to_rrs_v6(self, query_name):
         return self.to_rrs(dnslib.QTYPE.AAAA, query_name)
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "ANAME record"
         verbose_name_plural = "ANAME records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -579,6 +580,20 @@ class CNAMERecord(DNSZoneRecord):
         self.ttl = rr.ttl
         self.address = str(rr.rdata.label)
 
+    def clean_fields(self, exclude=None):
+        if self.record_name == "@" and "record_name" not in exclude:
+            raise ValidationError({
+                "record_name": "CNAME records cannot exit at the zone root"
+            })
+
+    def validate_unique(self, exclude=None):
+        if "record_name" not in exclude:
+            other_cnames = len(self.__class__.objects.filter(zone=self.zone, record_name=self.record_name.lower()))
+            if other_cnames >= 1:
+                raise ValidationError({
+                    "record_name": "Another CNAME already exists with the same label"
+                })
+
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
         send_flush_cache_message(self.dns_label, getattr(dnslib.CLASS, "*"), dnslib.QTYPE.CNAME)
@@ -593,7 +608,7 @@ class CNAMERecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "CNAME record"
         verbose_name_plural = "CNAME records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -635,7 +650,7 @@ class MXRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "MX record"
         verbose_name_plural = "MX records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -674,7 +689,7 @@ class NSRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "NS record"
         verbose_name_plural = "NS records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -713,7 +728,7 @@ class TXTRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "TXT record"
         verbose_name_plural = "TXT records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -762,7 +777,7 @@ class SRVRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "SRV record"
         verbose_name_plural = "SRV records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -808,7 +823,7 @@ class CAARecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "CAA record"
         verbose_name_plural = "CAA records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -868,7 +883,7 @@ class NAPTRRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "NAPTR record"
         verbose_name_plural = "NAPTR records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -946,7 +961,7 @@ class SSHFPRecord(DNSZoneRecord):
         )
         return out
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "SSHFP record"
         verbose_name_plural = "SSHFP records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -1047,7 +1062,7 @@ class DSRecord(DNSZoneRecord):
             ttl=self.ttl,
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "DS record"
         verbose_name_plural = "DS records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -1181,7 +1196,7 @@ class LOCRecord(DNSZoneRecord):
             ttl=self.ttl
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "LOC record"
         verbose_name_plural = "LOC records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -1226,7 +1241,7 @@ class HINFORecord(DNSZoneRecord):
             ttl=self.ttl
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "HINFO record"
         verbose_name_plural = "HINFO records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
@@ -1290,10 +1305,367 @@ class RPRecord(DNSZoneRecord):
             ttl=self.ttl
         )
 
-    class Meta:
+    class Meta(DNSZoneRecord.Meta):
         verbose_name = "RP record"
         verbose_name_plural = "RP records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+
+class SVCBBaseRecord(DNSZoneRecord):
+    port = models.PositiveSmallIntegerField(validators=[MaxValueValidator(65535)], blank=True, null=True)
+    scheme = models.CharField(blank=True, null=True, max_length=255)
+    priority = models.PositiveSmallIntegerField(
+        validators=[MaxValueValidator(65535)], default=1,
+        help_text="Record ordering, from lowest to highest, use 0 for alias mode"
+    )
+    target = models.CharField(
+        max_length=255, help_text="A DNS name for rewritten connections", default="."
+    )
+    target_port = models.PositiveSmallIntegerField(validators=[MaxValueValidator(65535)], blank=True, null=True)
+    target_port_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that port rewriting support is required for the connection to succeed"
+    )
+    alpns = models.TextField(
+        blank=True, null=True, help_text="A comma separated list of supported TLS ALPNs",
+        verbose_name="ALPNs"
+    )
+    alpn_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that ALPN support is required for the connection to succeed",
+        verbose_name="ALPN mandatory"
+    )
+    no_default_alpn = models.BooleanField(
+        blank=True, help_text="The server does not support the default ALPNs", verbose_name="No default ALPNs"
+    )
+    no_default_alpn_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that support non-default ALPNs is required for the connection to succeed",
+        verbose_name="No default ALPNs mandatory"
+    )
+    ech = models.TextField(
+        blank=True, null=True, help_text="TLS Encrypted Client Hello config, Base64 encoded",
+        verbose_name="TLS ECH"
+    )
+    ech_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that TLS ECH support is required for the connection to succeed",
+        verbose_name="ECH mandatory"
+    )
+    ipv4_hints = models.TextField(
+        blank=True, help_text="A comma separated list of IPv4 addresses to reduce DNS round trips",
+        verbose_name="IPv4 hints"
+    )
+    ipv4_hints_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that IPv4 hint support is required for the connection to succeed",
+        verbose_name="IPv4 hints mandatory"
+    )
+    ipv6_hints = models.TextField(
+        blank=True, help_text="A comma separated list of IPv4 addresses to reduce DNS round trips",
+        verbose_name="IPv6 hints"
+    )
+    ipv6_hints_mandatory = models.BooleanField(
+        blank=True, help_text="Indicate that IPv6 hint support is required for the connection to succeed",
+        verbose_name="IPv6 hints mandatory"
+    )
+    extra_params = models.TextField(
+        blank=True, help_text="Extra SVCB parameters not otherwise broken out into individual fields",
+        verbose_name="Extra parameters"
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.__alpn_cache = None
+        self.__ech_cache = None
+        self.__ipv4_hints_cache = None
+        self.__ipv6_hints_cache = None
+        self.__extra_params_cache = None
+        super().__init__(*args, **kwargs)
+
+    @property
+    def alpn_data(self):
+        if not self.__alpn_cache and self.alpns:
+            self.__alpn_cache = svcb.ALPNData.from_str(self.alpns)
+        return self.__alpn_cache
+
+    @property
+    def ech_data(self):
+        if not self.__ech_cache and self.ech:
+            self.__ech_cache = base64.b64decode(self.ech)
+        return self.__ech_cache
+
+    @property
+    def ipv4_hints_data(self):
+        if not self.__ipv4_hints_cache and self.ipv4_hints:
+            self.__ipv4_hints_cache = svcb.IPv4Data.from_str(self.ipv4_hints)
+        return self.__ipv4_hints_cache
+
+    @property
+    def ipv6_hints_data(self):
+        if not self.__ipv6_hints_cache and self.ipv6_hints:
+            self.__ipv6_hints_cache = svcb.IPv6Data.from_str(self.ipv6_hints)
+        return self.__ipv6_hints_cache
+
+    @property
+    def extra_params_data(self):
+        if not self.__extra_params_cache and self.extra_params:
+            self.__extra_params_cache = svcb.decode_svcb_param_list(self.extra_params)
+        return self.__extra_params_cache
+
+    @property
+    def has_fetch_blocked_port(self):
+        if self.target_port:
+            return svcb.svcb_fetch_port_blocking(self.target_port)
+        return False
+
+    def clean(self):
+        super().clean()
+        if self.extra_params:
+            try:
+                self.__extra_params_cache = svcb.decode_svcb_param_list(self.extra_params)
+            except ValidationError as e:
+                raise ValidationError({
+                    "extra_params": e.error_list
+                })
+
+        if self.alpn_mandatory and not (self.alpns or "alpn" in self.extra_params):
+            raise ValidationError({
+                "alpns": "ALPNs must be specified when they are mandatory"
+            })
+        if self.alpns:
+            if "alpn" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "ALPNs already defined elsewhere"
+                })
+
+            try:
+                self.__alpn_cache = svcb.ALPNData.from_str(self.alpns)
+            except ValidationError as e:
+                raise ValidationError({
+                    "alpns": e.error_list
+                })
+
+        if self.ech_mandatory and not (self.ech or "ech" in self.extra_params):
+            raise ValidationError({
+                "ech": "ECH must be specified when it is mandatory"
+            })
+        if self.ech:
+            if "ech" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "ECH already defined elsewhere"
+                })
+
+            try:
+                try:
+                    self.__ech_cache = base64.b64decode(self.ech)
+                except binascii.Error as e:
+                    raise ValidationError(e)
+            except ValidationError as e:
+                raise ValidationError({
+                    "ech": e.error_list
+                })
+
+        if self.no_default_alpn and not (self.alpns or "alpn" in self.extra_params):
+            raise ValidationError({
+                "alpns": "ALPNs must be specified when default ALPNs are ignored"
+            })
+
+        if self.target_port_mandatory and not (self.target_port or "port" in self.extra_params):
+            raise ValidationError({
+                "target_port": "A port must be specified when it is mandatory"
+            })
+
+        if self.ipv4_hints_mandatory and not (self.ipv4_hints or "ipv4hint" in self.extra_params):
+            raise ValidationError({
+                "ipv4_hints": "IPv4 hints must be specified when they are mandatory"
+            })
+        if self.ipv4_hints:
+            if "ipv4hint" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "IPv4 hints already defined elsewhere"
+                })
+
+            try:
+                self.__ipv4_hints_cache = svcb.IPv4Data.from_str(self.ipv4_hints)
+            except ValidationError as e:
+                raise ValidationError({
+                    "ipv4_hints": e.error_list
+                })
+
+        if self.ipv6_hints_mandatory and not (self.ipv6_hints or "ipv6hint" in self.extra_params):
+            raise ValidationError({
+                "ipv6_hints": "IPv4 hints must be specified when they are mandatory"
+            })
+        if self.ipv6_hints:
+            if "ipv6hint" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "IPv6 hints already defined elsewhere"
+                })
+
+            try:
+                self.__ipv6_hints_cache = svcb.IPv6Data.from_str(self.ipv6_hints)
+            except ValidationError as e:
+                raise ValidationError({
+                    "ipv6_hints": e.error_list
+                })
+
+        if self.target_port:
+            if "port" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "Target port already defined elsewhere"
+                })
+
+        if self.alpn_mandatory or self.no_default_alpn_mandatory or self.target_port_mandatory \
+                or self.ipv4_hints_mandatory or self.ipv6_hints_mandatory:
+            if "mandatory" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "Mandatory fields already defined elsewhere"
+                })
+
+        if self.port and not self.scheme:
+            raise ValidationError({
+                "scheme": "Scheme must be set when a port is"
+            })
+        if self.scheme and not self.port:
+            raise ValidationError({
+                "port": "Port must be set when a scheme is"
+            })
+
+    def save(self, *args, **kwargs):
+        self.target = self.target.lower()
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.RP)
+        return super().save(*args, **kwargs)
+
+    @property
+    def svcb_record_name(self):
+        if not self.port and not self.scheme:
+            return self.record_name
+        else:
+            if self.record_name == "@":
+                return f"_{self.port}._{self.scheme}"
+            else:
+                return f"_{self.port}._{self.scheme}.{self.record_name}"
+
+    @property
+    def dns_label(self):
+        record_name = self.svcb_record_name
+        if record_name == "@":
+            return dnslib.DNSLabel(self.zone.zone_root)
+        else:
+            return dnslib.DNSLabel(f"{record_name}.{self.zone.zone_root}")
+
+    @property
+    def svcb_data(self):
+        data = []
+        mandatory = []
+        if self.alpns:
+            data.append(svcb.SVCBParam("alpn", self.alpn_data))
+            if self.alpn_mandatory:
+                mandatory.append(svcb.SVCBParam.PARAM_MAPPING["alpn"])
+        if self.no_default_alpn:
+            data.append(svcb.SVCBParam("no-default-alpn", svcb.NullParamData()))
+        if self.no_default_alpn_mandatory:
+            mandatory.append(svcb.SVCBParam.PARAM_MAPPING["no-default-alpn"])
+        if self.ipv4_hints:
+            data.append(svcb.SVCBParam("ipv4hint", self.ipv4_hints_data))
+            if self.ipv4_hints_mandatory:
+                mandatory.append(svcb.SVCBParam.PARAM_MAPPING["ipv4hint"])
+        if self.ipv6_hints:
+            data.append(svcb.SVCBParam("ipv6hint", self.ipv6_hints_data))
+            if self.ipv6_hints_mandatory:
+                mandatory.append(svcb.SVCBParam.PARAM_MAPPING["ipv6hint"])
+        if self.target_port:
+            data.append(svcb.SVCBParam("port", svcb.OctetParamData(struct.pack("!H", self.target_port))))
+            if self.target_port_mandatory:
+                mandatory.append(svcb.SVCBParam.PARAM_MAPPING["port"])
+        if self.ech:
+            data.append(svcb.SVCBParam("ech", svcb.OctetParamData(self.ech_data)))
+            if self.ech_mandatory:
+                mandatory.append(svcb.SVCBParam.PARAM_MAPPING["ech"])
+        if self.extra_params:
+            data.extend(self.extra_params_data.params)
+        return svcb.SVCBParamList(data), mandatory
+
+    @property
+    def svcb_record(self):
+        data, mandatory = self.svcb_data
+        if mandatory:
+            data.params.append(svcb.SVCBParam("mandatory", svcb.MandatoryData(mandatory)))
+        return svcb.SVCB(self.priority, self.target, data)
+
+    class Meta(DNSZoneRecord.Meta):
+        abstract = True
+        indexes = [models.Index(fields=['record_name', 'port', 'zone'])]
+
+
+class HTTPSRecord(SVCBBaseRecord):
+    port = models.PositiveSmallIntegerField(validators=[MaxValueValidator(65535)], blank=True, null=True, default=443)
+    scheme = models.CharField(blank=True, null=True, max_length=255, default="https")
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_zonehttpsrecord", primary_key=True)
+    http2_support = models.BooleanField(blank=True, verbose_name="HTTP/2 support")
+    target_port_mandatory = models.BooleanField(default=False, editable=False)
+    no_default_alpn_mandatory = models.BooleanField(default=False, editable=False)
+
+    @property
+    def svcb_data(self):
+        data, mandatory = super().svcb_data
+        if self.http2_support:
+            v = data["alpn"]
+            if v:
+                v.data.alpns.append(b"h2")
+            if not v:
+                data.params.append(svcb.SVCBParam("alpn", svcb.ALPNData([b"h2"])))
+        return data, mandatory
+
+    def clean(self):
+        super().clean()
+        if self.http2_support:
+            if self.alpn_data and b"h2" in self.alpn_data.alpns:
+                raise ValidationError({
+                    "alpns": "HTTP/2 support declared twice"
+                })
+            if "alpn" in self.extra_params:
+                raise ValidationError({
+                    "extra_params": "ALPNs already defined elsewhere"
+                })
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.HTTPS)
+        return super().save(*args, **kwargs)
+
+    @property
+    def svcb_record_name(self):
+        if self.port == 443 and self.scheme == "https":
+            return self.record_name
+        else:
+            return super().svcb_record_name
+
+    # @classmethod
+    # def from_rr(cls, rr, zone):
+    #     record_name = cls.dns_label_to_record_name(rr.rname, zone)
+    #     rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+    #     return cls(
+    #         zone=zone,
+    #         record_name=record_name,
+    #         ttl=rr.ttl,
+    #         mailbox=str(rdata_buffer.decode_name()),
+    #         txt=str(rdata_buffer.decode_name()),
+    #     )
+    #
+    # def update_from_rr(self, rr):
+    #     record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+    #     rdata_buffer = dnslib.DNSBuffer(rr.rdata.data)
+    #     self.record_name = record_name
+    #     self.ttl = rr.ttl
+    #     self.mailbox = str(rdata_buffer.decode_name())
+    #     self.txt = str(rdata_buffer.decode_name())
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.HTTPS,
+            rdata=self.svcb_record,
+            ttl=self.ttl
+        )
+
+    class Meta(SVCBBaseRecord.Meta):
+        verbose_name = "HTTPS record"
+        verbose_name_plural = "HTTPS records"
 
 
 class PTRRecord(ReverseDNSZoneRecord):

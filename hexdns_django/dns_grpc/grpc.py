@@ -297,64 +297,75 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.DynamicAddressRecord.objects.filter(zone=zone).filter(
+        if models.DynamicAddressRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif include_cname and models.CNAMERecord.objects.filter(zone=zone).filter(
+        if include_cname and models.CNAMERecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.MXRecord.objects.filter(zone=zone).filter(
+        if models.MXRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.NSRecord.objects.filter(zone=zone).filter(
+        if models.NSRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.TXTRecord.objects.filter(zone=zone).filter(
+        if models.TXTRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.SRVRecord.objects.filter(zone=zone).filter(
+        if models.SRVRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.CAARecord.objects.filter(zone=zone).filter(
+        if models.CAARecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.NAPTRRecord.objects.filter(zone=zone).filter(
+        if models.NAPTRRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.SSHFPRecord.objects.filter(zone=zone).filter(
+        if models.SSHFPRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.DSRecord.objects.filter(zone=zone).filter(
+        if models.DSRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.ANAMERecord.objects.filter(zone=zone).filter(
+        if models.ANAMERecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.LOCRecord.objects.filter(zone=zone).filter(
+        if models.LOCRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.HINFORecord.objects.filter(zone=zone).filter(
+        if models.HINFORecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        elif models.RPRecord.objects.filter(zone=zone).filter(
+        if models.RPRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        else:
-            return False
+
+        port, scheme, new_record_name = self.parse_https_record_name(rname)
+        labels = list(new_record_name.label)
+        if len(labels):
+            labels[0] = b"*"
+        new_wildcard_search_name = ".".join(map(lambda n: n.decode(), labels))
+        new_record_name = ".".join(map(lambda n: n.decode(), new_record_name.label))
+        if models.HTTPSRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
+        ).filter(scheme=scheme, port=port).count():
+            return True
+
+        return False
 
     def any_record_type(
             self, rname: DNSLabel, zone: models.DNSZone, qtype: int
@@ -402,6 +413,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return True
         elif qtype == QTYPE.RP:
             if models.RPRecord.objects.filter(record_name=search_name, zone=zone).count():
+                return True
+        elif qtype == QTYPE.HTTPS:
+            port, scheme, new_record_name = self.parse_https_record_name(rname)
+            new_record_name = ".".join(map(lambda n: n.decode(), new_record_name.label))
+            if models.HTTPSRecord.objects.filter(
+                    record_name=new_record_name, zone=zone, scheme=scheme, port=port
+            ).count():
                 return True
         elif qtype == QTYPE.CNAME:
             if models.CNAMERecord.objects.filter(record_name=search_name, zone=zone).count():
@@ -925,6 +943,47 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_rp
             )
 
+    @staticmethod
+    def parse_https_record_name(record_name: DNSLabel):
+        port = 443
+        scheme = "https"
+        new_record_name = record_name
+        if len(record_name.label) >= 2:
+            poss_port = record_name.label[0]
+            poss_scheme = record_name.label[1]
+            if poss_port.startswith(b"_") and poss_scheme.startswith(b"_"):
+                try:
+                    poss_port = int(poss_port[1:].decode())
+                    poss_scheme = poss_scheme[1:].decode()
+                except (UnicodeDecodeError, ValueError):
+                    pass
+                else:
+                    port = poss_port
+                    scheme = poss_scheme
+                    if len(record_name.label) > 2:
+                        new_record_name = dnslib.DNSLabel(record_name.label[2:])
+                    else:
+                        new_record_name = dnslib.DNSLabel("@")
+        return port, scheme, new_record_name
+
+    def lookup_https(
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
+    ):
+        port, scheme, new_record_name = self.parse_https_record_name(record_name)
+        records = self.find_records(models.HTTPSRecord, new_record_name, zone)
+        records = list(filter(lambda r: r.scheme == scheme and r.port == port, records))
+        for record in records:
+            dns_res.add_answer(record.to_rr(query_name))
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_sshfp
+            )
+
     def lookup_reverse_referral(
             self,
             dns_res: dnslib.DNSRecord,
@@ -1135,7 +1194,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 else:
                     qtypes = [
                         'A', 'NS', 'SOA', 'HINFO', 'MX', 'TXT', 'AAAA', 'LOC', 'SRV', 'CERT', 'SSHFP', 'RRSIG', 'NSEC',
-                        'DNSKEY', 'TLSA', 'HIP', 'CDS', 'CDNSKEY', 'OPENPGPKEY', 'SPF', 'CAA', 'PTR'
+                        'DNSKEY', 'TLSA', 'HIP', 'CDS', 'CDNSKEY', 'OPENPGPKEY', 'SPF', 'CAA', 'PTR', 'HTTPS', 'RP',
+                        'DS', 'NAPTR',
                     ]
                     try:
                         qtypes.remove(dnslib.QTYPE[dns_res.q.qtype])
@@ -1546,6 +1606,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             elif dns_req.q.qtype == QTYPE.RP:
                 self.lookup_rp(dns_res, record_name, zone, query_name, is_dnssec)
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+            elif dns_req.q.qtype == QTYPE.HTTPS:
+                self.lookup_https(dns_res, record_name, zone, query_name, is_dnssec)
+                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             elif dns_req.q.qtype == QTYPE.CNAME:
                 record = self.find_records(
                     models.CNAMERecord, record_name, zone
@@ -1809,7 +1872,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         incoming_hmac2.update(d2)
         incoming_digest = incoming_hmac.digest()
         incoming_digest2 = incoming_hmac2.digest()
-        print(d, d2, incoming_digest, incoming_digest2, incoming_tsig)
 
         if (incoming_digest != incoming_tsig.mac) and (incoming_digest2 != incoming_tsig.mac):
             tsig_unsigned_error(TSIG_BADSIG)
@@ -1980,6 +2042,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 self.lookup_hinfo(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.RP:
                 self.lookup_rp(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.HTTPS:
+                self.lookup_https(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.CNAME:
                 record = self.find_records(
                     models.CNAMERecord, record_name, zone

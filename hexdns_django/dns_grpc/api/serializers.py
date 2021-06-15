@@ -305,6 +305,25 @@ class RPRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
         write_once_fields = ('zone',)
 
 
+class HTTPSRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
+    url = serializers.HyperlinkedIdentityField(
+        view_name='httpsrecord-detail',
+        read_only=True,
+    )
+    zone = PermissionPrimaryKeyRelatedField(model=models.DNSZone)
+
+    class Meta:
+        model = models.HTTPSRecord
+        fields = (
+            'url', 'id', 'zone', 'zone_url', 'record_name', 'port', 'scheme', 'ttl', 'priority',
+            'target', 'target_port', 'http2_support', 'ech', 'ech_mandatory', 'alpns', 'alpn_mandatory',
+            'no_default_alpn', 'ipv4_hints', 'ipv4_hints_mandatory', 'ipv6_hints', 'ipv6_hints_mandatory',
+            'extra_params',
+        )
+        read_only_fields = ('id',)
+        write_once_fields = ('zone',)
+
+
 class DNSSECKeySerializer(serializers.Serializer):
     flags = serializers.IntegerField(read_only=True)
     protocol = serializers.IntegerField(read_only=True)
@@ -326,7 +345,7 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         fields = ('url', 'id', 'zone_root', 'last_modified', 'active', 'dnssec', 'address_records',
                   'dynamic_address_records', 'aname_records', 'cname_records', 'mx_records', 'ns_records',
                   'txt_records', 'srv_records', 'caa_records', 'naptr_records', 'sshfp_records', 'ds_records',
-                  'loc_records', 'hinfo_records', 'rp_records',)
+                  'loc_records', 'hinfo_records', 'rp_records', 'https_records',)
         read_only_fields = ('id', 'last_modified', 'active')
         write_once_fields = ('zone_root',)
 
@@ -345,12 +364,13 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
     loc_records = LOCRecordSerializer(many=True, read_only=True, source='locrecord_set')
     hinfo_records = HINFORecordSerializer(many=True, read_only=True, source='hinforecord_set')
     rp_records = RPRecordSerializer(many=True, read_only=True, source='rprecord_set')
+    https_records = HTTPSRecordSerializer(many=True, read_only=True, source='httpsrecord_set')
     dnssec = DNSSECSerializer(read_only=True)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
 
-        dnssec_digest, dnssec_tag = views.make_zone_digest(instance.zone_root)
+        dnssec_digest, dnssec_tag = views.utils.make_zone_digest(instance.zone_root)
         nums = settings.DNSSEC_PUBKEY.public_numbers()
         pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {

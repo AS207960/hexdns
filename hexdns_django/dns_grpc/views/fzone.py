@@ -206,7 +206,7 @@ def delete_zone(request, zone_id):
 
     if request.method == "POST" and request.POST.get("delete") == "true":
         status, extra = utils.log_usage(
-            user_zone.get_user(), extra=-1, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('zones'),
+            user_zone.get_user(), extra=-1 if user_zone.charged else 0, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('zones'),
             can_reject=True, off_session=False
         )
         if status == "error":
@@ -1324,6 +1324,78 @@ def delete_rp_record(request, record_id):
 
 
 @login_required
+def create_https_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.HTTPSRecordForm(request.POST, instance=models.HTTPSRecord(zone=user_zone))
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.HTTPSRecordForm(instance=models.HTTPSRecord(zone=user_zone))
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create HTTPS record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_https_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.HTTPSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.HTTPSRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.HTTPSRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit HTTPS record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_https_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.HTTPSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST" and request.POST.get("delete") == "true":
+        user_record.zone.last_modified = timezone.now()
+        user_record.zone.save()
+        user_record.delete()
+        return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_record.html",
+        {"title": "Delete HTTPS record", "record": user_record, },
+    )
+
+
+@login_required
 def edit_zone_cds(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)
@@ -1665,7 +1737,8 @@ def export_zone_file(request, zone_id):
     for record_type in (
             zone_obj.addressrecord_set, zone_obj.cnamerecord_set, zone_obj.mxrecord_set, zone_obj.nsrecord_set,
             zone_obj.txtrecord_set, zone_obj.srvrecord_set, zone_obj.caarecord_set, zone_obj.naptrrecord_set,
-            zone_obj.dsrecord_set, zone_obj.locrecord_set, zone_obj.hinforecord_set, zone_obj.rprecord_set
+            zone_obj.dsrecord_set, zone_obj.locrecord_set, zone_obj.hinforecord_set, zone_obj.rprecord_set,
+            zone_obj.httpsrecord_set,
     ):
         for record in record_type.all():
             zone_out.append(record.to_rr(record.dns_label).toZone())

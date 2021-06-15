@@ -274,6 +274,11 @@ class RPRecordViewSet(DNSZoneRecordViewSet):
     serializer_class = serializers.RPRecordSerializer
 
 
+class HTTPSRecordViewSet(DNSZoneRecordViewSet):
+    model_class = models.HTTPSRecord
+    serializer_class = serializers.HTTPSRecordSerializer
+
+
 class PTRRecordViewSet(ReverseDNSZoneRecordViewSet):
     model_class = models.PTRRecord
     serializer_class = serializers.PTRRecordSerializer
