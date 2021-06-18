@@ -67,6 +67,7 @@ struct CacheKey {
 #[derive(Debug, Clone)]
 struct CacheData {
     valid_until: std::time::Instant,
+    hard_valid_until: std::time::Instant,
     response_code: trust_dns_proto::op::ResponseCode,
     answers: Vec<trust_dns_proto::rr::resource::Record>,
     name_servers: Vec<trust_dns_proto::rr::resource::Record>,
@@ -132,6 +133,7 @@ async fn fetch_and_insert(
     if response_msg.response_code() != trust_dns_client::op::ResponseCode::ServFail || new {
         let new_cache_data = CacheData {
             valid_until: std::time::Instant::now() + std::time::Duration::from_secs(300),
+            hard_valid_until: std::time::Instant::now() + std::time::Duration::from_secs(3600),
             response_code: response_msg.response_code(),
             answers: response_msg.answers().to_vec(),
             name_servers: response_msg.name_servers().to_vec(),
@@ -165,29 +167,34 @@ async fn lookup_cache_or_fetch(
     };
 
     if let Some(cached_result) = cached_result {
-        if cached_result.valid_until < std::time::Instant::now() {
-            debug!("Expired cached item");
-            let msg = msg.clone();
-            CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
-            tokio::spawn(async move {
-                let _ = fetch_and_insert(cache_key, msg, client, &mut cache, false).await;
-            });
+        if cached_result.hard_valid_until < std::time::Instant::now() {
+            debug!("Hard expired cached item");
+            CACHE_COUNTER.with_label_values(&["hit_hard_stale"]).inc();
         } else {
-            CACHE_COUNTER.with_label_values(&["hit"]).inc();
+            if cached_result.valid_until < std::time::Instant::now() {
+                debug!("Expired cached item");
+                let msg = msg.clone();
+                CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
+                tokio::spawn(async move {
+                    let _ = fetch_and_insert(cache_key, msg, client, &mut cache, false).await;
+                });
+            } else {
+                CACHE_COUNTER.with_label_values(&["hit"]).inc();
+            }
+            let mut response_msg = trust_dns_proto::op::message::Message::new();
+            let mut edns = trust_dns_proto::op::Edns::new();
+            response_msg.set_id(msg.id());
+            response_msg.set_message_type(trust_dns_proto::op::MessageType::Response);
+            response_msg.set_op_code(trust_dns_proto::op::OpCode::Query);
+            response_msg.set_authoritative(true);
+            edns.set_dnssec_ok(dnssec);
+            response_msg.set_edns(edns);
+            response_msg.set_response_code(cached_result.response_code);
+            response_msg.insert_answers(cached_result.answers);
+            response_msg.insert_name_servers(cached_result.name_servers);
+            response_msg.insert_additionals(cached_result.additionals);
+            return Ok(response_msg);
         }
-        let mut response_msg = trust_dns_proto::op::message::Message::new();
-        let mut edns = trust_dns_proto::op::Edns::new();
-        response_msg.set_id(msg.id());
-        response_msg.set_message_type(trust_dns_proto::op::MessageType::Response);
-        response_msg.set_op_code(trust_dns_proto::op::OpCode::Query);
-        response_msg.set_authoritative(true);
-        edns.set_dnssec_ok(dnssec);
-        response_msg.set_edns(edns);
-        response_msg.set_response_code(cached_result.response_code);
-        response_msg.insert_answers(cached_result.answers);
-        response_msg.insert_name_servers(cached_result.name_servers);
-        response_msg.insert_additionals(cached_result.additionals);
-        return Ok(response_msg);
     }
 
     CACHE_COUNTER.with_label_values(&["miss"]).inc();
@@ -737,7 +744,7 @@ fn main() {
             );
 
             error!("{}", error_msg);
-            panic!(error_msg);
+            panic!("{}", error_msg);
         }
     };
 }
