@@ -17,6 +17,8 @@ admin.site.register(models.Account)
 admin.site.register(models.DNSZoneUpdateSecrets)
 admin.site.register(models.GitHubState)
 admin.site.register(models.GitHubInstallation)
+admin.site.register(models.GoogleState)
+admin.site.register(models.GoogleInstallation)
 
 
 @admin.register(models.DNSZone)

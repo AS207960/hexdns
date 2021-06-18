@@ -133,6 +133,9 @@ spec:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
                 name: hexdns-rpc
       containers:
         - name: gunicorn
@@ -167,6 +170,9 @@ spec:
             - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
 ---
@@ -255,6 +261,9 @@ spec:
                     name: hexdns-github
                   prefix: "GITHUB_"
                 - secretRef:
+                    name: hexdns-google
+                  prefix: "GOOGLE_"
+                - secretRef:
                     name: hexdns-rpc
           restartPolicy: OnFailure
 ---
@@ -321,6 +330,9 @@ spec:
                 - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
+                - secretRef:
+                    name: hexdns-google
+                  prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
           restartPolicy: OnFailure
@@ -397,6 +409,9 @@ spec:
                 - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
+                - secretRef:
+                    name: hexdns-google
+                  prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
             - name: clatd
@@ -506,6 +521,9 @@ spec:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
                 name: hexdns-rpc
 ---
 apiVersion: networking.k8s.io/v1
@@ -598,6 +616,9 @@ spec:
             - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
 ---

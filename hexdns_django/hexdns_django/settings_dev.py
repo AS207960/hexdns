@@ -140,6 +140,8 @@ with open(os.path.join(BASE_DIR, "secrets/keycloak.json")) as f:
     keycloak_conf = json.load(f)
 with open(os.path.join(BASE_DIR, "secrets/github.json")) as f:
     github_conf = json.load(f)
+with open(os.path.join(BASE_DIR, "secrets/google.json")) as f:
+    google_conf = json.load(f)
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "Glauca HexDNS <dns@glauca.digital>"
@@ -156,6 +158,9 @@ GITHUB_CLIENT_ID = github_conf["client_id"]
 GITHUB_CLIENT_SECRET = github_conf["client_secret"]
 GITHUB_PRIVATE_KEY = github_conf["private_key"]
 GITHUB_WEBHOOK_SECRET = github_conf["webhook_secret"]
+
+GOOGLE_CLIENT_ID = google_conf["client_id"]
+GOOGLE_CLIENT_SECRET = google_conf["client_secret"]
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
 

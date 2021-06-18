@@ -1706,6 +1706,33 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
         indexes = [models.Index(fields=['record_address', 'zone'])]
 
 
+class GoogleState(models.Model):
+    user = models.ForeignKey(Account, on_delete=models.CASCADE)
+    state = models.UUIDField(default=uuid.uuid4)
+    redirect_uri = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.state)
+
+    class Meta:
+        verbose_name = "Google state"
+
+
+class GoogleInstallation(models.Model):
+    user = models.OneToOneField(Account, on_delete=models.SET_NULL, blank=True, null=True)
+    access_token = models.TextField(blank=True, null=True)
+    access_token_expires_at = models.DateTimeField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
+    refresh_token_expires_at = models.DateTimeField(blank=True, null=True)
+    scopes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return str(self.user)
+
+    class Meta:
+        verbose_name = "Google installation"
+
+
 class GitHubState(models.Model):
     user = models.ForeignKey(Account, on_delete=models.CASCADE)
     state = models.UUIDField(default=uuid.uuid4)
