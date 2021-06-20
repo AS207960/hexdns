@@ -56,7 +56,7 @@ const KNOWN_RECORD_TYPES: [trust_dns_proto::rr::record_type::RecordType; 17] = [
     trust_dns_proto::rr::record_type::RecordType::TXT
 ];
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 struct CacheKey {
     name: trust_dns_proto::rr::domain::Name,
     qclass: trust_dns_proto::rr::dns_class::DNSClass,
@@ -133,7 +133,7 @@ async fn fetch_and_insert(
     if response_msg.response_code() != trust_dns_client::op::ResponseCode::ServFail || new {
         let new_cache_data = CacheData {
             valid_until: std::time::Instant::now() + std::time::Duration::from_secs(300),
-            hard_valid_until: std::time::Instant::now() + std::time::Duration::from_secs(3600),
+            hard_valid_until: std::time::Instant::now() + std::time::Duration::from_secs(43200),
             response_code: response_msg.response_code(),
             answers: response_msg.answers().to_vec(),
             name_servers: response_msg.name_servers().to_vec(),
@@ -567,7 +567,7 @@ fn main() {
     let server_cache = Arc::new(Mutex::new(lru::LruCache::new(65535)));
 
     let catalog = Cache {
-        client,
+        client: client.clone(),
         cache: server_cache.clone(),
         config: Arc::new(Config {
             server_name: args.value_of("name").map(|s| s.to_string().into_bytes())
@@ -578,6 +578,7 @@ fn main() {
     prometheus_exporter::start("[::]:9184".parse().unwrap()).unwrap();
 
     if let Some(rpc_url) = args.value_of("rpc_server") {
+        let flusher_cache = server_cache.clone();
         let rpc_url = rpc_url.to_owned();
         runtime.spawn_blocking(move || {
             loop {
@@ -604,7 +605,7 @@ fn main() {
                 let flush_consumer = listen_queue.consume(amiquip::ConsumerOptions::default()).expect("Unable to start consuming on RabbitMQ queue");
                 info!("RabbitMQ listener started");
                 for message in flush_consumer.receiver().iter() {
-                    let server_cache = server_cache.clone();
+                    let server_cache = flusher_cache.clone();
                     match message {
                         amiquip::ConsumerMessage::Delivery(delivery) => {
                             flush_consumer.ack(delivery.clone()).unwrap();
@@ -692,6 +693,39 @@ fn main() {
             }
         });
     }
+
+    let mut updater_cache = server_cache.clone();
+    runtime.spawn(async move {
+        loop {
+            info!("Starting cache updater");
+            tokio::time::sleep(std::time::Duration::new(60, 0)).await;
+
+            let mut to_update = vec![];
+
+            for (cache_key, cache_record) in updater_cache.lock().await.iter() {
+                if cache_record.valid_until < std::time::Instant::now() {
+                    let mut msg = trust_dns_proto::op::message::Message::new();
+                    let mut edns = trust_dns_proto::op::Edns::new();
+                    msg.set_id(0);
+                    msg.set_message_type(trust_dns_proto::op::MessageType::Query);
+                    msg.set_op_code(trust_dns_proto::op::OpCode::Query);
+                    edns.set_dnssec_ok(cache_key.is_dnssec);
+                    msg.set_edns(edns);
+                    let mut query = trust_dns_proto::op::Query::new();
+                    query.set_query_class(cache_key.qclass);
+                    query.set_query_type(cache_key.qtype);
+                    query.set_name(cache_key.name.clone());
+                    msg.add_query(query);
+
+                    to_update.push((cache_key.clone(), msg));
+                }
+            }
+
+            for (cache_key, msg) in to_update {
+                let _ = fetch_and_insert(cache_key, msg, client.clone(), &mut updater_cache, false).await;
+            }
+        }
+    });
 
     let mut server = trust_dns_server::ServerFuture::new(catalog);
 
