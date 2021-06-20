@@ -676,8 +676,7 @@ class RedirectRecord(DNSZoneRecord):
         api_client = kubernetes.client.NetworkingV1beta1Api()
         ingress_name = str(self.id).replace("_", "-")
         api_client.delete_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
-
-        return super().save(*args, **kwargs)
+        return super().delete(*args, **kwargs)
 
     def to_rr(self, query_name):
         return dnslib.RR(
