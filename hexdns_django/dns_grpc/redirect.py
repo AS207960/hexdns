@@ -1,9 +1,10 @@
 import dnslib
 import datetime
 import django
-from . import models, grpc
 
 django.setup()
+
+from . import models, grpc
 
 
 def application(environ: dict, start_response):
