@@ -31,7 +31,11 @@ def application(environ: dict, start_response):
         start_response("404 Not Found", headers)
         return []
 
-    headers.append(("Location", redirect_record.target))
+    target = redirect_record.target
+    if redirect_record.include_path:
+        target += environ.get("PATH_INFO", "")
+
+    headers.append(("Location", target))
 
     now = datetime.datetime.utcnow()
     expiry = now + datetime.timedelta(seconds=redirect_record.ttl)
