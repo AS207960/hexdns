@@ -39,9 +39,10 @@ urlpatterns = [
         name="create_dynamic_address_record",
     ),
     path(
-        "zone/<str:zone_id>/new_aname/",
-        views.fzone.create_aname_record,
-        name="create_aname_record",
+        "zone/<str:zone_id>/new_aname/", views.fzone.create_aname_record, name="create_aname_record",
+    ),
+    path(
+        "zone/<str:zone_id>/new_redirect/", views.fzone.create_redirect_record, name="create_redirect_record",
     ),
     path(
         "zone/<str:zone_id>/new_cname/",
@@ -92,16 +93,10 @@ urlpatterns = [
         views.fzone.delete_dynamic_address_record,
         name="delete_dynamic_address_record",
     ),
-    path(
-        "records/aname/<str:record_id>/",
-        views.fzone.edit_aname_record,
-        name="edit_aname_record",
-    ),
-    path(
-        "records/aname/<str:record_id>/delete/",
-        views.fzone.delete_aname_record,
-        name="delete_aname_record",
-    ),
+    path("records/aname/<str:record_id>/", views.fzone.edit_aname_record, name="edit_aname_record"),
+    path("records/aname/<str:record_id>/delete/", views.fzone.delete_aname_record, name="delete_aname_record"),
+    path("records/redirect/<str:record_id>/", views.fzone.edit_redirect_record, name="edit_redirect_record"),
+    path("records/redirect/<str:record_id>/delete/", views.fzone.delete_redirect_record, name="delete_redirect_record"),
     path(
         "records/cname/<str:record_id>/",
         views.fzone.edit_cname_record,

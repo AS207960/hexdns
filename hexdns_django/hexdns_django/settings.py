@@ -208,6 +208,9 @@ RESOLVER_PORT = int(os.getenv("RESOLVER_PORT"))
 
 RABBITMQ_RPC_URL = os.getenv("RABBITMQ_RPC_URL")
 
+KUBE_IN_CLUSTER = bool(os.getenv("KUBE_IN_CLUSTER"))
+KUBE_NAMESPACE = os.getenv("KUBE_NAMESPACE")
+
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

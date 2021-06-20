@@ -187,6 +187,9 @@ RESOLVER_PORT = 53
 
 RABBITMQ_RPC_URL = "amqp://guest:guest@localhost:5672/rpc"
 
+KUBE_IN_CLUSTER = False
+KUBE_NAMESPACE = "hexdns-dev"
+
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

@@ -12,6 +12,7 @@ import codecs
 import sshpubkeys
 import socket
 import uuid
+import kubernetes
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -21,6 +22,12 @@ from django.dispatch import receiver
 import as207960_utils.models
 from .proto import dns_pb2
 from . import apps, svcb
+
+if settings.KUBE_IN_CLUSTER:
+    kubernetes.config.load_incluster_config()
+else:
+    kubernetes.config.load_kube_config()
+
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -447,7 +454,7 @@ class AddressRecord(DNSZoneRecord):
                 rdata=dnslib.AAAA(address.compressed),
                 ttl=self.ttl,
             )
-        
+
     def save(self, *args, **kwargs):
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
@@ -614,6 +621,71 @@ class CNAMERecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
+class RedirectRecord(DNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_zoneredirectrecord", primary_key=True)
+    target = models.URLField()
+    include_path = models.BooleanField(blank=True)
+
+    def save(self, *args, **kwargs):
+        api_client = kubernetes.client.NetworkingV1beta1Api()
+        dns_name = ".".join(l.decode() for l in self.dns_label.label)
+        ingress_name = str(self.id).replace("_", "-")
+
+        spec = kubernetes.client.NetworkingV1beta1IngressSpec(
+            rules=[kubernetes.client.NetworkingV1beta1IngressRule(
+                host=dns_name,
+                http=kubernetes.client.NetworkingV1beta1HTTPIngressRuleValue(
+                    paths=[kubernetes.client.NetworkingV1beta1HTTPIngressPath(
+                        backend=kubernetes.client.NetworkingV1beta1IngressBackend(
+                            service_name="hexdns-redirect",
+                            service_port=8000
+                        )
+                    )]
+                )
+            )],
+            tls=[kubernetes.client.NetworkingV1beta1IngressTLS(
+                hosts=[dns_name],
+                secret_name=f"{ingress_name}-tls"
+            )]
+        )
+
+        try:
+            api_client.read_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
+            api_client.patch_namespaced_ingress(
+                ingress_name, settings.KUBE_NAMESPACE, kubernetes.client.NetworkingV1beta1Ingress(spec=spec)
+            )
+        except kubernetes.client.ApiException as e:
+            if e.status == 404:
+                api_client.create_namespaced_ingress(
+                    settings.KUBE_NAMESPACE, kubernetes.client.NetworkingV1beta1Ingress(
+                        metadata=kubernetes.client.V1ObjectMeta(
+                            name=ingress_name,
+                            annotations={
+                                "cert-manager.io/cluster-issuer": "letsencrypt"
+                            }
+                        ),
+                        spec=spec
+                    )
+                )
+            else:
+                raise e
+
+        return super().save(*args, **kwargs)
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.CNAME,
+            rdata=dnslib.CNAME("kube-ingress.as207960.net"),
+            ttl=self.ttl,
+        )
+
+    class Meta(DNSZoneRecord.Meta):
+        verbose_name = "Redirect record"
+        verbose_name_plural = "Redirect records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
+
+
 class MXRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonemxrecord", primary_key=True)
     exchange = models.CharField(max_length=255)
@@ -732,7 +804,7 @@ class TXTRecord(DNSZoneRecord):
         verbose_name = "TXT record"
         verbose_name_plural = "TXT records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
-        
+
     def save(self, *args, **kwargs):
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.TXT)
         return super().save(*args, **kwargs)
@@ -781,7 +853,7 @@ class SRVRecord(DNSZoneRecord):
         verbose_name = "SRV record"
         verbose_name_plural = "SRV records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
-        
+
     def save(self, *args, **kwargs):
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.SRV)
         return super().save(*args, **kwargs)
@@ -1103,11 +1175,11 @@ class LOC(dnslib.RD):
         lat_abs = abs(self.lat)
         lat_d = int(lat_abs)
         lat_m = int((lat_abs - lat_d) * 60)
-        lat_s = round((lat_abs - lat_d - lat_m/60) * 3600)
+        lat_s = round((lat_abs - lat_d - lat_m / 60) * 3600)
         long_abs = abs(self.long)
         long_d = int(long_abs)
         long_m = int((long_abs - long_d) * 60)
-        long_s = round((long_abs - long_d - long_m/60) * 3600)
+        long_s = round((long_abs - long_d - long_m / 60) * 3600)
 
         return f"{lat_d} {lat_m} {lat_s} {'N' if self.lat >= 0 else 'S'} " \
                f"{long_d} {long_m} {long_s} {'E' if self.long >= 0 else 'W'} " \

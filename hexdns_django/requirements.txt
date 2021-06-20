@@ -21,3 +21,4 @@ django-cockroachdb==3.1.*
 git+https://github.com/AS207960/python-utils@4d441c9749c057687d5a33dc4972a1421a570f9a
 pika
 python-dateutil
+kubernetes==18.17.0a1

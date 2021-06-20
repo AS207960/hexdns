@@ -224,6 +224,7 @@ def delete_zone(request, zone_id):
             "zone": user_zone
         })
 
+
 @login_required
 def create_address_record(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
@@ -445,6 +446,79 @@ def delete_aname_record(request, record_id):
         request,
         "dns_grpc/fzone/delete_record.html",
         {"title": "Delete ANAME record", "record": user_record, },
+    )
+
+
+@login_required
+def create_redirect_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.RedirectRecordForm(request.POST, instance=models.RedirectRecord(zone=user_zone))
+        if record_form.is_valid():
+            instance = record_form.save(commit=False)
+            user_zone.last_modified = timezone.now()
+            instance.save()
+            user_zone.save()
+            return redirect("edit_zone", user_zone.id)
+    else:
+        record_form = forms.RedirectRecordForm(instance=models.ANAMERecord(zone=user_zone))
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create redirect record", "form": record_form, },
+    )
+
+
+@login_required
+def edit_redirect_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.RedirectRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.RedirectRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_zone", user_record.zone.id)
+    else:
+        record_form = forms.RedirectRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit redirect record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_redirect_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.RedirectRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_zone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_record.html",
+        {"title": "Delete redirect record", "record": user_record, },
     )
 
 

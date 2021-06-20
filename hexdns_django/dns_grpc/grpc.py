@@ -177,7 +177,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         self.priv_key = priv_key
 
-    def is_rdns(self, qname: DNSLabel) -> bool:
+    @staticmethod
+    def is_rdns(qname: DNSLabel) -> bool:
         if qname.matchSuffix(IP4_APRA):
             return True
         elif qname.matchSuffix(IP6_APRA):
@@ -185,8 +186,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         else:
             return False
 
+    @staticmethod
     def find_zone(
-            self, qname: DNSLabel
+            qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
         zones = models.DNSZone.objects.order_by(Length("zone_root").desc())
         for zone in zones:
@@ -206,8 +208,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     return None, None
         return None, None
 
+    @staticmethod
     def find_secondary_zone(
-            self, qname: DNSLabel
+            qname: DNSLabel
     ) -> (typing.Optional[models.DNSZone], typing.Optional[DNSLabel]):
         zones = models.SecondaryDNSZone.objects.order_by(Length("zone_root").desc())
         for zone in zones:
@@ -224,8 +227,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     return None, None
         return None, None
 
+    @staticmethod
     def find_rzone(
-            self, qname: DNSLabel
+            qname: DNSLabel
     ) -> (typing.Optional[models.ReverseDNSZone], typing.Optional[IP_ADDR]):
         is_ip6_zone = qname.matchSuffix(IP6_APRA)
         qname = (
@@ -268,8 +272,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         return None, None
 
+    @staticmethod
     def find_records(
-            self,
             model: typing.Type[models.DNSZoneRecord],
             rname: DNSLabel,
             zone: models.DNSZone,
@@ -298,6 +302,10 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         ).count():
             return True
         if models.DynamicAddressRecord.objects.filter(zone=zone).filter(
+                Q(record_name=search_name) | Q(record_name=wildcard_search_name)
+        ).count():
+            return True
+        if include_cname and models.RedirectRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
@@ -525,7 +533,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 if new_zone and new_zone != zone and record_name != new_record_name:
                     func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
             else:
-                self.lookup_referral(dns_res, record_name, zone, is_dnssec)
+                redirect_record = self.find_records(models.RedirectRecord, record_name, zone).first()
+                if redirect_record:
+                    dns_res.add_answer(redirect_record.to_rr(query_name))
+                else:
+                    self.lookup_referral(dns_res, record_name, zone, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 

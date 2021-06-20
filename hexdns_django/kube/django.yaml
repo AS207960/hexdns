@@ -55,6 +55,8 @@ data:
   GITHUB_APP_NAME: "glauca-hexdns"
   GITHUB_APP_ID: "110438"
   GITHUB_CLIENT_ID: "Iv1.3bc70034ccad6abe"
+  KUBE_IN_CLUSTER: "true"
+  KUBE_NAMESPACE: "hexdns"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -193,6 +195,103 @@ spec:
         matchLabels:
           app: hexdns
           part: nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-redirect
+  labels:
+    app: hexdns
+    part: redirect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: redirect
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: redirect
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: domains-pubkey
+          configMap:
+            name: domains-jwt-pub
+      containers:
+        - name: gunicorn
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["gunicorn", "-w", "8", "-b", "[::]:8000", "--forwarded-allow-ips", "*", "--access-logfile", "-", "dns_grpc.redirect:application"]
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/domains-pubkey/"
+              name: domains-pubkey
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-rpc
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-redirect
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: redirect
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
     ports:
     - protocol: TCP
       port: 8000
@@ -644,6 +743,26 @@ spec:
   selector:
     app: hexdns
     part: django
+  ports:
+    - port: 8000
+      targetPort: 8000
+  topologyKeys:
+    - kubernetes.io/hostname
+    - topology.kubernetes.io/zone
+    - topology.kubernetes.io/region
+    - '*'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-redirect
+  labels:
+    app: hexdns
+    part: redirect
+spec:
+  selector:
+    app: hexdns
+    part: redirect
   ports:
     - port: 8000
       targetPort: 8000
