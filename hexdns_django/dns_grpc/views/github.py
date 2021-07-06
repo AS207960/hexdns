@@ -268,6 +268,11 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
             setup_form = forms.GithubPagesSetupForm(request.POST)
             setup_form.fields['source_branch'].choices = list(map(lambda b: (b["name"], b["name"]), branches))
 
+            if setup_form.cleaned_data["record_name"] == "@":
+                dns_name = zone_obj.zone_root
+            else:
+                dns_name = f"{setup_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+
             if setup_form.is_valid():
                 requests.post(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
                     "Authorization": f"token {get_installation_token(installation)}",
@@ -282,7 +287,7 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
                     "Authorization": f"token {get_installation_token(installation)}",
                     "Accept": "application/vnd.github.switcheroo-preview+json"
                 }, json={
-                    "cname": f"{setup_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+                    "cname": dns_name,
                 }).raise_for_status()
                 models.GitHubPagesRecord(
                     zone=zone_obj,
@@ -311,13 +316,18 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
             record_form = forms.GithubPagesSetupForm(request.POST)
             record_form.fields['source_branch'].choices = list(map(lambda b: (b["name"], b["name"]), branches))
             if record_form.is_valid():
+                if record_form.cleaned_data["record_name"] == "@":
+                    dns_name = zone_obj.zone_root
+                else:
+                    dns_name = f"{record_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+
                 requests.put(
                     f"https://api.github.com/repos/{owner}/{repo}/pages",
                     headers={
                         "Authorization": f"token {get_installation_token(installation)}",
                         "Accept": "application/vnd.github.switcheroo-preview+json"
                     }, json={
-                        "cname": f"{record_form.cleaned_data['record_name']}.{zone_obj.zone_root}",
+                        "cname": dns_name,
                         "source": {
                             "branch": record_form.cleaned_data["source_branch"],
                             "path": record_form.cleaned_data["source_path"],
