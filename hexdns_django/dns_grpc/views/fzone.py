@@ -1,3 +1,4 @@
+import base64
 import urllib.parse
 import jwt
 import secrets
@@ -175,6 +176,7 @@ def edit_zone(request, zone_id):
         raise PermissionDenied
 
     dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.zone_root)
+    dnskey = utils.get_dnskey()
     sharing_data = {
         "referrer": settings.OIDC_CLIENT_ID,
         "referrer_uri": request.build_absolute_uri()
@@ -191,7 +193,9 @@ def edit_zone(request, zone_id):
             "dnssec_tag": dnssec_tag,
             "dnssec_digest": dnssec_digest,
             "sharing_uri": sharing_uri,
-            "notice": request.session.pop("zone_notice", None)
+            "notice": request.session.pop("zone_notice", None),
+            "dnskey": dnskey,
+            "dnskey_key": base64.b64encode(dnskey.key).decode()
         },
     )
 
