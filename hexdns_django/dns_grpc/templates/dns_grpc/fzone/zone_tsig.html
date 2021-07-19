@@ -27,6 +27,7 @@
                 <tr>
                     <th>Record name</th>
                     <th>Type</th>
+                    <th>Restricted to</th>
                     <th>Secret</th>
                     <th></th>
                 </tr>
@@ -40,9 +41,10 @@
                                 {% if record.type == "U" %}
                                     Unlimited
                                 {% elif record.type == "D" %}
-                                    DNS01
+                                    ACME DNS01
                                 {% endif %}
                             </td>
+                            <td>{{ record.restrict_to }}</td>
                             <td>{{ record.secret_str }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">

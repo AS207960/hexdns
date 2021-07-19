@@ -2153,6 +2153,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return None
 
         def can_manage(rrtype, record_name: dnslib.DNSLabel):
+            if tsig_key.restrict_to != "@":
+                restrict_suffix = dnslib.DNSLabel(tsig_key.restrict_to)
+                if not record_name.matchSuffix(restrict_suffix):
+                    return False
+
             if tsig_key.type == tsig_key.TYPE_UNLIMITED:
                 return True
             elif tsig_key.type == tsig_key.TYPE_ACME_DNS01:

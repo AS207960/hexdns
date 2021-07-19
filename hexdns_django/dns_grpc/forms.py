@@ -505,17 +505,21 @@ class HTTPSRecordForm(SVCBBaseRecordForm):
 
 
 class UpdateSecretForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, has_id=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = crispy_forms.helper.FormHelper()
-        self.fields['id'].disabled = True
-        self.fields['id'].required = False
+        if has_id:
+            self.fields['id'].disabled = True
+            self.fields['id'].required = False
+        else:
+            del self.fields['id']
         self.helper.use_custom_control = False
         self.helper.form_class = 'form-horizontal'
         self.helper.label_class = 'col-lg-4'
         self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
-            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}"),
+            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}") if has_id else None,
+            crispy_forms.bootstrap.AppendedText("restrict_to", f".{self.instance.zone.zone_root}"),
             "type",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))

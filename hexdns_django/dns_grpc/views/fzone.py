@@ -1658,14 +1658,13 @@ def create_zone_secret(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.UpdateSecretForm(request.POST, instance=models.DNSZoneUpdateSecrets(zone=user_zone))
-        del record_form.fields['id']
+        record_form = forms.UpdateSecretForm(
+            request.POST, instance=models.DNSZoneUpdateSecrets(zone=user_zone), has_id=False)
         if record_form.is_valid():
             record_form.save()
             return redirect("edit_zone_secrets", user_zone.id)
     else:
-        record_form = forms.UpdateSecretForm(instance=models.DNSZoneUpdateSecrets(zone=user_zone))
-        del record_form.fields['id']
+        record_form = forms.UpdateSecretForm(instance=models.DNSZoneUpdateSecrets(zone=user_zone), has_id=False)
 
     return render(
         request,

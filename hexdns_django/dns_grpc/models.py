@@ -156,6 +156,9 @@ class DNSZoneUpdateSecrets(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_zoneupdatesecret", primary_key=True)
     zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
     type = models.CharField(max_length=1, choices=TYPES)
+    restrict_to = models.CharField(
+        max_length=255, default="@", verbose_name="Restrict to (@ for zone root)"
+    )
     secret = models.BinaryField(default=make_update_secret)
 
     def __str__(self):
