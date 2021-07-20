@@ -2153,6 +2153,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return None
 
         def can_manage(rrtype, record_name: dnslib.DNSLabel):
+            print(tsig_key.restrict_to, record_name)
             if tsig_key.restrict_to != "@":
                 restrict_suffix = dnslib.DNSLabel(tsig_key.restrict_to)
                 if not record_name.matchSuffix(restrict_suffix):
@@ -2175,7 +2176,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
             # RFC 2136 § 3.4.2.2
             if rr.rclass == dns_req.q.qclass:
-                if not can_manage(rr.rtype, rr.rname):
+                if not can_manage(rr.rtype, record_name):
                     dns_res.header.rcode = RCODE.NOTAUTH
                     sign_resp()
                     return dns_res
@@ -2239,14 +2240,14 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     ):
                         for record in self.find_records(m, record_name, zone):
                             record_rr = record.to_rr(rr.rname)
-                            if not can_manage(record_rr.rtype, rr.rname):
+                            if not can_manage(record_rr.rtype, record_name):
                                 dns_res.header.rcode = RCODE.NOTAUTH
                                 sign_resp()
                                 return dns_res
                             record.delete()
                 else:
                     records = get_record_models(rr.rtype, record_name)
-                    if not can_manage(rr.rtype, rr.rname):
+                    if not can_manage(rr.rtype, record_name):
                         dns_res.header.rcode = RCODE.NOTAUTH
                         sign_resp()
                         return dns_res
@@ -2263,7 +2264,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 if records is None:
                     continue
 
-                if not can_manage(rr.rtype, rr.rname):
+                if not can_manage(rr.rtype, record_name):
                     dns_res.header.rcode = RCODE.NOTAUTH
                     sign_resp()
                     return dns_res
