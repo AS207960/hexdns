@@ -25,13 +25,13 @@ spec:
           effect: NoSchedule
       containers:
         - name: cache
-          image: as207960/dns-cache:13
+          image: as207960/dns-cache:14
           args:
             - "-a"
             - "::"
             - "-u"
             - "http://hexdns-grpc:50051"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 53
             - containerPort: 9184

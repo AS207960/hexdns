@@ -110,22 +110,33 @@ async fn fetch_and_insert(
     msg: trust_dns_proto::op::message::Message,
     mut client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: &mut Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
+    in_flight: &mut Arc<Mutex<std::collections::HashSet<CacheKey>>>,
     new: bool,
 ) -> Result<trust_dns_proto::op::message::Message, trust_dns_client::op::ResponseCode> {
+    let mut in_flight_lock = in_flight.lock().await;
+    in_flight_lock.insert(cache_key.clone());
+
     let request = tonic::Request::new(dns_proto::DnsPacket {
-        msg: msg.to_bytes().map_err(|_| trust_dns_client::op::ResponseCode::FormErr)?
+        msg: msg.to_bytes().map_err(|_| {
+            in_flight_lock.remove(&cache_key);
+            trust_dns_client::op::ResponseCode::FormErr
+        })?
     });
     let timer = UPSTREAM_RESPONSE_TIME.start_timer();
+    std::mem::drop(in_flight_lock);
     let r_response = client.query(request).await;
+    let mut in_flight_lock = in_flight.lock().await;
     timer.observe_duration();
     let response = r_response.map_err(|e| {
         error!("Error communicating with upstream: {}", e);
         UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
+        in_flight_lock.remove(&cache_key);
         trust_dns_client::op::ResponseCode::ServFail
     })?;
     let response_msg = trust_dns_proto::op::message::Message::from_bytes(&response.into_inner().msg).map_err(|e| {
         error!("Error parsing response from upstream: {}", e);
         UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
+        in_flight_lock.remove(&cache_key);
         trust_dns_client::op::ResponseCode::ServFail
     })?;
 
@@ -139,8 +150,10 @@ async fn fetch_and_insert(
             name_servers: response_msg.name_servers().to_vec(),
             additionals: response_msg.additionals().to_vec(),
         };
-        cache.lock().await.put(cache_key, new_cache_data);
+        cache.lock().await.put(cache_key.clone(), new_cache_data);
     }
+
+    in_flight_lock.remove(&cache_key);
 
     Ok(response_msg)
 }
@@ -149,6 +162,7 @@ async fn lookup_cache_or_fetch(
     msg: trust_dns_proto::op::message::Message,
     client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     mut cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
+    mut in_flight: Arc<Mutex<std::collections::HashSet<CacheKey>>>,
 ) -> Result<trust_dns_proto::op::message::Message, trust_dns_client::op::ResponseCode> {
     let dnssec = match msg.edns() {
         Some(e) => e.dnssec_ok(),
@@ -161,6 +175,17 @@ async fn lookup_cache_or_fetch(
         qtype: query.query_type(),
         is_dnssec: dnssec,
     };
+
+
+    loop {
+        if in_flight.lock().await.contains(&cache_key) {
+            trace!("Request in flight for {:?}", cache_key);
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        } else {
+            break;
+        }
+    }
+
     let cached_result = match cache.lock().await.get(&cache_key) {
         Some(c) => Some(c.to_owned()),
         None => None
@@ -176,7 +201,7 @@ async fn lookup_cache_or_fetch(
                 let msg = msg.clone();
                 CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
                 tokio::spawn(async move {
-                    let _ = fetch_and_insert(cache_key, msg, client, &mut cache, false).await;
+                    let _ = fetch_and_insert(cache_key, msg, client, &mut cache, &mut in_flight, false).await;
                 });
             } else {
                 CACHE_COUNTER.with_label_values(&["hit"]).inc();
@@ -198,7 +223,7 @@ async fn lookup_cache_or_fetch(
     }
 
     CACHE_COUNTER.with_label_values(&["miss"]).inc();
-    let mut response_msg = fetch_and_insert(cache_key, msg, client, &mut cache, true).await?;
+    let mut response_msg = fetch_and_insert(cache_key, msg, client, &mut cache, &mut in_flight, true).await?;
     response_msg.set_authoritative(true);
 
     Ok(response_msg)
@@ -211,6 +236,7 @@ struct Config {
 struct Cache {
     client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
+    in_flight: Arc<Mutex<std::collections::HashSet<CacheKey>>>,
     config: Arc<Config>,
 }
 
@@ -230,6 +256,7 @@ impl trust_dns_server::server::RequestHandler for Cache {
                     let timer_axfr = QUERY_RESPONSE_TIME.with_label_values(&["axfr"]).start_timer();
                     let mut client = self.client.clone();
                     let cache = self.cache.clone();
+                    let in_flight = self.in_flight.clone();
                     let config = self.config.clone();
                     let lookup = async move {
                         let mut response = trust_dns_server::authority::MessageResponseBuilder::new(Some(request_message.raw_queries()));
@@ -359,8 +386,9 @@ impl trust_dns_server::server::RequestHandler for Cache {
                                         let mut new_msg = msg.clone();
                                         let n_client = client.clone();
                                         let n_cache = cache.clone();
+                                        let n_in_flight = in_flight.clone();
                                         new_msg.add_query(q);
-                                        lookup_cache_or_fetch(new_msg, n_client, n_cache)
+                                        lookup_cache_or_fetch(new_msg, n_client, n_cache, n_in_flight)
                                     })
                                     .collect::<Vec<_>>().await.into_iter().collect();
 
@@ -565,10 +593,12 @@ fn main() {
 
     let tcp_request_timeout = std::time::Duration::from_secs(5);
     let server_cache = Arc::new(Mutex::new(lru::LruCache::new(65535)));
+    let server_in_flight = Arc::new(Mutex::new(std::collections::HashSet::new()));
 
     let catalog = Cache {
         client: client.clone(),
         cache: server_cache.clone(),
+        in_flight: server_in_flight.clone(),
         config: Arc::new(Config {
             server_name: args.value_of("name").map(|s| s.to_string().into_bytes())
         }),
@@ -695,6 +725,7 @@ fn main() {
     }
 
     let mut updater_cache = server_cache.clone();
+    let mut updater_in_flight = server_in_flight.clone();
     runtime.spawn(async move {
         loop {
             info!("Starting cache updater");
@@ -722,7 +753,7 @@ fn main() {
             }
 
             for (cache_key, msg) in to_update {
-                let _ = fetch_and_insert(cache_key, msg, client.clone(), &mut updater_cache, false).await;
+                let _ = fetch_and_insert(cache_key, msg, client.clone(), &mut updater_cache, &mut updater_in_flight, false).await;
             }
         }
     });
