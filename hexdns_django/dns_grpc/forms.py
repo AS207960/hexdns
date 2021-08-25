@@ -5,6 +5,7 @@ from . import models
 import crispy_forms.helper
 import crispy_forms.layout
 import crispy_forms.bootstrap
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 
 
@@ -676,6 +677,36 @@ class DMARCForm(forms.Form):
             "failure_feedback"
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Generate"))
+
+
+class ICloudForm(forms.Form):
+    record_name = forms.CharField(
+        label="Base record name (@ for zone root)", required=True
+    )
+    verification_txt = forms.CharField(
+        label="TXT record starting apple-domain", required=True
+    )
+
+    def __init__(self, *args, zone, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{zone.zone_root}"),
+            "verification_txt"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Setup"))
+
+    def clean_verification_txt(self):
+        data = self.cleaned_data['verification_txt']
+
+        if not data.startswith("apple-domain="):
+            raise ValidationError("Verification TXT record does not start with apple-domain")
+
+        return data
 
 
 class AdditionalCDSForm(forms.ModelForm):

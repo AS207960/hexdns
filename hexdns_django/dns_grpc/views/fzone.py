@@ -1909,3 +1909,81 @@ def setup_gsuite(request, zone_id):
         "dns_grpc/fzone/setup_gsuite.html",
         {"zone": zone_obj},
     )
+
+
+@login_required
+def setup_icloud(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not zone_obj.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        form = forms.ICloudForm(request.POST, zone=zone_obj)
+        if form.is_valid():
+            zone_obj.mxrecord_set.filter(record_name=form.cleaned_data['record_name']).delete()
+            for r in (
+                    ("mx01.mail.icloud.com", 1),
+                    ("mx02.mail.icloud.com", 2),
+            ):
+                mx = models.MXRecord(
+                    zone=zone_obj,
+                    record_name=form.cleaned_data['record_name'],
+                    ttl=3600,
+                    exchange=r[0],
+                    priority=r[1]
+                )
+                mx.save()
+
+            verif_txt = models.TXTRecord(
+                zone=zone_obj,
+                record_name=form.cleaned_data['record_name'],
+                ttl=3600,
+                data=form.cleaned_data['verification_txt']
+            )
+            verif_txt.save()
+
+            dkim_root = ("" if form.cleaned_data["record_name"] == "@" else f'.{form.cleaned_data["record_name"]}')
+            dkim_label = f'sig1._domainkey{dkim_root}'
+
+            zone_obj.cnamerecord_set.filter(record_name=dkim_label).delete()
+            dkim_cname = models.CNAMERecord(
+                zone=zone_obj,
+                record_name=dkim_label,
+                ttl=3600,
+                alias=f"sig1.dkim{dkim_root}.{zone_obj.zone_root}.at.icloudmailadmin.com."
+            )
+            dkim_cname.save()
+
+            existing_spf_record = zone_obj.txtrecord_set.filter(data__startswith="v=spf1").first()
+            if existing_spf_record:
+                existing_spf_record_parts = existing_spf_record.data.split(" ")
+                if "include:icloud.com" not in existing_spf_record_parts:
+                    existing_spf_record_parts.insert(
+                        len(existing_spf_record_parts) - 1,
+                        "include:icloud.com"
+                    )
+                existing_spf_record.data = " ".join(existing_spf_record_parts)
+                existing_spf_record.save()
+            else:
+                spf_txt = models.TXTRecord(
+                    zone=zone_obj,
+                    record_name=form.cleaned_data['record_name'],
+                    ttl=3600,
+                    data="v=spf1 include:icloud.com -all"
+                )
+                spf_txt.save()
+
+            return redirect('edit_zone', zone_obj.id)
+    else:
+        form = forms.ICloudForm(zone=zone_obj)
+
+    return render(
+        request,
+        "dns_grpc/fzone/setup_icloud.html",
+        {
+            "zone": zone_obj,
+            "form": form
+        },
+    )

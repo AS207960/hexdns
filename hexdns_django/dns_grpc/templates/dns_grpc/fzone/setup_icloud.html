@@ -1,0 +1,13 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <div class="bg-light p-3 rounded">
+            <h1 class="display-4">Setup for iCloud Custom Email</h1>
+            <b>Zone name: </b> {{ zone.zone_root }}
+            <hr class="my-4">
+            <p>This will remove all current MX records and replace them with those for iCloud.</p>
+            {% crispy form form.helper %}
+        </div>
+    </div>
+{% endblock %}⏎ 

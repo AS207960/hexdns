@@ -11,6 +11,7 @@ urlpatterns = [
     path("zone/<str:zone_id>/export_zone_file/", views.fzone.export_zone_file, name="export_zone_file"),
     path("zone/<str:zone_id>/generate_dmarc/", views.fzone.generate_dmarc, name="generate_dmarc"),
     path("zone/<str:zone_id>/setup_gsutie/", views.fzone.setup_gsuite, name="setup_gsuite"),
+    path("zone/<str:zone_id>/setup_icloud/", views.fzone.setup_icloud, name="setup_icloud"),
     path("zone/<str:zone_id>/verify_google/", views.google.verify_zone_google, name="verify_google"),
     path("zone/<str:zone_id>/setup_github_pages/", views.github.setup_github_pages, name="setup_github_pages"),
     path("zone/<str:zone_id>/setup_github_pages/<str:owner>/<str:repo>/", views.github.setup_github_pages_repo,
