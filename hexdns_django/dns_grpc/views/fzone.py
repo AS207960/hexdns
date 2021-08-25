@@ -1956,24 +1956,26 @@ def setup_icloud(request, zone_id):
             )
             dkim_cname.save()
 
-            existing_spf_record = zone_obj.txtrecord_set.filter(data__startswith="v=spf1").first()
-            if existing_spf_record:
-                existing_spf_record_parts = existing_spf_record.data.split(" ")
-                if "include:icloud.com" not in existing_spf_record_parts:
-                    existing_spf_record_parts.insert(
-                        len(existing_spf_record_parts) - 1,
-                        "include:icloud.com"
-                    )
-                existing_spf_record.data = " ".join(existing_spf_record_parts)
-                existing_spf_record.save()
-            else:
-                spf_txt = models.TXTRecord(
-                    zone=zone_obj,
-                    record_name=form.cleaned_data['record_name'],
-                    ttl=3600,
-                    data="v=spf1 include:icloud.com -all"
-                )
-                spf_txt.save()
+            zone_obj.txtrecord_set.filter(
+                data__startswith="v=spf1", record_name=form.cleaned_data['record_name']
+            ).delete()
+            spf_txt = models.TXTRecord(
+                zone=zone_obj,
+                record_name=form.cleaned_data['record_name'],
+                ttl=3600,
+                data="v=spf1 redirect=icloud.com"
+            )
+            spf_txt.save()
+            # if existing_spf_record:
+            #     existing_spf_record_parts = existing_spf_record.data.split(" ")
+            #     if "include:icloud.com" not in existing_spf_record_parts:
+            #         existing_spf_record_parts.insert(
+            #             len(existing_spf_record_parts) - 1,
+            #             "include:icloud.com"
+            #         )
+            #     existing_spf_record.data = " ".join(existing_spf_record_parts)
+            #     existing_spf_record.save()
+            # else:
 
             return redirect('edit_zone', zone_obj.id)
     else:
