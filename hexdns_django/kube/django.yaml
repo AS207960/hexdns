@@ -46,6 +46,8 @@ data:
   BILLING_PLAN_ID: "8db7eda0-4c84-45e4-b2d8-1438625daa92"
   RESOLVER_ADDR: "hexdns-unbound"
   RESOLVER_PORT: "5053"
+  RESOLVER_NO_DNS64_ADDR: "hexdns-unbound-no-dns64"
+  RESOLVER_NO_DNS64_PORT: "5053"
   FEEDBACK_URL: "http://feedback-nginx"
   EMAIL_HOST: "mx.postal.as207960.net"
   EMAIL_HOST_USER: "apikey"

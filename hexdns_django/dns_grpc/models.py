@@ -541,7 +541,7 @@ class ANAMERecord(DNSZoneRecord):
             question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
             try:
                 res_pkt = question.send(
-                    settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=True, tcp=True, timeout=30
+                    settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT, ipv6=True, tcp=True, timeout=30
                 )
             except socket.timeout:
                 raise DNSError(f"Failed to get address for {self.alias}: timeout")

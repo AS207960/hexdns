@@ -21,6 +21,27 @@ data:
         module-config: "dns64 validator iterator"
         dns64-prefix: 2a0d:1a40:7900:6:0:2::/96
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hexdns-unbound-no-dns64-conf
+data:
+  unbound.conf: |
+    server:
+        interface: 0.0.0.0@5053
+        interface: ::@5053
+        cache-max-ttl: 10
+        cache-max-negative-ttl: 10
+        prefer-ip6: yes
+        do-daemonize: no
+        access-control: ::/0 allow
+        auto-trust-anchor-file: /var/run/unbound/root.key
+        logfile: ""
+        log-servfail: no
+        verbosity: 1
+        statistics-interval: 0
+        target-fetch-policy: "0 0 0 0 0"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,12 +49,14 @@ metadata:
   labels:
     app: hexdns
     part: unbound
+    dns64: yes
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: hexdns
       part: unbound
+      dns64: yes
   template:
     metadata:
       annotations:
@@ -41,6 +64,7 @@ spec:
       labels:
         app: hexdns
         part: unbound
+        dns64: yes
     spec:
       volumes:
         - name: conf
@@ -90,10 +114,80 @@ metadata:
   labels:
     app: hexdns
     part: unbound
+    dns64: yes
 spec:
   selector:
     app: hexdns
     part: unbound
+    dns64: yes
+  ports:
+    - port: 5053
+      targetPort: 5053
+      protocol: UDP
+      name: dns-udp
+    - port: 5053
+      targetPort: 5053
+      protocol: TCP
+      name: dns-tcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-unbound-no-dns64
+  labels:
+    app: hexdns
+    part: unbound
+    dns64: no
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: unbound
+      dns64: no
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: unbound
+        dns64: no
+    spec:
+      volumes:
+        - name: conf
+          configMap:
+            name: hexdns-unbound-no-dns64-conf
+      containers:
+        - name: unbound
+          image: klutchell/unbound
+          ports:
+            - containerPort: 5053
+          volumeMounts:
+            - mountPath: "/opt/unbound/etc/unbound"
+              name: conf
+        - name: clatd
+          image: as207960/clatd
+          command: [
+            "/bin/bash", "-c",
+            "/clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'"
+          ]
+          securityContext:
+            privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-unbound-no-dns64
+  labels:
+    app: hexdns
+    part: unbound
+    dns64: no
+spec:
+  selector:
+    app: hexdns
+    part: unbound
+    dns64: no
   ports:
     - port: 5053
       targetPort: 5053
