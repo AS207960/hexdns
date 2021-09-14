@@ -598,7 +598,11 @@ class CNAMERecord(DNSZoneRecord):
 
     def validate_unique(self, exclude=None):
         if "record_name" not in exclude:
-            other_cnames = len(self.__class__.objects.filter(zone=self.zone, record_name=self.record_name.lower()))
+            other_cnames = len(
+                self.__class__.objects
+                    .filter(zone=self.zone, record_name=self.record_name.lower())
+                    .exclude()
+            )
             if other_cnames >= 1:
                 raise ValidationError({
                     "record_name": "Another CNAME already exists with the same label"

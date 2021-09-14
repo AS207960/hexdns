@@ -49,14 +49,14 @@ metadata:
   labels:
     app: hexdns
     part: unbound
-    dns64: yes
+    dns64: "yes"
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: hexdns
       part: unbound
-      dns64: yes
+      dns64: "yes"
   template:
     metadata:
       annotations:
@@ -64,7 +64,7 @@ spec:
       labels:
         app: hexdns
         part: unbound
-        dns64: yes
+        dns64: "yes"
     spec:
       volumes:
         - name: conf
@@ -114,12 +114,12 @@ metadata:
   labels:
     app: hexdns
     part: unbound
-    dns64: yes
+    dns64: "yes"
 spec:
   selector:
     app: hexdns
     part: unbound
-    dns64: yes
+    dns64: "yes"
   ports:
     - port: 5053
       targetPort: 5053
@@ -137,14 +137,14 @@ metadata:
   labels:
     app: hexdns
     part: unbound
-    dns64: no
+    dns64: "no"
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: hexdns
       part: unbound
-      dns64: no
+      dns64: "no"
   template:
     metadata:
       annotations:
@@ -152,7 +152,7 @@ spec:
       labels:
         app: hexdns
         part: unbound
-        dns64: no
+        dns64: "no"
     spec:
       volumes:
         - name: conf
@@ -182,12 +182,12 @@ metadata:
   labels:
     app: hexdns
     part: unbound
-    dns64: no
+    dns64: "no"
 spec:
   selector:
     app: hexdns
     part: unbound
-    dns64: no
+    dns64: "no"
   ports:
     - port: 5053
       targetPort: 5053
