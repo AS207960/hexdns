@@ -601,7 +601,7 @@ class CNAMERecord(DNSZoneRecord):
             other_cnames = len(
                 self.__class__.objects
                     .filter(zone=self.zone, record_name=self.record_name.lower())
-                    .exclude()
+                    .exclude(id=self.id)
             )
             if other_cnames >= 1:
                 raise ValidationError({

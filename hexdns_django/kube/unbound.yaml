@@ -12,7 +12,7 @@ data:
         prefer-ip6: yes
         do-daemonize: no
         access-control: ::/0 allow
-        auto-trust-anchor-file: /var/run/unbound/root.key
+        auto-trust-anchor-file: /etc/unbound/root.key
         logfile: ""
         log-servfail: no
         verbosity: 1
@@ -35,7 +35,7 @@ data:
         prefer-ip6: yes
         do-daemonize: no
         access-control: ::/0 allow
-        auto-trust-anchor-file: /var/run/unbound/root.key
+        auto-trust-anchor-file: /etc/unbound/root.key
         logfile: ""
         log-servfail: no
         verbosity: 1
@@ -76,8 +76,9 @@ spec:
           ports:
             - containerPort: 5053
           volumeMounts:
-            - mountPath: "/opt/unbound/etc/unbound"
+            - mountPath: "/etc/unbound/unbound.conf"
               name: conf
+              subPath: unbound.conf
         - name: clatd
           image: as207960/clatd
           command: [
@@ -164,8 +165,9 @@ spec:
           ports:
             - containerPort: 5053
           volumeMounts:
-            - mountPath: "/opt/unbound/etc/unbound"
+            - mountPath: "/etc/unbound/unbound.conf"
               name: conf
+              subPath: unbound.conf
         - name: clatd
           image: as207960/clatd
           command: [
