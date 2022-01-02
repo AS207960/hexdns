@@ -3,6 +3,7 @@ from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 from dns_grpc import models, views
+import keycloak.exceptions
 import random
 import retry
 import dnslib
@@ -105,7 +106,10 @@ class Command(BaseCommand):
             if zone.num_check_fails >= 5:
                 print(f"Setting {zone} to inactive")
                 zone.active = False
-                mail_invalid(zone.get_user(), zone)
+                try:
+                    mail_invalid(zone.get_user(), zone)
+                except keycloak.exceptions.KeycloakClientError as e:
+                    print(f"Failed to notify user of status: {e}")
             zone.save()
 
     def handle(self, *args, **options):
