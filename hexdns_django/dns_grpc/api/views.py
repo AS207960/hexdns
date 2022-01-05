@@ -1,6 +1,9 @@
-from rest_framework import viewsets, exceptions
+from rest_framework import viewsets, exceptions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -24,9 +27,19 @@ class BillingError(exceptions.APIException):
 
 
 class DNSZoneViewSet(viewsets.ModelViewSet):
-    serializer_class = serializers.DNSZoneSerializer
     queryset = models.DNSZone.objects.all()
     permission_classes = [as207960_utils.api.permissions.keycloak(models.DNSZone)]
+
+    def get_serializer(self, *args, **kwargs):
+        kwargs.setdefault('context', {
+            'request': self.request,
+            'format': self.format_kwarg,
+            'view': self
+        })
+        if self.action == "import_zone_file":
+            return serializers.ImportZoneFileSerializer(*args, **kwargs)
+        else:
+            return serializers.DNSZoneSerializer(*args, **kwargs)
 
     def filter_queryset(self, queryset):
         if not isinstance(self.request.auth, auth.OAuthToken):
@@ -64,6 +77,28 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
         instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def import_zone_file(self, request, pk=None):
+        if not isinstance(request.auth, auth.OAuthToken):
+            raise PermissionDenied
+
+        zone_obj = get_object_or_404(models.DNSZone, id=pk)
+        if not zone_obj.has_scope(request.auth.token, 'edit'):
+            raise PermissionDenied
+
+        serializer = serializers.ImportZoneFileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            zone_obj.import_zone_file(
+                serializer.validated_data['zone_file'],
+                overwrite=serializer.validated_data['overwrite']
+            )
+        except ValueError as e:
+            raise serializers.serializers.ValidationError({'zone_file': str(e)})
+
+        return Response(status=status.HTTP_202_ACCEPTED)
 
 
 class ReverseDNSZoneViewSet(viewsets.ModelViewSet):

@@ -491,3 +491,8 @@ class SecondaryDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         write_once_fields = ('zone_root',)
 
     records = SecondaryDNSZoneRecordSerializer(many=True, read_only=True, source='secondarydnszonerecord_set')
+
+
+class ImportZoneFileSerializer(serializers.Serializer):
+    zone_file = serializers.CharField()
+    overwrite = serializers.BooleanField(default=False, required=False)

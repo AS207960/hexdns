@@ -107,6 +107,58 @@ class DNSZone(models.Model):
     def __str__(self):
         return self.zone_root
 
+    def import_zone_file(self, zone_data, overwrite=False):
+        suffix = dnslib.DNSLabel(self.zone_root)
+        p = dnslib.ZoneParser(zone_data, origin=suffix)
+        try:
+            records = list(p)
+        except (dnslib.DNSError, ValueError, IndexError) as e:
+            raise ValueError(f"Invalid zone file: {str(e)}")
+        else:
+            if overwrite:
+                self.addressrecord_set.all().delete()
+                self.cnamerecord_set.all().delete()
+                self.mxrecord_set.all().delete()
+                self.nsrecord_set.all().delete()
+                self.txtrecord_set.all().delete()
+                self.srvrecord_set.all().delete()
+                self.caarecord_set.all().delete()
+                self.naptrrecord_set.all().delete()
+
+            for record in records:
+                if record.rclass != dnslib.CLASS.IN:
+                    continue
+                record_name = record.rname.stripSuffix(suffix)
+                if len(record_name.label) == 0:
+                    record_name = dnslib.DNSLabel("@")
+                if record.rtype == dnslib.QTYPE.A:
+                    r = AddressRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.AAAA:
+                    r = AddressRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.CNAME:
+                    r = CNAMERecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.MX:
+                    r = MXRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
+                    r = NSRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.TXT:
+                    r = TXTRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.SRV:
+                    r = SRVRecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.CAA:
+                    r = CAARecord.from_rr(record, self)
+                    r.save()
+                elif record.rtype == dnslib.QTYPE.NAPTR:
+                    r = NAPTRRecord.from_rr(record, self)
+                    r.save()
+
 
 def hex_validator(value):
     try:

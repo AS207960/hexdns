@@ -572,6 +572,7 @@ class ReverseNSRecordForm(forms.ModelForm):
 
 class ZoneImportForm(forms.Form):
     zone_data = forms.CharField(widget=forms.Textarea())
+    overwrite = forms.BooleanField(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -587,6 +588,7 @@ class ZoneImportForm(forms.Form):
                 </div>
             """),
             "zone_data",
+            "overwrite",
         )
         self.helper.add_input(crispy_forms.layout.Submit("submit", "Import"))
 

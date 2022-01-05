@@ -1740,46 +1740,11 @@ def import_zone_file(request, zone_id):
         import_form = forms.ZoneImportForm(request.POST)
         if import_form.is_valid():
             zone_data = import_form.cleaned_data["zone_data"]
-            suffix = dnslib.DNSLabel(zone_obj.zone_root)
-            p = dnslib.ZoneParser(zone_data, origin=suffix)
             try:
-                records = list(p)
-            except (dnslib.DNSError, ValueError, IndexError) as e:
-                import_form.errors["zone_data"] = (f"Invalid zone file: {str(e)}",)
+                zone_obj.import_zone_file(zone_data, overwrite=import_form.cleaned_data['overwrite'])
+            except ValueError as e:
+                import_form.errors["zone_data"] = (str(e),)
             else:
-                for record in records:
-                    if record.rclass != dnslib.CLASS.IN:
-                        continue
-                    record_name = record.rname.stripSuffix(suffix)
-                    if len(record_name.label) == 0:
-                        record_name = dnslib.DNSLabel("@")
-                    if record.rtype == dnslib.QTYPE.A:
-                        r = models.AddressRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.AAAA:
-                        r = models.AddressRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.CNAME:
-                        r = models.CNAMERecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.MX:
-                        r = models.MXRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
-                        r = models.NSRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.TXT:
-                        r = models.TXTRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.SRV:
-                        r = models.SRVRecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.CAA:
-                        r = models.CAARecord.from_rr(record, zone_obj)
-                        r.save()
-                    elif record.rtype == dnslib.QTYPE.NAPTR:
-                        r = models.NAPTRRecord.from_rr(record, zone_obj)
-                        r.save()
                 return redirect('edit_zone', zone_id)
     else:
         import_form = forms.ZoneImportForm()
