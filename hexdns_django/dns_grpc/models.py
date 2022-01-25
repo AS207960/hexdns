@@ -737,11 +737,29 @@ class RedirectRecord(DNSZoneRecord):
         api_client.delete_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
         return super().delete(*args, **kwargs)
 
-    def to_rr(self, query_name):
+    def to_rr_v4(self, query_name):
         return dnslib.RR(
             query_name,
-            dnslib.QTYPE.CNAME,
-            rdata=dnslib.CNAME("kube-ingress.as207960.net"),
+            dnslib.QTYPE.A,
+            rdata=dnslib.A("45.129.95.254"),
+            ttl=self.ttl,
+        )
+
+    def to_rr_v6(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.AAAA,
+            rdata=dnslib.AAAA("2a0e:1cc1:1::1:7"),
+            ttl=self.ttl,
+        )
+
+    def to_rr_caa(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.CAA,
+            rdata=dnslib.CAA(
+                flags=0, tag="issue", value="letsencrypt.org"
+            ),
             ttl=self.ttl,
         )
 

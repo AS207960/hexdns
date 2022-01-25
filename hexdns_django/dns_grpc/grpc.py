@@ -305,11 +305,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        if include_cname and models.RedirectRecord.objects.filter(zone=zone).filter(
+        if include_cname and models.CNAMERecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
-        if include_cname and models.CNAMERecord.objects.filter(zone=zone).filter(
+        if models.RedirectRecord.objects.filter(zone=zone).filter(
                 Q(record_name=search_name) | Q(record_name=wildcard_search_name)
         ).count():
             return True
@@ -533,11 +533,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 if new_zone and new_zone != zone and record_name != new_record_name:
                     func(dns_res, new_record_name, new_zone, cname_record.alias, is_dnssec)
             else:
-                redirect_record = self.find_records(models.RedirectRecord, record_name, zone).first()
-                if redirect_record:
-                    dns_res.add_answer(redirect_record.to_rr(query_name))
-                else:
-                    self.lookup_referral(dns_res, record_name, zone, is_dnssec)
+                self.lookup_referral(dns_res, record_name, zone, is_dnssec)
         else:
             self.lookup_referral(dns_res, record_name, zone, is_dnssec)
 
@@ -576,6 +572,15 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     addr_found = True
                     for rr in rrs:
                         dns_res.add_answer(rr)
+        if not addr_found:
+            redirect_record = self.find_records(models.RedirectRecord, record_name, zone).first()
+            if redirect_record:
+                if dns_res.q.qtype == QTYPE.A:
+                    addr_found = True
+                    dns_res.add_answer(redirect_record.to_rr_v4(query_name))
+                elif dns_res.q.qtype == QTYPE.AAAA:
+                    addr_found = True
+                    dns_res.add_answer(redirect_record.to_rr_v6(query_name))
         if not addr_found:
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_addr
@@ -689,9 +694,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for record in records:
             dns_res.add_answer(record.to_rr(query_name))
         if not len(records):
-            self.lookup_cname(
-                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_caa
-            )
+            redirect_record = self.find_records(models.RedirectRecord, record_name, zone).first()
+            if redirect_record:
+                dns_res.add_answer(redirect_record.to_rr_caa(query_name))
+            else:
+                self.lookup_cname(
+                    dns_res, record_name, zone, query_name, is_dnssec, self.lookup_caa
+                )
 
     def lookup_naptr(
             self,
