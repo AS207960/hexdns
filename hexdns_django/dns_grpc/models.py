@@ -197,6 +197,12 @@ class DNSZoneCustomNS(models.Model):
     dns_zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE, related_name='custom_ns')
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
 
+    def save(self, *args, **kwargs):
+        self.nameserver = self.nameserver.lower()
+        send_flush_cache_message(dnslib.DNSLabel(self.dns_zone.zone_root), getattr(dnslib.CLASS, "*"), dnslib.QTYPE.NS)
+        send_flush_cache_message(dnslib.DNSLabel(self.dns_zone.zone_root), getattr(dnslib.CLASS, "*"), dnslib.QTYPE.SOA)
+        return super().save(*args, **kwargs)
+
 
 def make_update_secret():
     return secrets.token_bytes(64)
