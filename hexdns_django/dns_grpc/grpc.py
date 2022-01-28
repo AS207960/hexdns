@@ -641,10 +641,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for record in records:
             dns_res.add_answer(record.to_rr(query_name))
         if record_name == "@":
-            for ns in NAMESERVERS:
-                dns_res.add_answer(
-                    dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400, )
-                )
+            if zone.custom_ns.count():
+                for ns in zone.custom_ns.all():
+                    dns_res.add_answer(
+                        dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns.nameserver), ttl=86400, )
+                    )
+            else:
+                for ns in NAMESERVERS:
+                    dns_res.add_answer(
+                        dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns), ttl=86400, )
+                    )
         if not len(records):
             self.lookup_cname(
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_ns
@@ -1235,12 +1241,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
                     )
             if not has_soa:
+                if zone.custom_ns.count():
+                    ns = zone.custom_ns.first().nameserver
+                else:
+                    ns = NAMESERVERS[0]
                 dns_res.add_auth(
                     dnslib.RR(
                         zone_root,
                         QTYPE.SOA,
                         rdata=dnslib.SOA(
-                            NAMESERVERS[0],
+                            ns,
                             "noc.as207960.net",
                             (
                                 int(zone.last_modified.timestamp()),
@@ -1563,12 +1573,16 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         if not is_rdns:
             if dns_req.q.qtype == QTYPE.SOA:
                 if str(record_name) == "@.":
+                    if zone.custom_ns.count():
+                        ns = zone.custom_ns.first().nameserver
+                    else:
+                        ns = NAMESERVERS[0]
                     dns_res.add_answer(
                         dnslib.RR(
                             zone.zone_root,
                             QTYPE.SOA,
                             rdata=dnslib.SOA(
-                                NAMESERVERS[0],
+                                ns,
                                 "noc.as207960.net",
                                 (
                                     int(zone.last_modified.timestamp()),

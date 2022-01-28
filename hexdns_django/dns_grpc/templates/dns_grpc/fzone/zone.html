@@ -17,6 +17,7 @@
                             <a href="{% url 'edit_zone_cds' zone.id %}" class="btn btn-secondary">Manage CDS <span class="badge bg-primary">Beta</span></a>
                             <a href="{% url 'verify_google' zone.id %}" class="btn btn-success">Verify with Google <span class="badge bg-primary">Beta</span></a>
                             <a href="{% url 'setup_icloud' zone.id %}" class="btn btn-secondary">Setup for iCloud Custom Email</a>
+                            <a href="{% url 'edit_custom_ns' zone.id %}" class="btn btn-secondary">White-label nameservers</a>
                             <a href="{{ sharing_uri }}" class="btn btn-info">&#x1f91d; Share</a>
                         </div>
                     </div>

@@ -125,7 +125,12 @@ class Command(BaseCommand):
                 self.increment_zone_fail(zone)
                 continue
 
-            is_valid = all(any(rr.rdata.label == wns for rr in ns) for wns in WANTED_NS)
+            if isinstance(zone, models.DNSZone) and zone.custom_ns.count():
+                wanted_ns = [dnslib.DNSLabel(ns.nameserver) for ns in zone.custom_ns.all()]
+            else:
+                wanted_ns = WANTED_NS
+
+            is_valid = all(any(rr.rdata.label == wns for rr in ns) for wns in wanted_ns)
 
             if is_valid:
                 print(f"{zone} is valid")

@@ -192,6 +192,12 @@ class DNSZoneAdditionalCDNSKEY(models.Model):
     public_key = models.TextField(validators=[b64_validator])
 
 
+class DNSZoneCustomNS(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zonecustomns", primary_key=True)
+    dns_zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE, related_name='custom_ns')
+    nameserver = models.CharField(max_length=255, verbose_name="Name server")
+
+
 def make_update_secret():
     return secrets.token_bytes(64)
 

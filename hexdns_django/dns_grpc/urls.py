@@ -28,6 +28,10 @@ urlpatterns = [
     path("zone/<str:zone_id>/tsig/create/", views.fzone.create_zone_secret, name="create_zone_secret"),
     path("tsig/<str:record_id>/", views.fzone.edit_zone_secret, name="edit_zone_secret"),
     path("tsig/<str:record_id>/delete/", views.fzone.delete_zone_secret, name="delete_zone_secret"),
+    path("zone/<str:zone_id>/custom_ns/", views.fzone.edit_zone_custom_ns, name="edit_custom_ns"),
+    path("zone/<str:zone_id>/custom_ns/create/", views.fzone.create_zone_custom_ns, name="create_zone_custom_ns"),
+    path("custom_ns/<str:record_id>/", views.fzone.edit_zone_custom_ns_record, name="edit_custom_ns_record"),
+    path("custom_ns/<str:record_id>/delete/", views.fzone.delete_zone_custom_ns_record, name="delete_custom_ns_record"),
     path("delete_zone/<str:zone_id>/", views.fzone.delete_zone, name="delete_zone"),
     path(
         "zone/<str:zone_id>/new_address/",

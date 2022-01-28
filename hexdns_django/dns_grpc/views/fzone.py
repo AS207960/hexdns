@@ -1716,6 +1716,88 @@ def delete_zone_secret(request, record_id):
     )
 
 
+@login_required
+def edit_zone_custom_ns(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    return render(
+        request,
+        "dns_grpc/fzone/zone_ns.html",
+        {"zone": user_zone, },
+    )
+
+
+@login_required
+def create_zone_custom_ns(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.CustomNSForm(
+            request.POST, instance=models.DNSZoneCustomNS(dns_zone=user_zone))
+        if record_form.is_valid():
+            record_form.save()
+            return redirect("edit_custom_ns", user_zone.id)
+    else:
+        record_form = forms.CustomNSForm(instance=models.DNSZoneCustomNS(dns_zone=user_zone))
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create white-label nameserver", "form": record_form, },
+    )
+
+
+@login_required
+def edit_zone_custom_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneCustomNS, id=record_id)
+
+    if not user_record.dns_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.CustomNSForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.save()
+            return redirect("edit_custom_ns", user_record.dns_zone.id)
+    else:
+        record_form = forms.CustomNSForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit white-label nameserver", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_custom_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneCustomNS, id=record_id)
+
+    if not user_record.dns_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.delete()
+            return redirect("edit_custom_ns", user_record.dns_zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_custom_ns.html",
+        {"title": "Delete white-label nameserver", "record": user_record, },
+    )
+
+
 def long_txt_from_zone(rd, _origin=None):
     parts = list(map(lambda d: d.encode(), rd))
     out = []
@@ -1767,6 +1849,9 @@ def export_zone_file(request, zone_id):
     zone_out = [
         f"$ORIGIN {zone_obj.zone_root}"
     ]
+
+    for ns in zone_obj.custom_ns.all():
+        zone_out.append(dnslib.RR("@", dnslib.QTYPE.NS, rdata=dnslib.NS(ns.nameserver), ttl=86400).toZone())
 
     for record in zone_obj.dynamicaddressrecord_set.all():
         v4_rr = record.to_rr_v4(record.dns_label)
