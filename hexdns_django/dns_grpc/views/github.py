@@ -404,7 +404,7 @@ def edit_github_pages_record(request, record_id):
                     f"https://api.github.com/repos/{user_record.repo_owner}/{user_record.repo_name}/pages",
                     headers={
                         "Authorization": f"token {get_installation_token(installation)}",
-                        "Accept": "application/vnd.github.switcheroo-preview+json"
+                        "Accept": "application/vnd.github.v3+json"
                     }, json={
                         "cname": f"{record_form.cleaned_data['record_name']}.{user_record.zone.zone_root}",
                         "source": {
