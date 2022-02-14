@@ -641,7 +641,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for record in records:
             dns_res.add_answer(record.to_rr(query_name))
         if record_name == "@":
-            if zone.custom_ns.count():
+            if hasattr(zone, "custom_ns") and zone.custom_ns.count():
                 for ns in zone.custom_ns.all():
                     dns_res.add_answer(
                         dnslib.RR(query_name, QTYPE.NS, rdata=dnslib.NS(ns.nameserver), ttl=86400, )
@@ -1241,7 +1241,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
                     )
             if not has_soa:
-                if zone.custom_ns.count():
+                if hasattr(zone, "custom_ns") and zone.custom_ns.count():
                     ns = zone.custom_ns.first().nameserver
                 else:
                     ns = NAMESERVERS[0]
@@ -1573,7 +1573,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         if not is_rdns:
             if dns_req.q.qtype == QTYPE.SOA:
                 if str(record_name) == "@.":
-                    if zone.custom_ns.count():
+                    if hasattr(zone, "custom_ns") and zone.custom_ns.count():
                         ns = zone.custom_ns.first().nameserver
                     else:
                         ns = NAMESERVERS[0]
