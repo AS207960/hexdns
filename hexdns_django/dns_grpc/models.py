@@ -967,7 +967,7 @@ class CAARecord(DNSZoneRecord):
             zone=zone,
             record_name=record_name,
             ttl=rr.ttl,
-            flag=rr.rdata.flag,
+            flag=rr.rdata.flags,
             tag=rr.rdata.tag,
             value=rr.rdata.value
         )
@@ -976,7 +976,7 @@ class CAARecord(DNSZoneRecord):
         record_name = self.dns_label_to_record_name(rr.rname, self.zone)
         self.record_name = record_name
         self.ttl = rr.ttl
-        self.flag = rr.rdata.flag
+        self.flag = rr.rdata.flags
         self.tag = rr.rdata.tag
         self.value = rr.rdata.value
 
