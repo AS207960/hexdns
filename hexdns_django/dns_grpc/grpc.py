@@ -1011,6 +1011,23 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_sshfp
             )
 
+    def lookup_dhcid(
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
+    ):
+        records = self.find_records(models.DHCIDRecord, record_name, zone)  # type: typing.List[models.DHCIDRecord]
+        for record in records:
+            dns_res.add_answer(record.to_rr(query_name))
+
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_dhcid
+            )
+
     def lookup_reverse_referral(
             self,
             dns_res: dnslib.DNSRecord,
@@ -1641,6 +1658,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             elif dns_req.q.qtype == QTYPE.RP:
                 self.lookup_rp(dns_res, record_name, zone, query_name, is_dnssec)
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
+            elif dns_req.q.qtype == QTYPE.DHCID:
+                self.lookup_dhcid(dns_res, record_name, zone, query_name, is_dnssec)
+                self.sign_rrset(dns_res, zone, query_name, is_dnssec)
             elif dns_req.q.qtype == QTYPE.HTTPS:
                 self.lookup_https(dns_res, record_name, zone, query_name, is_dnssec)
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
@@ -2079,6 +2099,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 self.lookup_rp(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.HTTPS:
                 self.lookup_https(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.DHCID:
+                self.lookup_dhcid(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.CNAME:
                 record = self.find_records(
                     models.CNAMERecord, record_name, zone
@@ -2106,12 +2128,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         supported_types = (
             QTYPE.A, QTYPE.AAAA, QTYPE.MX, QTYPE.NS, QTYPE.TXT, QTYPE.SRV, QTYPE.CAA, QTYPE.NAPTR, QTYPE.DS,
-            QTYPE.LOC, QTYPE.HINFO, QTYPE.RP, QTYPE.CNAME
+            QTYPE.LOC, QTYPE.HINFO, QTYPE.RP, QTYPE.CNAME, QTYPE.DHCID
         )
 
         # RFC 2136 § 3.4.1
         for rr in upset:
-
             # RFC 2136 § 3.4.1
             if rr.rclass not in (getattr(CLASS, "*"), getattr(CLASS, "None"), dns_req.q.qclass):
                 dns_res.header.rcode = RCODE.YXRRSET
@@ -2170,6 +2191,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return self.find_records(models.HINFORecord, record_name, zone)
             elif rrtype == QTYPE.RP:
                 return self.find_records(models.RPRecord, record_name, zone)
+            elif rrtype == QTYPE.DHCID:
+                return self.find_records(models.DHCIDRecord, record_name, zone)
             elif rrtype == QTYPE.CNAME:
                 return self.find_records(models.CNAMERecord, record_name, zone)
             else:
@@ -2244,6 +2267,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         new_record = models.HINFORecord.from_rr(rr, zone)
                     elif rr.rtype == QTYPE.RP:
                         new_record = models.RPRecord.from_rr(rr, zone)
+                    elif rr.rtype == QTYPE.DHCID:
+                        new_record = models.DHCIDRecord.from_rr(rr, zone)
                     elif rr.rtype == QTYPE.CNAME:
                         new_record = models.CNAMERecord.from_rr(rr, zone)
                     else:
@@ -2259,7 +2284,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     for m in (
                             models.AddressRecord, models.MXRecord, models.NSRecord, models.TXTRecord, models.SRVRecord,
                             models.CAARecord, models.NAPTRRecord, models.DSRecord, models.LOCRecord, models.HINFORecord,
-                            models.RPRecord, models.CNAMERecord
+                            models.RPRecord, models.CNAMERecord, models.DHCIDRecord
                     ):
                         for record in self.find_records(m, record_name, zone):
                             record_rr = record.to_rr(rr.rname)

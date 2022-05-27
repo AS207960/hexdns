@@ -483,7 +483,7 @@ class AddressRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zoneaddressrecord", primary_key=True)
     address = models.GenericIPAddressField(verbose_name="Address (IPv4/IPv6)")
     auto_reverse = models.BooleanField(
-        default=False, verbose_name="Automatically serve reverse PTR records"
+        default=True, verbose_name="Automatically serve reverse PTR records"
     )
 
     class Meta(DNSZoneRecord.Meta):
@@ -1833,6 +1833,57 @@ class HTTPSRecord(SVCBBaseRecord):
     class Meta(SVCBBaseRecord.Meta):
         verbose_name = "HTTPS record"
         verbose_name_plural = "HTTPS records"
+
+
+class DHCID(dnslib.RD):
+    attrs = ('data')
+
+    def __init__(self, data):
+        self.data = data
+
+    def pack(self, buffer):
+        buffer.append(self.data)
+
+    def __repr__(self):
+        return base64.b64encode(self.data)
+
+
+class DHCIDRecord(DNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_zonedhcidrecord", primary_key=True)
+    data = models.BinaryField()
+
+    def save(self, *args, **kwargs):
+        send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.DHCID)
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            data=rr.rdata.data,
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.data = rr.rdata.data
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.DHCID,
+            rdata=DHCID(self.data),
+            ttl=self.ttl
+        )
+
+    class Meta(DNSZoneRecord.Meta):
+        verbose_name = "DHCID record"
+        verbose_name_plural = "DHCID records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
 
 
 class PTRRecord(ReverseDNSZoneRecord):
