@@ -445,6 +445,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
     def make_resp(self, res: typing.Union[dnslib.DNSRecord, bytes]) -> dns_pb2.DnsPacket:
         if isinstance(res, dnslib.DNSRecord):
+            res.header.ra = False
             return dns_pb2.DnsPacket(msg=bytes(res.pack()))
         else:
             return dns_pb2.DnsPacket(msg=bytes(res))
