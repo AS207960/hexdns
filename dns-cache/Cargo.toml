@@ -8,9 +8,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-trust-dns-server = "0.20"
-trust-dns-proto = "0.20"
-trust-dns-client = "0.20"
+async-trait = "0.1"
+trust-dns-server = "0.21"
+trust-dns-proto = "0.21"
+trust-dns-client = "0.21"
 tokio = { version = "1.6", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
 log = "0.4"
 pretty_env_logger = "0.4"

@@ -100,3 +100,39 @@ spec:
       targetPort: 53
       protocol: TCP
       name: dns-tcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns-udp-2
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns-2"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: cache
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns-tcp-2
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns-2"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: cache
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp

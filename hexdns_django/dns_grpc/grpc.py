@@ -445,7 +445,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
     def make_resp(self, res: typing.Union[dnslib.DNSRecord, bytes]) -> dns_pb2.DnsPacket:
         if isinstance(res, dnslib.DNSRecord):
-            res.header.ra = False
             return dns_pb2.DnsPacket(msg=bytes(res.pack()))
         else:
             return dns_pb2.DnsPacket(msg=bytes(res))
@@ -1554,7 +1553,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         )
 
     def handle_query(self, dns_req: dnslib.DNSRecord):
-        dns_res = dns_req.reply()
+        dns_res = dns_req.reply(ra=False)
 
         if dns_req.header.opcode != OPCODE.QUERY:
             dns_res.header.rcode = RCODE.REFUSED
@@ -1565,15 +1564,14 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             list(map(lambda n: n.decode().lower().encode(), query_name.label))
         )
         is_rdns = self.is_rdns(query_name)
-        is_dnssec = bool(
-            next(
-                map(
-                    lambda r: r.edns_do,
-                    filter(lambda r: r.rtype == QTYPE.OPT, dns_req.ar),
-                ),
-                0,
-            )
-        )
+        req_ends = next(filter(lambda r: r.rtype == QTYPE.OPT, dns_req.ar), None)
+        is_dnssec = bool(req_ends.edns_do) if req_ends else False
+        edns = dnslib.EDNS0(version=0, flags="do" if is_dnssec else "")
+        if req_ends is not None:
+            dns_res.add_ar(edns)
+            if req_ends.edns_ver > 0:
+                dns_res.header.rcode = RCODE.BADVERS
+                return dns_res
 
         if is_rdns:
             zone, record_name = self.find_rzone(query_name)
@@ -1582,7 +1580,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         if not zone:
             zone, record_name = self.find_secondary_zone(query_name)
             if not zone:
-                dns_res.header.rcode = RCODE.NXDOMAIN
+                dns_res.header.rcode = RCODE.REFUSED
+                edns.rdata.append(dnslib.EDNSOption(15, struct.pack("!H", 20)))
                 return dns_res
             self.handle_secondary(dns_res, record_name, zone, query_name, is_dnssec)
             return dns_res
@@ -1729,11 +1728,10 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             else:
                 self.sign_rrset(dns_res, zone, query_name, is_dnssec)
 
-        dns_res.add_ar(dnslib.EDNS0(dnslib.DNSLabel("."), flags="do" if is_dnssec else "", version=1))
         return dns_res
 
     def handle_axfr_query(self, dns_req: dnslib.DNSRecord):
-        dns_res = dns_req.reply()
+        dns_res = dns_req.reply(reply=False)
 
         if dns_req.header.opcode != OPCODE.QUERY:
             dns_res.header.rcode = RCODE.REFUSED
@@ -1766,7 +1764,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             yield dns_res
             return
 
-        soa_dns_res = dns_req.reply()
+        soa_dns_res = dns_req.reply(ra=False)
         soa_dns_res.add_answer(
             dnslib.RR(
                 zone.zone_root,
@@ -1793,7 +1791,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         # self.sign_rrset(soa_dns_res, zone, query_name, is_dnssec)
 
     def handle_update_query(self, dns_req: dnslib.DNSRecord):
-        dns_res = dns_req.reply()
+        dns_res = dns_req.reply(ra=False)
 
         # RFC 2136 § 3.1
         if dns_req.header.opcode != OPCODE.UPDATE or dns_req.q.qclass != CLASS.IN or dns_req.q.qtype != QTYPE.SOA:
@@ -2338,7 +2336,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             dns_res = self.handle_query(dns_req)
         except models.DNSError as e:
             print(e.message, flush=True)
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
         except Exception as e:
@@ -2346,7 +2344,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             traceback.print_exc()
             sys.stdout.flush()
             sys.stderr.flush()
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
 
@@ -2366,7 +2364,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             dns_res = self.handle_axfr_query(dns_req)
         except models.DNSError as e:
             print(e.message, flush=True)
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
         except Exception as e:
@@ -2374,7 +2372,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             traceback.print_exc()
             sys.stdout.flush()
             sys.stderr.flush()
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             yield self.make_resp(dns_res)
             return
@@ -2395,7 +2393,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             dns_res = self.handle_update_query(dns_req)
         except models.DNSError as e:
             print(e.message, flush=True)
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
         except Exception as e:
@@ -2403,7 +2401,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             traceback.print_exc()
             sys.stdout.flush()
             sys.stderr.flush()
-            dns_res = dns_req.reply()
+            dns_res = dns_req.reply(ra=False)
             dns_res.header.rcode = RCODE.SERVFAIL
             return self.make_resp(dns_res)
 
