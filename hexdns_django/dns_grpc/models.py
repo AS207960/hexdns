@@ -1845,7 +1845,7 @@ class DHCID(dnslib.RD):
         buffer.append(self.data)
 
     def __repr__(self):
-        return base64.b64encode(self.data)
+        return base64.b64encode(self.data).decode()
 
 
 class DHCIDRecord(DNSZoneRecord):
@@ -1884,6 +1884,10 @@ class DHCIDRecord(DNSZoneRecord):
         verbose_name = "DHCID record"
         verbose_name_plural = "DHCID records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    @property
+    def data_b64(self):
+        return base64.b64encode(self.data).decode()
 
 
 class PTRRecord(ReverseDNSZoneRecord):
