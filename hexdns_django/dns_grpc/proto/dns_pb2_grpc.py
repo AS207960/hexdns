@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import dns_pb2 as dns__pb2
+import dns_pb2 as dns__pb2
 
 
 class DnsServiceStub(object):
