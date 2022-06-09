@@ -1949,6 +1949,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 other_data=other_data
             )
 
+            print(dns_res.pack())
+
             outgoing_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
             outgoing_hmac.update(struct.pack('!H', len(incoming_tsig.mac)))
             outgoing_hmac.update(incoming_tsig.mac)
@@ -1966,6 +1968,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 req_tsig.rname, QTYPE.TSIG, getattr(CLASS, "*"), 0,
                 dnslib.RD(outgoing_tsig.make_tsig())
             ))
+
+            print(dns_res.pack())
 
         # RFC 2845 § 4.5.2
         now = datetime.datetime.utcnow()
