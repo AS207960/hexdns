@@ -32,7 +32,6 @@ class Command(BaseCommand):
     def sub_callback(self, channel, method, properties, body):
         msg = dns_grpc.proto.billing_pb2.SubscriptionNotification()
         msg.ParseFromString(body)
-        print(msg)
 
         account = models.Account.objects.filter(
             subscription_id=msg.subscription_id).first()  # type: models.DomainRegistrationOrder
@@ -41,14 +40,14 @@ class Command(BaseCommand):
             return
 
         if msg.state in (
-                dns_grpc.proto.billing_pb2.SubscriptionNotification.PENDING,
-                dns_grpc.proto.billing_pb2.SubscriptionNotification.CANCELLED
+                dns_grpc.proto.billing_pb2.SUB_PENDING,
+                dns_grpc.proto.billing_pb2.SUB_CANCELLED
         ):
             account.subscription_active = False
             account.save()
         elif msg.state in (
-                dns_grpc.proto.billing_pb2.SubscriptionNotification.ACTIVE,
-                dns_grpc.proto.billing_pb2.SubscriptionNotification.PAST_DUE
+                dns_grpc.proto.billing_pb2.SUB_ACTIVE,
+                dns_grpc.proto.billing_pb2.SUB_PAST_DUE
         ):
             account.subscription_active = True
             account.save()
