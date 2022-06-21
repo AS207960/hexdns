@@ -105,6 +105,7 @@ spec:
         - name: reloader
           image: as207960/hexdns-knot-sidecar:(version)
           imagePullPolicy: Always
+          command: ["python3", "/app/sidecar.py"]
           volumeMounts:
             - mountPath: "/rundir/"
               name: rundir

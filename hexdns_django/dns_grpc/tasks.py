@@ -443,7 +443,7 @@ def update_catalog():
     zone_file += "@ 0 IN NS invalid.\n"
     zone_file += "version 0 IN TXT \"2\"\n"
 
-    pattern = re.compile("^[a-zA-Z0-9-]+$")
+    pattern = re.compile("^[a-zA-Z0-9-.]+$")
 
     for zone in models.DNSZone.objects.all():
         if pattern.match(zone.zone_root):
