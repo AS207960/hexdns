@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from . import models, grpc, svcb
+from . import models, svcb
 import dnslib
 import base64
 import ipaddress
@@ -18,6 +18,85 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 )
 
 NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
+IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
+IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
+
+
+def network_to_apra(network: IP_NETWORK) -> dnslib.DNSLabel:
+    if type(network) == ipaddress.IPv6Network:
+        return dnslib.DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(
+                        reversed(
+                            network.network_address.exploded.replace(":", "")[
+                            : (network.prefixlen + 3) // 4
+                            ]
+                        )
+                    )
+                    + ["ip6", "arpa"],
+                )
+            )
+        )
+    elif type(network) == ipaddress.IPv4Network:
+        return dnslib.DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(
+                        reversed(
+                            network.network_address.exploded.split(".")[
+                            : (network.prefixlen + 7) // 8
+                            ]
+                        )
+                    )
+                    + ["in-addr", "arpa"],
+                )
+            )
+        )
+
+
+def address_to_apra(address: IP_ADDR) -> dnslib.DNSLabel:
+    if type(address) == ipaddress.IPv6Address:
+        return dnslib.DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(reversed(address.exploded.replace(":", ""))) + ["ip6", "arpa"],
+                )
+            )
+        )
+    elif type(address) == ipaddress.IPv4Address:
+        return dnslib.DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(reversed(address.exploded.split("."))) + ["in-addr", "arpa"],
+                )
+            )
+        )
+
+
+def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
+    buffer = dnslib.DNSBuffer()
+    nums = public_key.public_numbers()
+    rd = dnslib.DNSKEY(
+        flags,
+        3,
+        13,
+        nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big"),
+    )
+    rd.pack(buffer)
+    tag = 0
+    for i in range(len(buffer.data) // 2):
+        tag += (buffer.data[2 * i] << 8) + buffer.data[2 * i + 1]
+    if len(buffer.data) % 2 != 0:
+        tag += buffer.data[len(buffer.data) - 1] << 8
+    tag += (tag >> 16) & 0xFFFF
+    tag = tag & 0xFFFF
+    return tag
+
 
 with open(settings.DNSSEC_KEY_LOCATION, "rb") as k:
     priv_key_data = k.read()
@@ -75,7 +154,7 @@ def generate_zone_header(zone, zone_root):
         buffer.encode_name(dnslib.DNSLabel(zone_root))
         rd.pack(buffer)
         digest = hashlib.sha256(buffer.data).hexdigest()
-        tag = grpc.make_key_tag(pub_key, flags=257)
+        tag = make_key_tag(pub_key, flags=257)
 
         zone_file += f"@ 86400 IN CDS {tag} 13 2 {digest}\n"
 
@@ -93,7 +172,7 @@ def generate_zone_header(zone, zone_root):
     return zone_file
 
 
-def generate_fzone(zone: models.DNSZone):
+def generate_fzone(zone: "models.DNSZone"):
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_zone_header(zone, zone_root)
 
@@ -116,8 +195,8 @@ def generate_fzone(zone: models.DNSZone):
         zone_file += f"; ANAME record {record.id}\n"
         alias_label = dnslib.DNSLabel(record.alias)
 
-        if alias_label.matchSuffix(zone_label):
-            own_record_name = alias_label.stripSuffix(zone_label)
+        if alias_label.matchSuffix(zone_root):
+            own_record_name = alias_label.stripSuffix(zone_root)
             search_name = ".".join(map(lambda n: n.decode(), own_record_name.label))
             own_records = zone.addressrecord_set.filter(record_name=search_name)
             for r in own_records:
@@ -259,21 +338,21 @@ def generate_fzone(zone: models.DNSZone):
     return zone_file
 
 
-def generate_rzone(zone: models.ReverseDNSZone):
+def generate_rzone(zone: "models.ReverseDNSZone"):
     zone_network = ipaddress.ip_network(
         (zone.zone_root_address, zone.zone_root_prefix)
     )
-    zone_root = grpc.network_to_apra(zone_network)
+    zone_root = network_to_apra(zone_network)
     zone_file = generate_zone_header(zone, zone_root)
     account = zone.get_user().account
 
     for record in zone.ptrrecord_set.all():
         zone_file += f"; PTR record {record.id}\n"
-        zone_file += f"{grpc.address_to_apra(record.record_address)} {record.ttl} IN PTR {dnslib.DNSLabel(record.pointer)}\n"
+        zone_file += f"{address_to_apra(record.record_address)} {record.ttl} IN PTR {dnslib.DNSLabel(record.pointer)}\n"
 
     for record in zone.reversensrecord_set.all():
         zone_file += f"; NS record {record.id}\n"
-        zone_file += f"{grpc.address_to_apra(record.record_address)} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
+        zone_file += f"{address_to_apra(record.record_address)} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
 
     for record in models.AddressRecord.objects.raw(
             "SELECT * FROM dns_grpc_addressrecord WHERE (auto_reverse AND address << inet %s)",
@@ -282,7 +361,7 @@ def generate_rzone(zone: models.ReverseDNSZone):
         if record.zone.get_user().account == account:
             zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
             zone_file += f"; Address record {record.id}\n"
-            zone_file += f"{grpc.address_to_apra(record.address)} {record.ttl} IN PTR {zone_ptr}\n"
+            zone_file += f"{address_to_apra(record.address)} {record.ttl} IN PTR {zone_ptr}\n"
 
     return zone_file
 

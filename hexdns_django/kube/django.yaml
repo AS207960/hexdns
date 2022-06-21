@@ -449,7 +449,7 @@ spec:
   policyTypes:
   - Ingress
 ---
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: hexdns-validate-ns
@@ -519,7 +519,7 @@ spec:
                     name: hexdns-rpc
           restartPolicy: OnFailure
 ---
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: hexdns-validate-charged
@@ -589,7 +589,7 @@ spec:
                     name: hexdns-rpc
           restartPolicy: OnFailure
 ---
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: hexdns-transfer-secondary
@@ -899,11 +899,6 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
-  topologyKeys:
-    - kubernetes.io/hostname
-    - topology.kubernetes.io/zone
-    - topology.kubernetes.io/region
-    - '*'
 ---
 apiVersion: v1
 kind: Service
@@ -919,11 +914,6 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
-  topologyKeys:
-    - kubernetes.io/hostname
-    - topology.kubernetes.io/zone
-    - topology.kubernetes.io/region
-    - '*'
 ---
 apiVersion: v1
 kind: Service
