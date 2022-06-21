@@ -21,7 +21,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 import as207960_utils.models
 from .proto import dns_pb2
-from . import apps, svcb
+from . import apps, svcb, tasks
 
 if settings.KUBE_IN_CLUSTER:
     kubernetes.config.load_incluster_config()
@@ -182,6 +182,14 @@ class DNSZoneAdditionalCDS(models.Model):
     digest_type = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
     digest = models.TextField(validators=[hex_validator])
 
+    def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.dns_zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
+
 
 class DNSZoneAdditionalCDNSKEY(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_zoneadditionalcdnskey", primary_key=True)
@@ -191,6 +199,14 @@ class DNSZoneAdditionalCDNSKEY(models.Model):
     algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
     public_key = models.TextField(validators=[b64_validator])
 
+    def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.dns_zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
+
 
 class DNSZoneCustomNS(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_zonecustomns", primary_key=True)
@@ -199,9 +215,14 @@ class DNSZoneCustomNS(models.Model):
 
     def save(self, *args, **kwargs):
         self.nameserver = self.nameserver.lower()
+        tasks.update_fzone.delay(self.dns_zone.id)
         send_flush_cache_message(dnslib.DNSLabel(self.dns_zone.zone_root), getattr(dnslib.CLASS, "*"), dnslib.QTYPE.NS)
         send_flush_cache_message(dnslib.DNSLabel(self.dns_zone.zone_root), getattr(dnslib.CLASS, "*"), dnslib.QTYPE.SOA)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
 
 
 def make_update_secret():
@@ -314,6 +335,14 @@ class ReverseDNSZoneAdditionalCDS(models.Model):
     digest_type = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
     digest = models.TextField(validators=[hex_validator])
 
+    def save(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
+
 
 class ReverseDNSZoneAdditionalCDNSKEY(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_rzoneadditionalcdnskey", primary_key=True)
@@ -322,6 +351,29 @@ class ReverseDNSZoneAdditionalCDNSKEY(models.Model):
     protocol = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
     algorithm = models.SmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)])
     public_key = models.TextField(validators=[b64_validator])
+
+    def save(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
+
+
+class ReverseDNSZoneCustomNS(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzonecustomns", primary_key=True)
+    dns_zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE, related_name='custom_ns')
+    nameserver = models.CharField(max_length=255, verbose_name="Name server")
+
+    def save(self, *args, **kwargs):
+        self.nameserver = self.nameserver.lower()
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.dns_zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class SecondaryDNSZone(models.Model):
@@ -523,9 +575,14 @@ class AddressRecord(DNSZoneRecord):
             )
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class DynamicAddressRecord(DNSZoneRecord):
@@ -560,9 +617,14 @@ class DynamicAddressRecord(DNSZoneRecord):
         )
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class ANAMERecord(DNSZoneRecord):
@@ -571,9 +633,14 @@ class ANAMERecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.A)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.AAAA)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     def to_rrs(self, qtype, query_name):
         alias_label = dnslib.DNSLabel(self.alias)
@@ -652,7 +719,7 @@ class CNAMERecord(DNSZoneRecord):
         record_name = self.dns_label_to_record_name(rr.rname, self.zone)
         self.record_name = record_name
         self.ttl = rr.ttl
-        self.address = str(rr.rdata.label)
+        self.alias = str(rr.rdata.label)
 
     def clean_fields(self, exclude=None):
         if self.record_name == "@" and "record_name" not in exclude:
@@ -674,9 +741,14 @@ class CNAMERecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, getattr(dnslib.CLASS, "*"), dnslib.QTYPE.CNAME)
         send_flush_cache_message(self.alias, getattr(dnslib.CLASS, "*"), dnslib.QTYPE.ANY)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     def to_rr(self, query_name):
         return dnslib.RR(
@@ -698,6 +770,7 @@ class RedirectRecord(DNSZoneRecord):
     include_path = models.BooleanField(blank=True)
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         api_client = kubernetes.client.NetworkingV1beta1Api()
         dns_name = ".".join(l.decode() for l in self.dns_label.label)
         ingress_name = str(self.id).replace("_", "-")
@@ -744,6 +817,7 @@ class RedirectRecord(DNSZoneRecord):
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         api_client = kubernetes.client.NetworkingV1beta1Api()
         ingress_name = str(self.id).replace("_", "-")
         api_client.delete_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
@@ -805,9 +879,14 @@ class MXRecord(DNSZoneRecord):
         self.priority = rr.rdata.preference
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         self.exchange = self.exchange.lower()
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.MX)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     def to_rr(self, query_name):
         return dnslib.RR(
@@ -844,9 +923,14 @@ class NSRecord(DNSZoneRecord):
         self.nameserver = str(rr.rdata.label)
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         self.nameserver = self.nameserver.lower()
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.NS)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     def to_rr(self, query_name):
         return dnslib.RR(
@@ -901,8 +985,13 @@ class TXTRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.TXT)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class SRVRecord(DNSZoneRecord):
@@ -950,8 +1039,13 @@ class SRVRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.SRV)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class CAARecord(DNSZoneRecord):
@@ -996,8 +1090,13 @@ class CAARecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.CAA)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class NAPTRRecord(DNSZoneRecord):
@@ -1056,8 +1155,13 @@ class NAPTRRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.NAPTR)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class SSHFP(dnslib.RD):
@@ -1134,8 +1238,13 @@ class SSHFPRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.SSHFP)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class DS(dnslib.RD):
@@ -1235,8 +1344,13 @@ class DSRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.DS)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class LOC(dnslib.RD):
@@ -1369,8 +1483,13 @@ class LOCRecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.LOC)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class HINFORecord(DNSZoneRecord):
@@ -1414,8 +1533,13 @@ class HINFORecord(DNSZoneRecord):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.HINFO)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class RP(dnslib.RD):
@@ -1441,8 +1565,13 @@ class RPRecord(DNSZoneRecord):
     def save(self, *args, **kwargs):
         self.mailbox = self.mailbox.lower()
         self.txt = self.txt.lower()
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.RP)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     @classmethod
     def from_rr(cls, rr, zone):
@@ -1792,8 +1921,13 @@ class HTTPSRecord(SVCBBaseRecord):
                 })
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.HTTPS)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     @property
     def svcb_record_name(self):
@@ -1853,6 +1987,7 @@ class DHCIDRecord(DNSZoneRecord):
     data = models.BinaryField()
 
     def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
         send_flush_cache_message(self.dns_label, dnslib.CLASS.IN, dnslib.QTYPE.DHCID)
         return super().save(*args, **kwargs)
 
@@ -1896,7 +2031,12 @@ class PTRRecord(ReverseDNSZoneRecord):
 
     def save(self, *args, **kwargs):
         self.pointer = self.pointer.lower()
+        tasks.update_rzone.delay(self.zone.id)
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     class Meta:
         verbose_name = "PTR record"
@@ -1919,8 +2059,13 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
             return None
 
     def save(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.zone.id)
         self.nameserver = self.nameserver.lower()
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
     class Meta:
         verbose_name = "NS record"
@@ -2004,3 +2149,11 @@ class GitHubPagesRecord(DNSZoneRecord):
         verbose_name = "GitHub Pages record"
         verbose_name_plural = "GitHub Pages records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)

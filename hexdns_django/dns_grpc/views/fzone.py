@@ -12,7 +12,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
-from .. import forms, grpc, models
+from .. import forms, grpc, models, tasks
 from . import utils
 
 
@@ -56,6 +56,7 @@ def create_zone(request):
                         zsk_private=utils.get_priv_key_bytes()
                     )
                     zone_obj.save()
+                    tasks.add_fzone.delay(zone_obj.id)
                     if status == "redirect":
                         return redirect(extra)
                     return redirect('edit_zone', zone_obj.id)
@@ -133,6 +134,7 @@ def create_domains_zone(request):
         active=True,
     )
     zone_obj.save()
+    tasks.add_fzone.delay(zone_obj.id)
     request.session["zone_notice"] = "We've updated the DNS servers for your domain to point to HexDNS. " \
                                      "It may take up to 24 hours for the updates to propagate."
 
@@ -220,6 +222,7 @@ def delete_zone(request, zone_id):
             })
         else:
             user_zone.delete()
+            tasks.update_catalog.delay()
             if status == "redirect":
                 return redirect(extra)
             return redirect('zones')

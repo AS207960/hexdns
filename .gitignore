@@ -212,3 +212,5 @@ venv
 hexdns_django/secrets
 hexdns_django/static
 hexdns_django/media
+hexdns_django/zones
+knot

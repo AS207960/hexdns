@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
-from .. import forms, models
+from .. import forms, models, tasks
 from . import utils
 
 
@@ -35,6 +35,7 @@ def create_zone(request):
                 zsk_private=utils.get_priv_key_bytes()
             )
             zone_obj.save()
+            tasks.add_fzone.delay(zone_obj.id)
             utils.log_usage(user, off_session=True)
             return redirect('admin_index')
     else:
@@ -53,6 +54,7 @@ def delete_zone(request, zone_id):
     if request.method == "POST" and request.POST.get("delete") == "true":
         utils.log_usage(user_zone.get_user(), extra=-1, off_session=True)
         user_zone.delete()
+        tasks.update_catalog.delay()
         return redirect('admin_index')
     else:
         return render(request, "dns_grpc/fzone/delete_zone.html", {
@@ -76,6 +78,7 @@ def create_rzone(request):
                 zsk_private=utils.get_priv_key_bytes()
             )
             zone_obj.save()
+            tasks.add_rzone.delay(zone_obj.id)
             utils.log_usage(user, off_session=True)
             return redirect('admin_index')
     else:
@@ -94,6 +97,7 @@ def delete_rzone(request, zone_id):
     if request.method == "POST" and request.POST.get("delete") == "true":
         utils.log_usage(user_zone.get_user(), extra=-1, off_session=True)
         user_zone.delete()
+        tasks.update_catalog.delay()
         return redirect('admin_index')
     else:
         return render(request, "dns_grpc/rzone/delete_rzone.html", {
@@ -134,6 +138,7 @@ def delete_szone(request, zone_id):
     if request.method == "POST" and request.POST.get("delete") == "true":
         utils.log_usage(user_zone.get_user(), extra=-1, off_session=True)
         user_zone.delete()
+        tasks.update_catalog.delay()
         return redirect('admin_index')
     else:
         return render(request, "dns_grpc/szone/delete_szone.html", {

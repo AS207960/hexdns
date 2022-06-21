@@ -159,6 +159,27 @@ def network_to_apra(network: IP_NETWORK) -> DNSLabel:
         )
 
 
+def address_to_apra(address: IP_ADDR) -> DNSLabel:
+    if type(address) == ipaddress.IPv6Address:
+        return DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(reversed(address.exploded.replace(":", ""))) + ["ip6", "arpa"],
+                )
+            )
+        )
+    elif type(address) == ipaddress.IPv4Address:
+        return DNSLabel(
+            list(
+                map(
+                    lambda l: l.encode(),
+                    list(reversed(address.exploded.split("."))) + ["in-addr", "arpa"],
+                )
+            )
+        )
+
+
 def grpc_hook(server):
     dns_pb2_grpc.add_DnsServiceServicer_to_server(DnsServiceServicer(), server)
 
