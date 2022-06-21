@@ -1,11 +1,17 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: hexdns-cache
   labels:
     app: hexdns
     part: cache
 spec:
+  replicas: 12
+  minReadySeconds: 15
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
   selector:
     matchLabels:
       app: hexdns
@@ -25,7 +31,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cache
-          image: as207960/dns-cache:15
+          image: as207960/dns-cache:23
           args:
             - "-a"
             - "::"

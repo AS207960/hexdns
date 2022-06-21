@@ -8,7 +8,6 @@ extern crate prometheus;
 #[macro_use]
 extern crate lazy_static;
 
-use std::ops::Deref;
 use futures::stream::StreamExt;
 use tokio::sync::Mutex;
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
@@ -16,6 +15,7 @@ use prost::Message;
 
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod dns_proto {
     tonic::include_proto!("coredns.dns");
@@ -57,7 +57,7 @@ const KNOWN_RECORD_TYPES: [trust_dns_proto::rr::record_type::RecordType; 18] = [
     trust_dns_proto::rr::record_type::RecordType::Unknown(49)
 ];
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Ord, PartialOrd)]
 struct CacheKey {
     name: trust_dns_client::rr::LowerName,
     qclass: trust_dns_proto::rr::dns_class::DNSClass,
@@ -78,38 +78,37 @@ struct CacheData {
 
 async fn fetch_and_insert<>(
     cache_key: CacheKey,
-    msg: &trust_dns_server::authority::MessageRequest,
+    msg: &Request,
     client: &mut dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: &Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
-    in_flight: &Arc<Mutex<std::collections::HashSet<CacheKey>>>,
+    in_flight: &Arc<flurry::HashSet<CacheKey>>,
     new: bool,
 ) -> Result<trust_dns_proto::op::Message, trust_dns_client::op::ResponseCode> {
-    let mut in_flight_lock = in_flight.lock().await;
-    in_flight_lock.insert(cache_key.clone());
-
     let request = tonic::Request::new(dns_proto::DnsPacket {
-        msg: msg.to_bytes().map_err(|_| {
-            in_flight_lock.remove(&cache_key);
-            trust_dns_client::op::ResponseCode::FormErr
-        })?
+        msg: msg.raw_bytes.clone()
     });
+    in_flight.insert(cache_key.clone(), &in_flight.guard());
     let timer = UPSTREAM_RESPONSE_TIME.start_timer();
-    std::mem::drop(in_flight_lock);
     let r_response = client.query(request).await;
-    let mut in_flight_lock = in_flight.lock().await;
     timer.observe_duration();
-    let response = r_response.map_err(|e| {
-        error!("Error communicating with upstream: {}", e);
-        UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
-        in_flight_lock.remove(&cache_key);
-        trust_dns_client::op::ResponseCode::ServFail
-    })?;
-    let response_msg = trust_dns_proto::op::message::Message::from_bytes(&response.into_inner().msg).map_err(|e| {
-        error!("Error parsing response from upstream: {}", e);
-        UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
-        in_flight_lock.remove(&cache_key);
-        trust_dns_client::op::ResponseCode::ServFail
-    })?;
+    let response = match r_response {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Error communicating with upstream: {}", e);
+            UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
+            in_flight.remove(&cache_key, &in_flight.guard());
+            return Err(trust_dns_client::op::ResponseCode::ServFail)
+        }
+    };
+    let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.into_inner().msg) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Error parsing response from upstream: {}", e);
+            UPSTREAM_QUERY_COUNTER.with_label_values(&["error"]).inc();
+            in_flight.remove(&cache_key, &in_flight.guard());
+            return Err(trust_dns_client::op::ResponseCode::ServFail)
+        }
+    };
 
     UPSTREAM_QUERY_COUNTER.with_label_values(&["ok"]).inc();
     if response_msg.response_code() != trust_dns_client::op::ResponseCode::ServFail || new {
@@ -125,31 +124,30 @@ async fn fetch_and_insert<>(
         cache.lock().await.put(cache_key.clone(), new_cache_data);
     }
 
-    in_flight_lock.remove(&cache_key);
+    in_flight.remove(&cache_key, &in_flight.guard());
 
     Ok(response_msg)
 }
 
 async fn lookup_cache_or_fetch(
-    msg: &trust_dns_server::authority::MessageRequest,
+    msg: &Request,
     client: &mut dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: &Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
-    in_flight: &Arc<Mutex<std::collections::HashSet<CacheKey>>>,
+    in_flight: &Arc<flurry::HashSet<CacheKey>>,
 ) -> Result<trust_dns_proto::op::message::Message, trust_dns_client::op::ResponseCode> {
-    let dnssec = match msg.edns() {
+    let dnssec = match msg.msg.edns() {
         Some(e) => e.dnssec_ok(),
         None => false,
     };
-    let query = msg.query();
     let cache_key = CacheKey {
-        name: query.name().to_owned(),
-        qclass: query.query_class(),
-        qtype: query.query_type(),
+        name: msg.query.name().to_owned(),
+        qclass: msg.query.query_class(),
+        qtype: msg.query.query_type(),
         is_dnssec: dnssec,
     };
 
     loop {
-        if in_flight.lock().await.contains(&cache_key) {
+        if in_flight.contains(&cache_key, &in_flight.guard()) {
             trace!("Request in flight for {:?}", cache_key);
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         } else {
@@ -169,13 +167,12 @@ async fn lookup_cache_or_fetch(
         } else {
             if cached_result.valid_until < std::time::Instant::now() {
                 debug!("Expired cached item");
-                let msg = msg.to_bytes().unwrap();
+                let msg = msg.clone();
                 let mut client = client.clone();
                 let mut cache = cache.clone();
                 let mut in_flight = in_flight.clone();
                 CACHE_COUNTER.with_label_values(&["hit_stale"]).inc();
                 tokio::spawn(async move {
-                    let msg = trust_dns_server::authority::MessageRequest::from_bytes(&msg).unwrap();
                     let _ = fetch_and_insert(cache_key, &msg, &mut client, &mut cache, &mut in_flight, false).await;
                 });
             } else {
@@ -183,13 +180,15 @@ async fn lookup_cache_or_fetch(
             }
             let mut response_msg = trust_dns_proto::op::message::Message::new();
             let mut edns = cached_result.edns;
-            response_msg.set_id(msg.id());
+            response_msg.set_id(msg.msg.id());
             response_msg.set_message_type(trust_dns_proto::op::MessageType::Response);
             response_msg.set_op_code(trust_dns_proto::op::OpCode::Query);
             response_msg.set_authoritative(true);
+            response_msg.set_recursion_desired(msg.msg.recursion_desired());
             edns.set_dnssec_ok(dnssec);
             response_msg.set_edns(edns);
             response_msg.set_response_code(cached_result.response_code);
+            response_msg.add_query(msg.query.original().clone());
             response_msg.insert_answers(cached_result.answers);
             response_msg.insert_name_servers(cached_result.name_servers);
             response_msg.insert_additionals(cached_result.additionals);
@@ -208,306 +207,547 @@ struct Config {
     server_name: Option<Vec<u8>>,
 }
 
+#[derive(Clone)]
 struct Cache {
     client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>,
     cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
-    in_flight: Arc<Mutex<std::collections::HashSet<CacheKey>>>,
+    in_flight: Arc<flurry::HashSet<CacheKey>>,
     config: Arc<Config>,
 }
 
-#[async_trait::async_trait]
-impl trust_dns_server::server::RequestHandler for Cache {
-    async fn handle_request<R: trust_dns_server::server::ResponseHandler>(&self, request: &trust_dns_server::server::Request, mut response_handle: R) -> trust_dns_server::server::ResponseInfo {
-        let request_message: &trust_dns_server::authority::MessageRequest = request.deref();
-        trace!("request: {:?}", request_message);
+#[derive(Debug, Clone)]
+struct Request {
+    msg: trust_dns_proto::op::Message,
+    query: trust_dns_client::op::LowerQuery,
+    raw_bytes: Vec<u8>,
+}
 
-        match request_message.message_type() {
-            trust_dns_client::op::MessageType::Query => match request_message.op_code() {
-                trust_dns_client::op::OpCode::Query => {
-                    debug!("query received: {}", request_message.id());
-                    QUERY_COUNTER.with_label_values(&["query"]).inc();
-                    let timer = QUERY_RESPONSE_TIME.with_label_values(&["query"]).start_timer();
-                    let timer_axfr = QUERY_RESPONSE_TIME.with_label_values(&["axfr"]).start_timer();
-                    let mut response = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
+#[derive(Debug, Clone)]
+struct RequestContext {
+    context: MessageContext,
+    addr: std::net::SocketAddr,
+    header: trust_dns_proto::op::Header,
+    query: trust_dns_client::op::LowerQuery,
+    res_tx: tokio::sync::mpsc::Sender<OutgoingMessage>
+}
 
-                    let mut msg = trust_dns_proto::op::message::Message::new();
-                    msg.set_id(request_message.id());
-                    msg.set_message_type(trust_dns_proto::op::MessageType::Query);
-                    msg.set_op_code(trust_dns_proto::op::OpCode::Query);
-                    let mut nsid_requested = false;
-                    if let Some(edns) = request_message.edns() {
-                        msg.set_edns(edns.to_owned());
-                        if edns.version() > 0 {
-                            warn!(
-                                "request edns version greater than 0: {}",
-                                edns.version()
-                            );
-                            RESPONSE_COUNTER.with_label_values(&["invalid_edns"]).inc();
-                            let mut res_edns = trust_dns_proto::op::Edns::new();
-                            res_edns.set_version(0);
-                            response.edns(res_edns);
+impl RequestContext {
+    async fn respond(&self, msg: trust_dns_proto::op::Message) {
+        let _ = self.res_tx.send(OutgoingMessage {
+            msg,
+            addr: self.addr,
+            context: self.context.clone(),
+            header: self.header,
+            query: self.query.clone(),
+        }).await;
+    }
+}
 
-                            let res = response_handle.send_response(response.error_msg(
-                                &request_message.header(),
-                                trust_dns_client::op::ResponseCode::BADVERS,
-                            )).await;
-                            timer_axfr.stop_and_discard();
-                            timer.observe_duration();
-                            match res {
-                                Ok(r) => return r,
-                                Err(err) => {
-                                    error!("Failed to send response: {}", err);
-                                    return request_message.header().to_owned().into();
-                                }
+async fn handle_request(cache: Cache, request_message: Request, request_context: RequestContext) {
+    trace!("request: {:?}", request_message);
+
+    let mut nsid_requested = false;
+    if let Some(edns) = request_message.msg.edns() {
+        if edns.version() > 0 {
+            warn!(
+                "request edns version greater than 0: {}",
+                edns.version()
+            );
+            RESPONSE_COUNTER.with_label_values(&["invalid_edns"]).inc();
+            let mut res_edns = trust_dns_proto::op::Edns::new();
+            res_edns.set_version(0);
+            let mut response_msg = trust_dns_proto::op::Message::error_msg(
+                request_message.msg.id(), request_message.msg.op_code(),
+                trust_dns_client::op::ResponseCode::BADVERS,
+            );
+            response_msg.set_edns(res_edns);
+            request_context.respond(response_msg).await;
+            return;
+        }
+        nsid_requested = edns.option(trust_dns_proto::rr::rdata::opt::EdnsCode::NSID).is_some();
+    }
+
+    match request_message.msg.message_type() {
+        trust_dns_client::op::MessageType::Query => match request_message.msg.op_code() {
+            trust_dns_client::op::OpCode::Query => {
+                debug!("query received: {}", request_message.msg.id());
+                QUERY_COUNTER.with_label_values(&["query"]).inc();
+                let timer = QUERY_RESPONSE_TIME.with_label_values(&["query"]).start_timer();
+                let timer_axfr = QUERY_RESPONSE_TIME.with_label_values(&["axfr"]).start_timer();
+
+                if request_message.query.query_type() == trust_dns_proto::rr::record_type::RecordType::AXFR {
+                    let mut client = cache.client.clone();
+                    let raw_bytes = request_message.raw_bytes.clone();
+                    let s = async_stream::stream! {
+                        let request = tonic::Request::new(dns_proto::DnsPacket {
+                            msg: raw_bytes
+                        });
+                        let rpc_response = match client.axfr_query(request).await {
+                            Ok(x) => x,
+                            Err(e) => {
+                                error!("Error communicating with upstream: {}", e);
+                                UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
+                                yield Err(trust_dns_client::op::ResponseCode::ServFail);
+                                return;
                             }
-                        }
-                        nsid_requested = edns.option(trust_dns_proto::rr::rdata::opt::EdnsCode::NSID).is_some();
-                    }
-
-                    if request_message.query().query_type() == trust_dns_proto::rr::record_type::RecordType::AXFR {
-                        let request_bytes = request_message.to_bytes();
-                        let mut client = self.client.clone();
-                        let s = async_stream::stream! {
-                            let request = tonic::Request::new(dns_proto::DnsPacket {
-                                msg: match request_bytes {
-                                    Ok(b) => b,
-                                    Err(_) => {
-                                        yield Err(trust_dns_client::op::ResponseCode::FormErr);
-                                        return;
-                                    }
-                                }
-                            });
-                            let rpc_response = match client.axfr_query(request).await {
+                        };
+                        let mut response_stream = rpc_response.into_inner();
+                        while let Some(next_message) = match response_stream.message().await {
+                            Ok(x) => x,
+                            Err(e) => {
+                                error!("Error communicating with upstream: {}", e);
+                                UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
+                                yield Err(trust_dns_client::op::ResponseCode::ServFail);
+                                return;
+                            }
+                        } {
+                            let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&next_message.msg) {
                                 Ok(x) => x,
                                 Err(e) => {
-                                    error!("Error communicating with upstream: {}", e);
+                                    error!("Error parsing response from upstream: {}", e);
                                     UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
                                     yield Err(trust_dns_client::op::ResponseCode::ServFail);
                                     return;
                                 }
                             };
-                            let mut response_stream = rpc_response.into_inner();
-                            while let Some(next_message) = match response_stream.message().await {
-                                Ok(x) => x,
-                                Err(e) => {
-                                    error!("Error communicating with upstream: {}", e);
-                                    UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
-                                    yield Err(trust_dns_client::op::ResponseCode::ServFail);
-                                    return;
-                                }
-                            } {
-                                let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&next_message.msg) {
-                                    Ok(x) => x,
-                                    Err(e) => {
-                                        error!("Error parsing response from upstream: {}", e);
-                                        UPSTREAM_QUERY_COUNTER.with_label_values(&["error_axfr"]).inc();
-                                        yield Err(trust_dns_client::op::ResponseCode::ServFail);
-                                        return;
-                                    }
-                                };
-                                UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_axfr"]).inc();
-                                yield Ok(response_msg);
-                            }
-                        };
-                        futures_util::pin_mut!(s);
-                        while let Some(val) = s.next().await {
-                            let mut response = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
-                            match val {
-                                Ok(response_msg) => {
-                                    let mut edns = if let Some(edns) = response_msg.edns() {
-                                        edns.to_owned()
-                                    } else {
-                                        trust_dns_proto::op::Edns::new()
-                                    };
-                                    if nsid_requested {
-                                        if let Some(server_name) = &self.config.server_name {
-                                            edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
-                                                trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
-                                                server_name.to_vec(),
-                                            ))
-                                        }
-                                    }
-                                    response.edns(edns);
-                                    RESPONSE_COUNTER.with_label_values(&["ok_axfr"]).inc();
-                                    match response_handle.send_response(response.build(
-                                        response_msg.header().to_owned(),
-                                        Box::new(response_msg.answers().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                        Box::new(response_msg.name_servers().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                        Box::new(vec![].iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                        Box::new(response_msg.additionals().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                    )).await {
-                                        Ok(_) => {},
-                                        Err(err) => {
-                                            error!("Failed to send response: {}", err);
-                                            return request_message.header().to_owned().into();
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    RESPONSE_COUNTER.with_label_values(&["error_axfr"]).inc();
-                                    match response_handle.send_response(response.error_msg(
-                                        request_message.header(),
-                                        e,
-                                    )).await {
-                                        Ok(_) => {},
-                                        Err(err) => {
-                                            error!("Failed to send response: {}", err);
-                                            return request_message.header().to_owned().into();
-                                        }
-                                    }
-                                }
-                            }
+                            UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_axfr"]).inc();
+                            yield Ok(response_msg);
                         }
-                        timer.stop_and_discard();
-                        timer_axfr.observe_duration();
-                        request_message.header().to_owned().into()
-                    } else {
-                        match match lookup_cache_or_fetch(request_message, &mut self.client.clone(), &self.cache, &self.in_flight).await {
-                            Ok(r) => {
-                                RESPONSE_COUNTER.with_label_values(&["ok"]).inc();
-                                let mut edns = if let Some(edns) = r.edns() {
+                    };
+                    futures_util::pin_mut!(s);
+                    while let Some(val) = s.next().await {
+                        match val {
+                            Ok(mut response_msg) => {
+                                let mut edns = if let Some(edns) = response_msg.edns() {
                                     edns.to_owned()
                                 } else {
                                     trust_dns_proto::op::Edns::new()
                                 };
                                 if nsid_requested {
-                                    if let Some(server_name) = &self.config.server_name {
+                                    if let Some(server_name) = &cache.config.server_name {
                                         edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
                                             trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
                                             server_name.to_vec(),
                                         ))
                                     }
                                 }
-                                let mut response_msg = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
-                                response_msg.edns(edns);
-                                let res = response_handle.send_response(response_msg.build(
-                                    r.header().clone(),
-                                    r.answers(),
-                                    r.name_servers(),
-                                    vec![],
-                                    r.additionals()
-                                )).await;
-                                timer_axfr.stop_and_discard();
-                                timer.observe_duration();
-                                res
+                                response_msg.set_edns(edns);
+                                RESPONSE_COUNTER.with_label_values(&["ok_axfr"]).inc();
+                                request_context.respond(response_msg).await;
                             }
                             Err(e) => {
-                                RESPONSE_COUNTER.with_label_values(&["error"]).inc();
-                                let res = response_handle.send_response(response.error_msg(
-                                    request_message.header(),
-                                    e,
-                                )).await;
-                                timer_axfr.stop_and_discard();
-                                timer.observe_duration();
-                                res
-                            }
-                        } {
-                            Ok(r) => r,
-                            Err(err) => {
-                                error!("Failed to send response: {}", err);
-                                request_message.header().to_owned().into()
+                                RESPONSE_COUNTER.with_label_values(&["error_axfr"]).inc();
+                                let response_msg = trust_dns_proto::op::Message::error_msg(
+                                    request_message.msg.id(), request_message.msg.op_code(), e
+                                );
+                                request_context.respond(response_msg).await;
                             }
                         }
                     }
-                }
-                trust_dns_client::op::OpCode::Update => {
-                    debug!("update received: {}", request_message.id());
-                    QUERY_COUNTER.with_label_values(&["update"]).inc();
-                    let timer = QUERY_RESPONSE_TIME.with_label_values(&["update"]).start_timer();
-                    let request_bytes = request_message.to_bytes();
-                    let val = async move {
-                        let request = tonic::Request::new(dns_proto::DnsPacket {
-                            msg: match request_bytes {
-                                Ok(b) => b,
-                                Err(_) => {
-                                    RESPONSE_COUNTER.with_label_values(&["invalid_update"]).inc();
-                                    return Err(trust_dns_client::op::ResponseCode::ServFail);
+                    timer.stop_and_discard();
+                    timer_axfr.observe_duration();
+                } else {
+                    let mut timeout_response_msg = trust_dns_proto::op::Message::error_msg(
+                        request_message.msg.id(), request_message.msg.op_code(),
+                        trust_dns_client::op::ResponseCode::ServFail,
+                    );
+                    let mut edns = trust_dns_proto::op::Edns::new();
+                    if nsid_requested {
+                        if let Some(server_name) = &cache.config.server_name {
+                            edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                                server_name.to_vec(),
+                            ))
+                        }
+                    }
+                    timeout_response_msg.set_edns(edns);
+                    let timeout_request_context = request_context.clone();
+                    let handle = tokio::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        RESPONSE_COUNTER.with_label_values(&["timeout"]).inc();
+                        warn!("Timeout talking to upstream");
+                        timeout_request_context.respond(timeout_response_msg).await;
+                    });
+                    match lookup_cache_or_fetch(&request_message, &mut cache.client.clone(), &cache.cache, &cache.in_flight).await {
+                        Ok(mut r) => {
+                            handle.abort();
+                            RESPONSE_COUNTER.with_label_values(&["ok"]).inc();
+                            let mut edns = if let Some(edns) = r.edns() {
+                                edns.to_owned()
+                            } else {
+                                trust_dns_proto::op::Edns::new()
+                            };
+                            if nsid_requested {
+                                if let Some(server_name) = &cache.config.server_name {
+                                    edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                        trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                                        server_name.to_vec(),
+                                    ))
                                 }
                             }
-                        });
-                        let rpc_response = match self.client.clone().update_query(request).await {
-                            Ok(x) => x,
-                            Err(e) => {
-                                error!("Error communicating with upstream: {}", e);
-                                UPSTREAM_QUERY_COUNTER.with_label_values(&["error_update"]).inc();
-                                RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
-                                return Err(trust_dns_client::op::ResponseCode::ServFail);
-                            }
-                        };
-                        UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_update"]).inc();
-                        let response = rpc_response.into_inner();
-                        let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
-                            Ok(x) => x,
-                            Err(e) => {
-                                error!("Error parsing response from upstream: {}", e);
-                                RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
-                                return Err(trust_dns_client::op::ResponseCode::ServFail);
-                            }
-                        };
-                        RESPONSE_COUNTER.with_label_values(&["ok_update"]).inc();
-                        Ok(response_msg)
-                    }.await;
-                    let response = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
-                    let res = match val {
-                        Ok(response_msg) => {
-                            response_handle.send_response(response.build(
-                                response_msg.header().to_owned(),
-                                Box::new(response_msg.answers().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                Box::new(response_msg.name_servers().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                Box::new(vec![].iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                                Box::new(response_msg.additionals().iter()) as Box<dyn std::iter::Iterator<Item=&trust_dns_proto::rr::resource::Record> + std::marker::Send>,
-                            )).await
+                            r.set_edns(edns);
+                            timer_axfr.stop_and_discard();
+                            timer.observe_duration();
+                            request_context.respond(r).await;
                         }
                         Err(e) => {
-                            response_handle.send_response(response.error_msg(
-                                request_message.header(),
-                                e,
-                            )).await
+                            handle.abort();
+                            RESPONSE_COUNTER.with_label_values(&["error"]).inc();
+                            let mut response_msg = trust_dns_proto::op::Message::error_msg(
+                                request_message.msg.id(), request_message.msg.op_code(), e
+                            );
+                            let mut edns = trust_dns_proto::op::Edns::new();
+                            if nsid_requested {
+                                if let Some(server_name) = &cache.config.server_name {
+                                    edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                        trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                                        server_name.to_vec(),
+                                    ))
+                                }
+                            }
+                            response_msg.set_edns(edns);
+                            timer_axfr.stop_and_discard();
+                            timer.observe_duration();
+                            request_context.respond(response_msg).await;
+                        }
+                    }
+                }
+            }
+            trust_dns_client::op::OpCode::Update => {
+                debug!("update received: {}", request_message.msg.id());
+                QUERY_COUNTER.with_label_values(&["update"]).inc();
+                let timer = QUERY_RESPONSE_TIME.with_label_values(&["update"]).start_timer();
+                let raw_bytes = request_message.raw_bytes.clone();
+                let val = async {
+                    let request = tonic::Request::new(dns_proto::DnsPacket {
+                        msg: raw_bytes
+                    });
+                    let rpc_response = match cache.client.clone().update_query(request).await {
+                        Ok(x) => x,
+                        Err(e) => {
+                            error!("Error communicating with upstream: {}", e);
+                            UPSTREAM_QUERY_COUNTER.with_label_values(&["error_update"]).inc();
+                            RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
+                            return Err(trust_dns_client::op::ResponseCode::ServFail);
                         }
                     };
-                    timer.observe_duration();
-                    match res {
-                        Ok(r) => r,
-                        Err(err) => {
-                            error!("Failed to send response: {}", err);
-                            request_message.header().to_owned().into()
+                    UPSTREAM_QUERY_COUNTER.with_label_values(&["ok_update"]).inc();
+                    let response = rpc_response.into_inner();
+                    let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            error!("Error parsing response from upstream: {}", e);
+                            RESPONSE_COUNTER.with_label_values(&["error_update"]).inc();
+                            return Err(trust_dns_client::op::ResponseCode::ServFail);
                         }
+                    };
+                    RESPONSE_COUNTER.with_label_values(&["ok_update"]).inc();
+                    Ok(response_msg)
+                }.await;
+                match val {
+                    Ok(mut response_msg) => {
+                        let mut edns = if let Some(edns) = response_msg.edns() {
+                            edns.to_owned()
+                        } else {
+                            trust_dns_proto::op::Edns::new()
+                        };
+                        if nsid_requested {
+                            if let Some(server_name) = &cache.config.server_name {
+                                edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                    trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                                    server_name.to_vec(),
+                                ))
+                            }
+                        }
+                        response_msg.set_edns(edns);
+                        request_context.respond(response_msg).await;
+                    }
+                    Err(e) => {
+                        let mut response_msg = trust_dns_proto::op::Message::error_msg(
+                            request_message.msg.id(), request_message.msg.op_code(), e
+                        );
+                        let mut edns = trust_dns_proto::op::Edns::new();
+                        if nsid_requested {
+                            if let Some(server_name) = &cache.config.server_name {
+                                edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                                    trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                                    server_name.to_vec(),
+                                ))
+                            }
+                        }
+                        response_msg.set_edns(edns);
+                        request_context.respond(response_msg).await;
                     }
                 }
-                c => {
-                    warn!("unimplemented op_code: {:?}", c);
-                    QUERY_COUNTER.with_label_values(&["unknown"]).inc();
-                    let response = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
-                    match response_handle.send_response(response.error_msg(
-                        request_message.header(),
-                        trust_dns_client::op::ResponseCode::NotImp,
-                    )).await {
-                        Ok(r) => r,
-                        Err(err) => {
-                            error!("Failed to send response: {}", err);
-                            request_message.header().to_owned().into()
-                        }
-                    }
-                }
-            },
-            trust_dns_client::op::MessageType::Response => {
-                warn!(
-                    "got a response as a request from id: {}",
-                    request_message.id()
+                timer.observe_duration();
+            }
+            c => {
+                warn!("unimplemented op_code: {:?}", c);
+                QUERY_COUNTER.with_label_values(&["unknown"]).inc();
+                let mut response_msg = trust_dns_proto::op::Message::error_msg(
+                    request_message.msg.id(), request_message.msg.op_code(),
+                    trust_dns_client::op::ResponseCode::NotImp,
                 );
-                QUERY_COUNTER.with_label_values(&["response"]).inc();
-                let response = trust_dns_server::authority::MessageResponseBuilder::from_message_request(&request_message);
-
-                match response_handle.send_response(response.error_msg(
-                    request_message.header(),
-                    trust_dns_client::op::ResponseCode::FormErr,
-                )).await {
-                    Ok(r) => r,
-                    Err(err) => {
-                        error!("Failed to send response: {}", err);
-                        request_message.header().to_owned().into()
+                let mut edns = trust_dns_proto::op::Edns::new();
+                if nsid_requested {
+                    if let Some(server_name) = &cache.config.server_name {
+                        edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                            trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                            server_name.to_vec(),
+                        ))
                     }
                 }
+                response_msg.set_edns(edns);
+                request_context.respond(response_msg).await;
+            }
+        },
+        trust_dns_client::op::MessageType::Response => {
+            warn!(
+                "got a response as a request from id: {}",
+                request_message.msg.id()
+            );
+            QUERY_COUNTER.with_label_values(&["response"]).inc();
+            let mut response_msg = trust_dns_proto::op::Message::error_msg(
+                request_message.msg.id(), request_message.msg.op_code(),
+                trust_dns_client::op::ResponseCode::FormErr,
+            );
+            let mut edns = trust_dns_proto::op::Edns::new();
+            if nsid_requested {
+                if let Some(server_name) = &cache.config.server_name {
+                    edns.options_mut().insert(trust_dns_proto::rr::rdata::opt::EdnsOption::Unknown(
+                        trust_dns_proto::rr::rdata::opt::EdnsCode::NSID.into(),
+                        server_name.to_vec(),
+                    ))
+                }
+            }
+            response_msg.set_edns(edns);
+            request_context.respond(response_msg).await;
+        }
+    }
+}
+
+fn rabbitmq_listener(flusher_cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>, rpc_url: String) -> ! {
+    loop {
+        info!("Starting RabbitMQ listener");
+        let mut amqp_conn = amiquip::Connection::insecure_open(&rpc_url).expect("Unable to connect to RabbitMQ server");
+        let amqp_channel = amqp_conn.open_channel(None).expect("Unable to open RabbitMQ channel");
+
+        let listen_queue = amqp_channel.queue_declare("", amiquip::QueueDeclareOptions {
+            exclusive: true,
+            ..amiquip::QueueDeclareOptions::default()
+        }).expect("Unable to declare RabbitMQ queue");
+        let flush_exchange = amqp_channel.exchange_declare(
+            amiquip::ExchangeType::Fanout,
+            "hexdns_flush",
+            amiquip::ExchangeDeclareOptions {
+                durable: true,
+                ..amiquip::ExchangeDeclareOptions::default()
+            },
+        ).expect("Unable to declare RabbitMQ exchange");
+        amqp_channel.queue_bind(
+            listen_queue.name(), flush_exchange.name(), "",
+            amiquip::FieldTable::new(),
+        ).expect("Unable to bind RabbitMQ queue to exchange");
+        let flush_consumer = listen_queue.consume(amiquip::ConsumerOptions::default()).expect("Unable to start consuming on RabbitMQ queue");
+        info!("RabbitMQ listener started");
+        for message in flush_consumer.receiver().iter() {
+            let server_cache = flusher_cache.clone();
+            match message {
+                amiquip::ConsumerMessage::Delivery(delivery) => {
+                    flush_consumer.ack(delivery.clone()).unwrap();
+                    let body = delivery.body.clone();
+                    match dns_proto::ClearCache::decode(&body[..]) {
+                        Ok(clear_message) => {
+                            trace!("Got clear cache message: {:#?}", clear_message);
+                            let name = match trust_dns_proto::rr::domain::Name::from_str(&clear_message.label) {
+                                Ok(n) => n,
+                                Err(_) => continue
+                            };
+                            let qclass = match trust_dns_proto::rr::dns_class::DNSClass::from_u16(clear_message.dns_class as u16) {
+                                Ok(n) => n,
+                                Err(_) => continue
+                            };
+                            let qtype = trust_dns_proto::rr::record_type::RecordType::from(clear_message.record_type as u16);
+                            let mut keys_to_clear = vec![];
+
+                            let mut add_key = |qclass| {
+                                if qtype.is_any() {
+                                    for qtype in &KNOWN_RECORD_TYPES {
+                                        keys_to_clear.push(CacheKey {
+                                            name: trust_dns_client::rr::LowerName::new(&name),
+                                            qclass,
+                                            qtype: *qtype,
+                                            is_dnssec: false,
+                                        });
+                                        keys_to_clear.push(CacheKey {
+                                            name: trust_dns_client::rr::LowerName::new(&name),
+                                            qclass,
+                                            qtype: *qtype,
+                                            is_dnssec: true,
+                                        });
+                                    }
+                                } else {
+                                    keys_to_clear.push(CacheKey {
+                                        name: trust_dns_client::rr::LowerName::new(&name),
+                                        qclass,
+                                        qtype,
+                                        is_dnssec: false,
+                                    });
+                                    keys_to_clear.push(CacheKey {
+                                        name: trust_dns_client::rr::LowerName::new(&name),
+                                        qclass,
+                                        qtype,
+                                        is_dnssec: true,
+                                    });
+                                }
+                            };
+
+                            if qclass == trust_dns_proto::rr::dns_class::DNSClass::ANY {
+                                add_key(trust_dns_proto::rr::dns_class::DNSClass::IN);
+                                add_key(trust_dns_proto::rr::dns_class::DNSClass::CH);
+                                add_key(trust_dns_proto::rr::dns_class::DNSClass::HS);
+                            } else {
+                                add_key(qclass);
+                            }
+
+                            trace!("Going to clear keys: {:#?}", keys_to_clear);
+
+                            tokio::spawn(async move {
+                                for key in keys_to_clear {
+                                    server_cache.lock().await.pop(&key);
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            warn!("Unable to decode RPC message: {}", e);
+                        }
+                    }
+                }
+                amiquip::ConsumerMessage::ServerClosedChannel(err)
+                | amiquip::ConsumerMessage::ServerClosedConnection(err) => {
+                    error!("Error or RabbitMQ, restarting: {}", err);
+                }
+                amiquip::ConsumerMessage::ClientCancelled
+                | amiquip::ConsumerMessage::ServerCancelled
+                | amiquip::ConsumerMessage::ClientClosedChannel
+                | amiquip::ConsumerMessage::ClientClosedConnection => {
+                    break;
+                }
+            }
+        }
+        std::thread::sleep(std::time::Duration::new(15, 0));
+    }
+}
+
+async fn cache_updater(
+    mut updater_cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>>>,
+    mut updater_in_flight: Arc<flurry::HashSet<CacheKey>>,
+    mut client: dns_proto::dns_service_client::DnsServiceClient<tonic::transport::Channel>
+) -> ! {
+    loop {
+        info!("Starting cache updater");
+        tokio::time::sleep(std::time::Duration::new(60, 0)).await;
+
+        let mut to_update = vec![];
+
+        for (cache_key, cache_record) in updater_cache.lock().await.iter() {
+            if cache_record.valid_until < std::time::Instant::now() {
+                let mut msg = trust_dns_proto::op::message::Message::new();
+                let mut edns = trust_dns_proto::op::Edns::new();
+                msg.set_id(0);
+                msg.set_message_type(trust_dns_proto::op::MessageType::Query);
+                msg.set_op_code(trust_dns_proto::op::OpCode::Query);
+                edns.set_dnssec_ok(cache_key.is_dnssec);
+                msg.set_edns(edns);
+                let mut query = trust_dns_proto::op::Query::new();
+                query.set_query_class(cache_key.qclass);
+                query.set_query_type(cache_key.qtype);
+                query.set_name(cache_key.name.clone().into());
+                msg.add_query(query.clone());
+
+                to_update.push((cache_key.clone(), msg, trust_dns_client::op::LowerQuery::query(query)));
+            }
+        }
+
+        for (cache_key, msg, query) in to_update {
+            let _ = fetch_and_insert(cache_key, &Request {
+                raw_bytes: msg.to_bytes().unwrap(),
+                msg,
+                query
+            }, &mut client, &mut updater_cache, &mut updater_in_flight, false).await;
+        }
+    }
+}
+
+struct ServerTask(tokio::task::JoinHandle<()>);
+
+impl std::future::Future for ServerTask {
+    type Output = Result<(), tokio::task::JoinError>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        std::pin::Pin::new(&mut self.0).poll(cx)
+    }
+}
+
+impl Drop for ServerTask {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+enum ReadTcpState {
+    Len,
+    Msg {
+        size: u16
+    }
+}
+
+struct IncomingMessage {
+    msg: Vec<u8>,
+    addr: std::net::SocketAddr,
+    context: MessageContext,
+}
+
+struct OutgoingMessage {
+    msg: trust_dns_proto::op::Message,
+    addr: std::net::SocketAddr,
+    header: trust_dns_proto::op::Header,
+    query: trust_dns_client::op::LowerQuery,
+    context: MessageContext,
+}
+
+#[derive(Debug, Clone)]
+enum MessageContext {
+    Udp {
+        res_tx: tokio::sync::mpsc::Sender<(std::net::SocketAddr, Vec<u8>)>,
+    },
+    Tcp {
+        res_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    }
+}
+
+impl MessageContext {
+    fn protocol(&self) -> &'static str {
+        match self {
+            MessageContext::Udp { .. } => "udp",
+            MessageContext::Tcp { .. } => "tcp",
+        }
+    }
+}
+
+fn map_nat64(ip: std::net::IpAddr) -> std::net::IpAddr {
+    match ip {
+        std::net::IpAddr::V4(a) => std::net::IpAddr::V4(a),
+        std::net::IpAddr::V6(a) => {
+            if let [0x2a0d, 0x1a40, 0x7900, 0x0006, _, _, ab, cd] = a.segments() {
+                let [a, b] = ab.to_be_bytes();
+                let [c, d] = cd.to_be_bytes();
+                std::net::IpAddr::V4(std::net::Ipv4Addr::new(a, b, c, d))
+            } else {
+                std::net::IpAddr::V6(a)
             }
         }
     }
@@ -564,19 +804,22 @@ fn main() {
         .map(|a| std::net::SocketAddr::new(a, port)).collect();
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
+        .max_blocking_threads(1024)
+        .event_interval(120)
+        .worker_threads(16)
         .enable_all()
         .build()
         .expect("failed to initialize Tokio Runtime");
 
-    let mut client = runtime.block_on(
+    let client = runtime.block_on(
         dns_proto::dns_service_client::DnsServiceClient::connect(args.value_of("upstream").unwrap().to_string())
     ).expect("Unable to connect to upstream server");
 
-    let tcp_request_timeout = std::time::Duration::from_secs(5);
+    // let tcp_request_timeout = std::time::Duration::from_secs(5);
     let server_cache = Arc::new(Mutex::new(lru::LruCache::new(65535)));
-    let server_in_flight = Arc::new(Mutex::new(std::collections::HashSet::new()));
+    let server_in_flight = Arc::new(flurry::HashSet::new());
 
-    let catalog = Cache {
+    let cache = Cache {
         client: client.clone(),
         cache: server_cache.clone(),
         in_flight: server_in_flight.clone(),
@@ -592,160 +835,115 @@ fn main() {
         let flusher_cache = server_cache.clone();
         let rpc_url = rpc_url.to_owned();
         runtime.spawn_blocking(move || {
-            loop {
-                info!("Starting RabbitMQ listener");
-                let mut amqp_conn = amiquip::Connection::insecure_open(&rpc_url).expect("Unable to connect to RabbitMQ server");
-                let amqp_channel = amqp_conn.open_channel(None).expect("Unable to open RabbitMQ channel");
-
-                let listen_queue = amqp_channel.queue_declare("", amiquip::QueueDeclareOptions {
-                    exclusive: true,
-                    ..amiquip::QueueDeclareOptions::default()
-                }).expect("Unable to declare RabbitMQ queue");
-                let flush_exchange = amqp_channel.exchange_declare(
-                    amiquip::ExchangeType::Fanout,
-                    "hexdns_flush",
-                    amiquip::ExchangeDeclareOptions {
-                        durable: true,
-                        ..amiquip::ExchangeDeclareOptions::default()
-                    },
-                ).expect("Unable to declare RabbitMQ exchange");
-                amqp_channel.queue_bind(
-                    listen_queue.name(), flush_exchange.name(), "",
-                    amiquip::FieldTable::new(),
-                ).expect("Unable to bind RabbitMQ queue to exchange");
-                let flush_consumer = listen_queue.consume(amiquip::ConsumerOptions::default()).expect("Unable to start consuming on RabbitMQ queue");
-                info!("RabbitMQ listener started");
-                for message in flush_consumer.receiver().iter() {
-                    let server_cache = flusher_cache.clone();
-                    match message {
-                        amiquip::ConsumerMessage::Delivery(delivery) => {
-                            flush_consumer.ack(delivery.clone()).unwrap();
-                            let body = delivery.body.clone();
-                            match dns_proto::ClearCache::decode(&body[..]) {
-                                Ok(clear_message) => {
-                                    trace!("Got clear cache message: {:#?}", clear_message);
-                                    let name = match trust_dns_proto::rr::domain::Name::from_str(&clear_message.label) {
-                                        Ok(n) => n,
-                                        Err(_) => continue
-                                    };
-                                    let qclass = match trust_dns_proto::rr::dns_class::DNSClass::from_u16(clear_message.dns_class as u16) {
-                                        Ok(n) => n,
-                                        Err(_) => continue
-                                    };
-                                    let qtype = trust_dns_proto::rr::record_type::RecordType::from(clear_message.record_type as u16);
-                                    let mut keys_to_clear = vec![];
-
-                                    let mut add_key = |qclass| {
-                                        if qtype.is_any() {
-                                            for qtype in &KNOWN_RECORD_TYPES {
-                                                keys_to_clear.push(CacheKey {
-                                                    name: trust_dns_client::rr::LowerName::new(&name),
-                                                    qclass,
-                                                    qtype: *qtype,
-                                                    is_dnssec: false,
-                                                });
-                                                keys_to_clear.push(CacheKey {
-                                                    name: trust_dns_client::rr::LowerName::new(&name),
-                                                    qclass,
-                                                    qtype: *qtype,
-                                                    is_dnssec: true,
-                                                });
-                                            }
-                                        } else {
-                                            keys_to_clear.push(CacheKey {
-                                                name: trust_dns_client::rr::LowerName::new(&name),
-                                                qclass,
-                                                qtype,
-                                                is_dnssec: false,
-                                            });
-                                            keys_to_clear.push(CacheKey {
-                                                name: trust_dns_client::rr::LowerName::new(&name),
-                                                qclass,
-                                                qtype,
-                                                is_dnssec: true,
-                                            });
-                                        }
-                                    };
-
-                                    if qclass == trust_dns_proto::rr::dns_class::DNSClass::ANY {
-                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::IN);
-                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::CH);
-                                        add_key(trust_dns_proto::rr::dns_class::DNSClass::HS);
-                                    } else {
-                                        add_key(qclass);
-                                    }
-
-                                    trace!("Going to clear keys: {:#?}", keys_to_clear);
-
-                                    tokio::spawn(async move {
-                                        for key in keys_to_clear {
-                                            server_cache.lock().await.pop(&key);
-                                        }
-                                    });
-                                }
-                                Err(e) => {
-                                    warn!("Unable to decode RPC message: {}", e);
-                                }
-                            }
-                        }
-                        amiquip::ConsumerMessage::ServerClosedChannel(err)
-                        | amiquip::ConsumerMessage::ServerClosedConnection(err) => {
-                            error!("Error or RabbitMQ, restarting: {}", err);
-                        }
-                        amiquip::ConsumerMessage::ClientCancelled
-                        | amiquip::ConsumerMessage::ServerCancelled
-                        | amiquip::ConsumerMessage::ClientClosedChannel
-                        | amiquip::ConsumerMessage::ClientClosedConnection => {
-                            break;
-                        }
-                    }
-                }
-                std::thread::sleep(std::time::Duration::new(15, 0));
-            }
+            rabbitmq_listener(flusher_cache, rpc_url);
         });
     }
 
-    let mut updater_cache = server_cache.clone();
-    let mut updater_in_flight = server_in_flight.clone();
+    let updater_cache = server_cache.clone();
+    let updater_in_flight = server_in_flight.clone();
     runtime.spawn(async move {
-        loop {
-            info!("Starting cache updater");
-            tokio::time::sleep(std::time::Duration::new(60, 0)).await;
+        cache_updater(updater_cache, updater_in_flight, client).await;
+    });
 
-            let mut to_update = vec![];
+    let mut tasks: Vec<ServerTask> = vec![];
+    // let mut server = trust_dns_server::ServerFuture::new(catalog);
 
-            for (cache_key, cache_record) in updater_cache.lock().await.iter() {
-                if cache_record.valid_until < std::time::Instant::now() {
-                    let mut msg = trust_dns_proto::op::message::Message::new();
-                    let mut edns = trust_dns_proto::op::Edns::new();
-                    msg.set_id(0);
-                    msg.set_message_type(trust_dns_proto::op::MessageType::Query);
-                    msg.set_op_code(trust_dns_proto::op::OpCode::Query);
-                    edns.set_dnssec_ok(cache_key.is_dnssec);
-                    msg.set_edns(edns);
-                    let mut query = trust_dns_proto::op::Query::new();
-                    query.set_query_class(cache_key.qclass);
-                    query.set_query_type(cache_key.qtype);
-                    query.set_name(cache_key.name.clone().into());
-                    msg.add_query(query);
+    let (req_tx, mut req_rx) = tokio::sync::mpsc::channel::<IncomingMessage>(1024);
+    let (res_tx, mut res_rx) = tokio::sync::mpsc::channel::<OutgoingMessage>(1024);
 
-                    to_update.push((cache_key.clone(), msg));
+    let task = runtime.spawn(async move {
+        while let Some(req) = req_rx.recv().await {
+            match trust_dns_proto::op::Message::from_bytes(&req.msg) {
+                Ok(m) => {
+                    let query = match m.queries().get(0) {
+                        Some(q) => trust_dns_client::op::LowerQuery::query(q.clone()),
+                        None => {
+                            continue;
+                        }
+                    };
+
+                    info!(
+                        " request:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type} dnssec:{is_dnssec}",
+                        id = m.id(),
+                        proto = req.context.protocol(),
+                        addr = map_nat64(req.addr.ip()),
+                        port = req.addr.port(),
+                        message_type = m.message_type(),
+                        is_dnssec = m.edns().map_or(false, trust_dns_proto::op::Edns::dnssec_ok),
+                        op = m.op_code(),
+                        query = query.name(),
+                        qtype = query.query_type(),
+                        class = query.query_class(),
+                        qflags = m.header().flags(),
+                    );
+
+                    let c = cache.clone();
+                    let tx = res_tx.clone();
+                    tokio::spawn(async move {
+                        let header = m.header().clone();
+                        handle_request(c, Request {
+                            msg: m,
+                            query: query.clone(),
+                            raw_bytes: req.msg,
+                        }, RequestContext {
+                            context: req.context,
+                            res_tx: tx,
+                            query,
+                            header,
+                            addr: req.addr,
+                        }).await;
+                    });
                 }
-            }
-
-            for (cache_key, msg) in to_update {
-                let msg = trust_dns_server::authority::MessageRequest::from_bytes(&msg.to_bytes().unwrap()).unwrap();
-                let _ = fetch_and_insert(cache_key, &msg, &mut client, &mut updater_cache, &mut updater_in_flight, false).await;
+                Err(e) => {
+                    warn!("received malformed DNS message: {}", e);
+                }
             }
         }
     });
+    tasks.push(ServerTask(task));
 
-    let mut server = trust_dns_server::ServerFuture::new(catalog);
+    let task = runtime.spawn(async move {
+        while let Some(res) = res_rx.recv().await {
+            match res.msg.to_bytes() {
+                Ok(b) => {
+                    info!("response:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} response:{code:?} rr:{answers}/{authorities}/{additionals} rflags:{rflags}",
+                        id = res.msg.id(),
+                        proto = res.context.protocol(),
+                        addr = map_nat64(res.addr.ip()),
+                        port = res.addr.port(),
+                        op = res.header.op_code(),
+                        query = res.query.name(),
+                        qtype = res.query.query_type(),
+                        class = res.query.query_class(),
+                        qflags = res.header.flags(),
+                        code = res.msg.response_code(),
+                        answers = res.msg.answer_count(),
+                        authorities = res.msg.query_count(),
+                        additionals = res.msg.additional_count(),
+                        rflags = res.msg.flags()
+                    );
+
+                    match res.context {
+                        MessageContext::Udp { res_tx } => {
+                            let _ = res_tx.send((res.addr, b)).await;
+                        }
+                        MessageContext::Tcp { res_tx } => {
+                            let _ = res_tx.send(b).await;
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("failed to serialise DNS message: {}", e);
+                }
+            }
+        }
+    });
+    tasks.push(ServerTask(task));
 
     for udp_socket in &sockaddrs {
         info!("binding UDP to {:?}", udp_socket);
-        let udp_socket = runtime.block_on(tokio::net::UdpSocket::bind(udp_socket))
-            .expect("Could not bind to UDP socket");
+        let udp_socket = Arc::new(runtime.block_on(tokio::net::UdpSocket::bind(udp_socket))
+            .expect("Could not bind to UDP socket"));
 
         info!(
             "listening for UDP on {:?}",
@@ -754,10 +952,42 @@ fn main() {
                 .expect("could not lookup local address")
         );
 
-        {
-            let _guard = runtime.enter();
-            server.register_socket(udp_socket)
-        }
+        let task_req_tx = req_tx.clone();
+        let send_udp_socket = udp_socket.clone();
+        let (udp_res_tx, mut udp_res_rx) = tokio::sync::mpsc::channel(1024);
+
+        let task = runtime.spawn(async move {
+            let mut buf = [0; 4096];
+            loop {
+                let (len, addr) = match udp_socket.recv_from(&mut buf).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        warn!("error receiving UDP connection: {}", e);
+                        continue;
+                    }
+                };
+                let msg: Vec<u8> = buf.iter().take(len).cloned().collect();
+                if let Err(_) = task_req_tx.send(IncomingMessage {
+                    msg,
+                    addr,
+                    context: MessageContext::Udp {
+                        res_tx: udp_res_tx.clone()
+                    }
+                }).await {
+                    break;
+                }
+            }
+        });
+        tasks.push(ServerTask(task));
+
+        let task = runtime.spawn(async move {
+            while let Some(res) = udp_res_rx.recv().await {
+                if let Err(e) = send_udp_socket.send_to(&res.1, res.0).await {
+                    warn!("failed to send UDP response: {}", e);
+                }
+            }
+        });
+        tasks.push(ServerTask(task));
     }
 
     for tcp_listener in &sockaddrs {
@@ -772,19 +1002,122 @@ fn main() {
                 .expect("could not lookup local address")
         );
 
+        let task_req_tx = req_tx.clone();
+        let task = runtime.spawn(async move {
+            loop {
+                let (tcp_stream, addr) = match tcp_listener.accept().await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!("error receiving TCP connection: {}", e);
+                        continue;
+                    }
+                };
 
-        {
-            let _guard = runtime.enter();
-            server.register_listener(tcp_listener, tcp_request_timeout)
-        }
+                let stream_req_tx = task_req_tx.clone();
+                let (tcp_stream_rx, mut tcp_stream_tx) = tcp_stream.into_split();
+                let (tcp_res_tx, mut tcp_res_rx) = tokio::sync::mpsc::channel(1024);
+                tokio::spawn(async move {
+                    let mut buf_tcp_stream = tokio::io::BufReader::new(tcp_stream_rx);
+                    let mut state = ReadTcpState::Len;
+                    'outer: loop {
+                        match state {
+                            ReadTcpState::Len => {
+                                let timeout = tokio::time::sleep(std::time::Duration::from_secs(5));
+                                tokio::pin!(timeout);
+                                tokio::select! {
+                                    _ = &mut timeout => {
+                                        debug!("timeout reading TCP packet length");
+                                        break 'outer;
+                                    }
+                                    r = buf_tcp_stream.read_u16() => {
+                                        match r {
+                                            Ok(len) => {
+                                                state = ReadTcpState::Msg {
+                                                    size: len
+                                                }
+                                            }
+                                            Err(e) => {
+                                                match e.kind() {
+                                                    std::io::ErrorKind::UnexpectedEof => {
+                                                        debug!("unexpected EOF reading TCP packet length");
+                                                    }
+                                                    _ => {
+                                                        warn!("error reading TCP packet length: {}", e);
+                                                    }
+                                                }
+                                                break 'outer;
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            ReadTcpState::Msg { size } => {
+                                let mut msg = vec![0; size as usize];
+                                let timeout = tokio::time::sleep(std::time::Duration::from_secs(5));
+                                tokio::pin!(timeout);
+                                tokio::select! {
+                                    _ = &mut timeout => {
+                                        debug!("timeout reading TCP packet length");
+                                        break 'outer;
+                                    }
+                                    r = buf_tcp_stream.read_exact(&mut msg) => {
+                                        match r {
+                                            Ok(len) => {
+                                                if len != size as usize {
+                                                    warn!("didn't read the full TCP packet");
+                                                    break 'outer;
+                                                }
+                                                state = ReadTcpState::Len;
+                                                if let Err(_) = stream_req_tx.send(IncomingMessage {
+                                                    msg,
+                                                    addr,
+                                                    context: MessageContext::Tcp {
+                                                        res_tx: tcp_res_tx.clone()
+                                                    }
+                                                }).await {
+                                                    break;
+                                                }
+                                            }
+                                            Err(e) => {
+                                                match e.kind() {
+                                                    std::io::ErrorKind::UnexpectedEof => {
+                                                        debug!("unexpected EOF reading TCP packet");
+                                                    }
+                                                    _ => {
+                                                        warn!("error reading TCP packet: {}", e);
+                                                    }
+                                                }
+                                                break 'outer;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                tokio::spawn(async move {
+                    while let Some(res) = tcp_res_rx.recv().await {
+                        if let Err(e) = tcp_stream_tx.write_u16(res.len() as u16).await {
+                            warn!("failed to send TCP response: {}", e);
+                        }
+                        if let Err(e) = tcp_stream_tx.write(&res).await {
+                            warn!("failed to send TCP response: {}", e);
+                        }
+                    }
+                });
+            }
+        });
+        tasks.push(ServerTask(task));
     }
 
     info!("Server starting up");
-    match runtime.block_on(server.block_until_done()) {
-        Ok(()) => {
+    match runtime.block_on(futures_util::future::select_all(tasks)) {
+        (Ok(()), _, _) => {
             info!("stopping...");
         }
-        Err(e) => {
+        (Err(e), _, _) => {
             let error_msg = format!(
                 "Error: {}",
                 e

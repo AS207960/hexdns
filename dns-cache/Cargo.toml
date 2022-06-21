@@ -12,12 +12,11 @@ async-trait = "0.1"
 trust-dns-server = "0.21"
 trust-dns-proto = "0.21"
 trust-dns-client = "0.21"
-tokio = { version = "1.6", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
+tokio = { version = "1.19", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
 log = "0.4"
 pretty_env_logger = "0.4"
 futures = "0.3"
-prost = "0.7"
-tonic = "0.4"
+prost = "0.10"
 lru = "0.6"
 clap = "2"
 async-stream = "0.3"
@@ -26,6 +25,9 @@ prometheus_exporter = "0.7"
 prometheus = "0.10"
 lazy_static = "1"
 amiquip = "0.4"
+tonic = "0.7"
+cmake = "=0.1.45"
+flurry = "0.4"
 
 [build-dependencies]
-tonic-build = { version = "0.4" }
+tonic-build = { version = "0.7" }
