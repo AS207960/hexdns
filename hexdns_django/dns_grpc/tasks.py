@@ -9,6 +9,7 @@ import socket
 import struct
 import typing
 import time
+import re
 import requests.exceptions
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.backends import default_backend
@@ -429,10 +430,13 @@ def update_catalog():
     zone_file += "@ 0 IN NS invalid.\n"
     zone_file += "version 0 IN TXT \"2\"\n"
 
+    pattern = re.compile("^[a-zA-Z0-9-]+$")
+
     for zone in models.DNSZone.objects.all():
-        zone_root = dnslib.DNSLabel(zone.zone_root)
-        if is_active(zone):
-            zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+        if pattern.match(zone.zone_root):
+            zone_root = dnslib.DNSLabel(zone.zone_root)
+            if is_active(zone):
+                zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
 
     for zone in models.ReverseDNSZone.objects.all():
         zone_network = ipaddress.ip_network(
