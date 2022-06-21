@@ -4,6 +4,7 @@ RUN mkdir /app
 RUN useradd app
 WORKDIR /app
 RUN pip install -U pip
+RUN apt-get update && apt-get install -y knot && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/
 RUN pip install -r requirements.txt

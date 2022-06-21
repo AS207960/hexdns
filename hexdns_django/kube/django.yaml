@@ -397,12 +397,10 @@ spec:
           configMap:
             name: domains-jwt-pub
       containers:
-        - name: gunicorn
+        - name: celery
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
           command: ["celery",  "-A", "hexdns_django", "worker", "--loglevel=INFO", "-c", "32"]
-          ports:
-            - containerPort: 8000
           volumeMounts:
             - mountPath: "/app/static/"
               name: static
@@ -446,6 +444,101 @@ spec:
     matchLabels:
       app: hexdns
       part: celery
+  policyTypes:
+  - Ingress
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-console
+  labels:
+    app: hexdns
+    part: console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: console
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: console
+    spec:
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+        - name: zones
+          persistentVolumeClaim:
+            claimName: hexdns-zones
+        - name: knot
+          persistentVolumeClaim:
+            claimName: hexdns-knot
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: domains-pubkey
+          configMap:
+            name: domains-jwt-pub
+      containers:
+        - name: console
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["bash"]
+          tty: true
+          stdin: true
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/zones/"
+              name: zones
+            - mountPath: "/knot/"
+              name: knot
+            - mountPath: "/domains-pubkey/"
+              name: domains-pubkey
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-rpc
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-console
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: console
   policyTypes:
   - Ingress
 ---

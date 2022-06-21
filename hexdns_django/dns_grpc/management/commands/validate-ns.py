@@ -55,9 +55,9 @@ def mail_invalid(user, zone):
 
 
 @retry.retry(tries=5)
-def lookup_ns(label, server, port=53):
+def lookup_ns(label, server, port=53, ipv6=True):
     question = dnslib.DNSRecord(q=dnslib.DNSQuestion(label, dnslib.QTYPE.NS))
-    res_pkt = question.send(server, port=port, ipv6=True, tcp=False, timeout=5)
+    res_pkt = question.send(server, port=port, ipv6=ipv6, tcp=False, timeout=5)
     res = dnslib.DNSRecord.parse(res_pkt)
 
     name_servers = list(
@@ -73,7 +73,7 @@ def lookup_ns(label, server, port=53):
 
 def query_authoritative_ns(domain):
     dns_name = dnslib.DNSLabel(domain)
-    ns = lookup_ns(".", settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT)
+    ns = lookup_ns(".", settings.RESOLVER_ADDR, port=settings.RESOLVER_PORT, ipv6=settings.RESOLVER_IPV6)
     use_ns = random.choice(ns)
 
     last = False

@@ -1,0 +1,117 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: hexdns-knot
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-django-conf
+data:
+  knot.conf: |
+    
+    server:
+        identity: "HexDNS"
+        listen: 0.0.0.0@53
+        listen: ::@53
+
+    database:
+        journal-db-mode: asynchronous
+
+    log:
+      - target: stdout
+        any: info
+
+    policy:
+      - id: zone
+        algorithm: ecdsap256sha256
+        ksk-shared: on
+        dnskey-ttl: 86400
+        reproducible-signing: on
+        nsec3: on
+        cds-cdnskey-publish: none
+
+    template:
+      - id: zone
+        storage: /zones
+        file: %s.zone
+        journal-content: none
+    #    dnssec-signing: off
+    #    dnssec-policy: zone
+
+    zone:
+      - domain: catalog.dns.as207960.ltd.uk.
+        file: /zones/catalog.zone
+        catalog-role: interpret
+        catalog-template: [ zone ]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-knot-primary
+  labels:
+    app: hexdns
+    part: knot
+    role: primary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: knot
+      role: primary
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: knot
+        role: primary
+    spec:
+      volumes:
+        - name: zones
+          persistentVolumeClaim:
+            claimName: hexdns-zones
+        - name: knot
+          persistentVolumeClaim:
+            claimName: hexdns-knot
+        - name: config
+          configMap:
+            name: hexdns-knot
+        - name: rundir
+          emptyDir: {}
+      containers:
+        - name: knot
+          image: cznic/knot:3.0
+          imagePullPolicy: Always
+          command: ["bash"]
+          volumeMounts:
+            - mountPath: "/zones/"
+              name: zones
+            - mountPath: "/storage/"
+              name: knot
+            - mountPath: "/config/"
+              name: config
+            - mountPath: "/rundir/"
+              name: rundir
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-knot-primary
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: knot
+      role: primary
+  policyTypes:
+  - Ingress
