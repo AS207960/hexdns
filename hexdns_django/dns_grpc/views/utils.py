@@ -6,7 +6,7 @@ import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
-from .. import grpc, models
+from .. import grpc, models, tasks
 from django.conf import settings
 
 psl = publicsuffixlist.PublicSuffixList()
@@ -103,7 +103,7 @@ def make_zone_digest(zone_name: str):
     buffer.encode_name(dnslib.DNSLabel(zone_name))
     rd.pack(buffer)
     digest = hashlib.sha256(buffer.data).hexdigest()
-    tag = grpc.make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
+    tag = tasks.make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
     return digest, tag
 
 

@@ -8,7 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .. import forms, grpc, models
+from .. import forms, models, tasks
 from . import utils
 
 
@@ -31,7 +31,7 @@ def edit_rzone(request, zone_id):
     zone_network = ipaddress.ip_network(
         (user_zone.zone_root_address, user_zone.zone_root_prefix)
     )
-    zone_name = grpc.network_to_apra(zone_network)
+    zone_name = tasks.network_to_apra(zone_network)
     dnssec_digest, dnssec_tag = utils.make_zone_digest(zone_name.label)
     sharing_data = {
         "referrer": settings.OIDC_CLIENT_ID,

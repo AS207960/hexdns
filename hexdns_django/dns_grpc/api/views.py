@@ -11,7 +11,7 @@ from as207960_utils.api import auth
 import as207960_utils.api.permissions
 import secrets
 from . import serializers, permissions
-from .. import models, views
+from .. import models, views, tasks
 
 
 class InvalidZone(exceptions.APIException):
@@ -63,11 +63,12 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
             encryption_algorithm=NoEncryption()
         ).decode()
 
-        serializer.save(
+        zone_obj = serializer.save(
             user=self.request.user,
             last_modified=timezone.now(),
             zsk_private=priv_key_bytes
         )
+        tasks.add_fzone.delay(zone_obj.id)
 
     def perform_update(self, serializer):
         serializer.save(last_modified=timezone.now())
@@ -77,6 +78,7 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
         instance.delete()
+        tasks.update_catalog.delay()
 
     @action(detail=True, methods=['post'])
     def import_zone_file(self, request, pk=None):
@@ -124,11 +126,12 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
             encryption_algorithm=NoEncryption()
         ).decode()
 
-        serializer.save(
+        zone_obj = serializer.save(
             user=self.request.user,
             last_modified=timezone.now(),
             zsk_private=priv_key_bytes
         )
+        tasks.add_rzone.delay(zone_obj.id)
 
     def perform_update(self, serializer):
         serializer.save(last_modified=timezone.now())
@@ -138,6 +141,7 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
         instance.delete()
+        tasks.update_catalog.delay()
 
 
 class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
@@ -177,6 +181,7 @@ class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
         instance.delete()
+        tasks.update_catalog.delay()
 
 
 class DNSZoneRecordViewSet(viewsets.ModelViewSet):

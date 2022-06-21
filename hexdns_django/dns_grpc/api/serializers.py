@@ -3,7 +3,7 @@ from django.conf import settings
 import base64
 import ipaddress
 import collections
-from .. import models, views, grpc
+from .. import models, views, tasks
 
 
 class WriteOnceMixin:
@@ -445,7 +445,7 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
         zone_network = ipaddress.ip_network(
             (instance.zone_root_address, instance.zone_root_prefix)
         )
-        zone_name = grpc.network_to_apra(zone_network)
+        zone_name = tasks.network_to_apra(zone_network)
         dnssec_digest, dnssec_tag = views.make_zone_digest(zone_name.label)
         nums = settings.DNSSEC_PUBKEY.public_numbers()
         pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")

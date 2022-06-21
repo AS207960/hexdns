@@ -1,6 +1,7 @@
 import typing
 import ipaddress
 import dnslib
+import struct
 from django.core.exceptions import ValidationError
 
 
@@ -295,11 +296,22 @@ class OctetParamData:
     def __repr__(self):
         out = ""
         for b in self.data:
-            if b <= 127:
+            if 32 <= b <= 126:
                 out += chr(b)
             else:
                 out += f"\\{b}"
         return out
+
+
+class IntegerParamData:
+    def __init__(self, data: int):
+        self.data = data
+
+    def pack(self, buf: dnslib.DNSBuffer):
+        buf.append(struct.pack("!H", self.data))
+
+    def __repr__(self):
+        return f"{self.data}"
 
 
 class MandatoryData:

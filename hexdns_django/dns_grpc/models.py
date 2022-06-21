@@ -1866,7 +1866,7 @@ class SVCBBaseRecord(DNSZoneRecord):
             if self.ipv6_hints_mandatory:
                 mandatory.append(svcb.SVCBParam.PARAM_MAPPING["ipv6hint"])
         if self.target_port:
-            data.append(svcb.SVCBParam("port", svcb.OctetParamData(struct.pack("!H", self.target_port))))
+            data.append(svcb.SVCBParam("port", svcb.IntegerParamData(self.target_port)))
             if self.target_port_mandatory:
                 mandatory.append(svcb.SVCBParam.PARAM_MAPPING["port"])
         if self.ech:

@@ -127,8 +127,8 @@ def generate_zone_header(zone, zone_root):
             zone_file += f"@ 86400 IN NS {ns}\n"
 
     if zone.cds_disable:
-        zone_file += "@ 86400 IN CDS 0 0 0 0\n"
-        zone_file += "@ 86400 IN CDNSKEY 0 3 0 0\n"
+        zone_file += "@ 86400 IN CDS 0 0 0 00\n"
+        zone_file += "@ 86400 IN CDNSKEY 0 3 0 AA==\n"
     else:
         nums = settings.DNSSEC_PUBKEY.public_numbers()
         dnskey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
@@ -235,7 +235,7 @@ def generate_fzone(zone: "models.DNSZone"):
     for record in zone.redirectrecord_set.all():
         zone_file += f"; Redirect record {record.id}\n"
         zone_file += f"{record.record_name} {record.ttl} IN A 45.129.95.254\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 2a0e:1cc1:1::1:7\n"
+        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
         zone_file += f"{record.record_name} {record.ttl} IN CAA 0 iodef \"mailto:noc@as207960.net\"\n"
         zone_file += f"{record.record_name} {record.ttl} IN CAA 0 issue \"letsencrypt.org\"\n"
 
@@ -308,21 +308,19 @@ def generate_fzone(zone: "models.DNSZone"):
 
     for record in zone.rprecord_set.all():
         zone_file += f"; RP record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN RP {record.mailbox} " \
-                     f"\"{encode_str(record.txt)}\"\n"
+        zone_file += f"{record.record_name} {record.ttl} IN RP {record.mailbox} {record.txt}\n"
 
     for record in zone.httpsrecord_set.all():
-        data, mandatory = record.svcb_data
-        params = [repr(p) for p in data.params]
-        if mandatory:
-            params.append(f"mandatory={','.join(svcb.SVCBParam.param_id_to_name(m) for m in mandatory)}")
+        svcb_record = record.svcb_record
+        buf = dnslib.DNSBuffer()
+        svcb_record.pack(buf)
+        data = bytes(buf.data)
         zone_file += f"; HTTPS record {record.id}\n"
-        zone_file += f"{record.svcb_record_name} {record.ttl} IN HTTPS {record.priority} {record.target} " \
-                     f"{' '.join(params)}\n"
+        zone_file += f"{record.svcb_record_name} {record.ttl} IN TYPE65 \# {len(data)} {data.hex()}\n"
 
     for record in zone.dhcidrecord_set.all():
         zone_file += f"; DHCID record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN DHCID \"{base64.b64encode(record.data).decode()}\"\n"
+        zone_file += f"{record.record_name} {record.ttl} IN DHCID {base64.b64encode(record.data).decode()}\n"
 
     return zone_file
 
@@ -355,8 +353,8 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
     return zone_file
 
 
-def write_zone_file(zone_contents: str, zone):
-    with open(f"{settings.ZONE_FILE_LOCATION}/{zone.id}.zone", "w", encoding="utf8", newline='\n') as f:
+def write_zone_file(zone_contents: str, zone_name: str):
+    with open(f"{settings.ZONE_FILE_LOCATION}/{zone_name}zone", "w", encoding="utf8", newline='\n') as f:
         f.write(zone_contents)
 
 
@@ -367,7 +365,7 @@ def write_zone_file(zone_contents: str, zone):
 def add_fzone(zone_id: str):
     zone = models.DNSZone.objects.get(id=zone_id)
     zone_file = generate_fzone(zone)
-    write_zone_file(zone_file, zone)
+    write_zone_file(zone_file, str(dnslib.DNSLabel(zone.zone_root)))
     update_catalog.delay()
 
 
@@ -378,7 +376,7 @@ def add_fzone(zone_id: str):
 def update_fzone(zone_id: str):
     zone = models.DNSZone.objects.get(id=zone_id)
     zone_file = generate_fzone(zone)
-    write_zone_file(zone_file, zone)
+    write_zone_file(zone_file, str(dnslib.DNSLabel(zone.zone_root)))
 
 
 @shared_task(
@@ -388,7 +386,11 @@ def update_fzone(zone_id: str):
 def add_rzone(zone_id: str):
     zone = models.ReverseDNSZone.objects.get(id=zone_id)
     zone_file = generate_rzone(zone)
-    write_zone_file(zone_file, zone)
+    zone_network = ipaddress.ip_network(
+        (zone.zone_root_address, zone.zone_root_prefix)
+    )
+    zone_root = network_to_apra(zone_network)
+    write_zone_file(zone_file, str(zone_root))
     update_catalog.delay()
 
 
@@ -399,7 +401,11 @@ def add_rzone(zone_id: str):
 def update_rzone(zone_id: str):
     zone = models.ReverseDNSZone.objects.get(id=zone_id)
     zone_file = generate_rzone(zone)
-    write_zone_file(zone_file, zone)
+    zone_network = ipaddress.ip_network(
+        (zone.zone_root_address, zone.zone_root_prefix)
+    )
+    zone_root = network_to_apra(zone_network)
+    write_zone_file(zone_file, str(zone_root))
 
 
 def is_active(zone):
@@ -433,5 +439,4 @@ def update_catalog():
         if is_active(zone):
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
 
-    with open(f"{settings.ZONE_FILE_LOCATION}/catalog.zone", "w", encoding="utf8", newline='\n') as f:
-        f.write(zone_file)
+    write_zone_file(zone_file, "catalog.")
