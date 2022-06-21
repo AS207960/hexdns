@@ -400,7 +400,7 @@ spec:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["celery",  "-A", "as207960_celery", "worker", "--loglevel=INFO", "-c", "32"]
+          command: ["celery",  "-A", "hexdns_django", "worker", "--loglevel=INFO", "-c", "32"]
           ports:
             - containerPort: 8000
           volumeMounts:
@@ -928,8 +928,3 @@ spec:
   ports:
     - port: 50051
       targetPort: 50051
-  topologyKeys:
-    - kubernetes.io/hostname
-    - topology.kubernetes.io/zone
-    - topology.kubernetes.io/region
-    - '*'

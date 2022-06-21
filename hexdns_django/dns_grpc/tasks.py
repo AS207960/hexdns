@@ -98,16 +98,6 @@ def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
     return tag
 
 
-with open(settings.DNSSEC_KEY_LOCATION, "rb") as k:
-    priv_key_data = k.read()
-
-priv_ksk = load_pem_private_key(
-    priv_key_data, password=None, backend=default_backend()
-)
-if not issubclass(type(priv_ksk), EllipticCurvePrivateKey):
-    raise Exception("Only EC private keys supported")
-
-
 def encode_str(data):
     return "".join(c if ord(c) < 128 else "".join(f'\\{b}' for b in c.encode()) for c in data.replace("\"", "\\\""))
 
@@ -140,8 +130,7 @@ def generate_zone_header(zone, zone_root):
         zone_file += "@ 86400 IN CDS 0 0 0 0\n"
         zone_file += "@ 86400 IN CDNSKEY 0 3 0 0\n"
     else:
-        pub_key = priv_ksk.public_key()
-        nums = pub_key.public_numbers()
+        nums = settings.DNSSEC_PUBKEY.public_numbers()
         dnskey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
 
         buffer = dnslib.DNSBuffer()
@@ -154,7 +143,7 @@ def generate_zone_header(zone, zone_root):
         buffer.encode_name(dnslib.DNSLabel(zone_root))
         rd.pack(buffer)
         digest = hashlib.sha256(buffer.data).hexdigest()
-        tag = make_key_tag(pub_key, flags=257)
+        tag = make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
 
         zone_file += f"@ 86400 IN CDS {tag} 13 2 {digest}\n"
 
@@ -440,7 +429,7 @@ def update_catalog():
         zone_network = ipaddress.ip_network(
             (zone.zone_root_address, zone.zone_root_prefix)
         )
-        zone_root = grpc.network_to_apra(zone_network)
+        zone_root = network_to_apra(zone_network)
         if is_active(zone):
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
 
