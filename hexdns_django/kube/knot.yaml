@@ -102,6 +102,15 @@ spec:
               name: config
             - mountPath: "/rundir/"
               name: rundir
+        - name: reloader
+          image: as207960/hexdns-knot-sidecar:(version)
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: "/rundir/"
+              name: rundir
+          envFrom:
+            - secretRef:
+                name: hexdns-rpc
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

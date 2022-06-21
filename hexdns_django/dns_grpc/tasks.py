@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from . import models, svcb
+from . import models, apps
 import dnslib
 import base64
 import ipaddress
@@ -360,6 +360,16 @@ def write_zone_file(zone_contents: str, zone_name: str):
         f.write(zone_contents)
 
 
+def send_reload_message(label: dnslib.DNSLabel):
+    pika_client = apps.PikaClient()
+
+    def pub(channel):
+        channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
+        channel.basic_publish(exchange='hexdns_primary_reload', routing_key='', body=str(label).encode())
+
+    pika_client.get_channel(pub)
+
+
 @shared_task(
     autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
     ignore_result=True
@@ -377,8 +387,10 @@ def add_fzone(zone_id: str):
 )
 def update_fzone(zone_id: str):
     zone = models.DNSZone.objects.get(id=zone_id)
+    zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_fzone(zone)
-    write_zone_file(zone_file, str(dnslib.DNSLabel(zone.zone_root)))
+    write_zone_file(zone_file, str(zone_root))
+    send_reload_message(zone_root)
 
 
 @shared_task(
@@ -408,6 +420,7 @@ def update_rzone(zone_id: str):
     )
     zone_root = network_to_apra(zone_network)
     write_zone_file(zone_file, str(zone_root))
+    send_reload_message(zone_root)
 
 
 def is_active(zone):
@@ -447,3 +460,4 @@ def update_catalog():
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
 
     write_zone_file(zone_file, "catalog.")
+    send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
