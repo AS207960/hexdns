@@ -230,7 +230,7 @@ def generate_fzone(zone: "models.DNSZone"):
 
     for record in zone.cnamerecord_set.all():
         zone_file += f"; CNAME record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A {record.alias}\n"
+        zone_file += f"{record.record_name} {record.ttl} IN CNAME {dnslib.DNSLabel(record.alias)}\n"
 
     for record in zone.redirectrecord_set.all():
         zone_file += f"; Redirect record {record.id}\n"
@@ -241,11 +241,11 @@ def generate_fzone(zone: "models.DNSZone"):
 
     for record in zone.mxrecord_set.all():
         zone_file += f"; MX record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN MX {record.priority} {record.exchange}\n"
+        zone_file += f"{record.record_name} {record.ttl} IN MX {record.priority} {dnslib.DNSLabel(record.exchange)}\n"
 
     for record in zone.nsrecord_set.all():
         zone_file += f"; NS record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN NS {record.nameserver}\n"
+        zone_file += f"{record.record_name} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
 
     for record in zone.txtrecord_set.all():
         zone_file += f"; TXT record {record.id}\n"
@@ -254,7 +254,7 @@ def generate_fzone(zone: "models.DNSZone"):
     for record in zone.srvrecord_set.all():
         zone_file += f"; SRV record {record.id}\n"
         zone_file += f"{record.record_name} {record.ttl} IN SRV {record.priority} {record.weight} {record.port} " \
-                     f"{record.target}\n"
+                     f"{dnslib.DNSLabel(record.target)}\n"
 
     for record in zone.caarecord_set.all():
         zone_file += f"; CAA record {record.id}\n"
@@ -308,7 +308,8 @@ def generate_fzone(zone: "models.DNSZone"):
 
     for record in zone.rprecord_set.all():
         zone_file += f"; RP record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN RP {record.mailbox} {record.txt}\n"
+        zone_file += f"{record.record_name} {record.ttl} IN RP {dnslib.DNSLabel(record.mailbox)} " \
+                     f"{dnslib.DNSLabel(record.txt)}\n"
 
     for record in zone.httpsrecord_set.all():
         svcb_record = record.svcb_record
@@ -412,6 +413,8 @@ def is_active(zone):
     try:
         account = zone.get_user().account
         return account.subscription_active
+    except models.Account.DoesNotExist:
+        return False
     except requests.exceptions.RequestException:
         return False
 

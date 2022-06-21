@@ -13,7 +13,7 @@ spec:
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: hexdns-django-conf
+  name: hexdns-knot
 data:
   knot.conf: |
     
