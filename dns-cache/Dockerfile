@@ -1,4 +1,4 @@
-FROM ekidd/rust-musl-builder:nightly-2020-08-26 as builder
+FROM ekidd/rust-musl-builder:nightly-2021-12-23 as builder
 
 RUN USER=rust cargo init
 RUN mkdir static
