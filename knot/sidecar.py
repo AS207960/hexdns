@@ -33,7 +33,11 @@ def callback(channel, method, properties, body: bytes):
 
     try:
         ctl.send_block(cmd="zone-reload", zone=zone)
+        ctl.receive_block()
         print(f"Reloaded {zone}", flush=True)
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+    except libknot.control.KnotCtlError:
+        channel.basic_reject(delivery_tag=method.delivery_tag)
     finally:
         ctl.send(libknot.control.KnotCtlType.END)
         ctl.close()
