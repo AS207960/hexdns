@@ -178,7 +178,7 @@ def generate_fzone(zone: "models.DNSZone"):
             for zone in models.ReverseDNSZone.objects.raw(
                 "SELECT * FROM dns_grpc_reversednszone WHERE ("
                 "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
-                [address]
+                [str(address)]
             ):
                 update_rzone.delay(zone.id)
 
@@ -353,7 +353,7 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
 
     for record in models.AddressRecord.objects.raw(
             "SELECT * FROM dns_grpc_addressrecord WHERE (auto_reverse AND address << inet %s)",
-            [zone_network]
+            [str(zone_network)]
     ):
         if record.zone.get_user().account == account:
             zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
