@@ -489,7 +489,7 @@ spec:
             name: domains-jwt-pub
       containers:
         - name: console
-          image: as207960/hexdns-django:(version)
+          image: as207960/hexdns-django-root:(version)
           imagePullPolicy: Always
           command: ["bash"]
           tty: true

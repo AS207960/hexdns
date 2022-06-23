@@ -16,7 +16,6 @@ metadata:
   name: hexdns-knot
 data:
   knot.conf: |
-    
     server:
         identity: "HexDNS"
         listen: 0.0.0.0@53
@@ -28,29 +27,81 @@ data:
     log:
       - target: stdout
         any: info
+    
+    key:
+      - id: secondary-xfr
+        algorithm: hmac-sha256
+        secret: (xfr-secret)
+    
+    acl:
+      - id: secondary-xfr
+        action: transfer
+        key: secondary-xfr
+    
+    remote:
+      - id: unbound-no-dns64
+        address: (unbound-no-dns64)@5053
+    
+    submission:
+      - id: zone
+        parent: unbound-no-dns64
+        check-interval: 15m
 
     policy:
       - id: zone
+        signing-threads: 4
         algorithm: ecdsap256sha256
         ksk-shared: on
         dnskey-ttl: 86400
         reproducible-signing: on
         nsec3: on
-        cds-cdnskey-publish: none
+        cds-cdnskey-publish: always
+        zsk-lifetime: 0
+        ksk-submission: zone
+    
+      - id: zone-cds-disable
+        signing-threads: 4
+        algorithm: ecdsap256sha256
+        ksk-shared: on
+        dnskey-ttl: 86400
+        reproducible-signing: on
+        nsec3: on
+        cds-cdnskey-publish: delete-dnssec
+        zsk-lifetime: 0
+        ksk-submission: zone
 
     template:
       - id: zone
         storage: /zones
         file: %s.zone
         journal-content: none
-    #    dnssec-signing: off
-    #    dnssec-policy: zone
+        dnssec-signing: on
+        dnssec-policy: zone
+        acl: secondary-xfr
+
+    template:
+      - id: zone-cds-disable
+        storage: /zones
+        file: %s.zone
+        journal-content: none
+        dnssec-signing: on
+        dnssec-policy: zone-cds-disable
+        acl: secondary-xfr
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
         file: /zones/catalog.zone
         catalog-role: interpret
-        catalog-template: [ zone ]
+        catalog-template: [ zone, zone-cds-disable ]
+        acl: secondary-xfr
+    
+      - domain: cds-always.dns.as207960.ltd.uk.
+        template: zone
+        file: /zones/cds-always.dns.as207960.ltd.uk.zone
+    
+      - domain: cds-delete.dns.as207960.ltd.uk.
+        template: zone-cds-disable
+        file: /zones/cds-delete.dns.as207960.ltd.uk.zone
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -62,6 +113,8 @@ metadata:
     role: primary
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: hexdns
@@ -92,16 +145,25 @@ spec:
         - name: knot
           image: cznic/knot:3.0
           imagePullPolicy: Always
-          command: ["knotd"]
+          command: [
+            "sh", "-c",
+            "cp /config-template/knot.conf /config/knot.conf &&
+             sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
+             sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
+             knotd"
+          ]
           volumeMounts:
             - mountPath: "/zones/"
               name: zones
             - mountPath: "/storage/"
               name: knot
-            - mountPath: "/config/"
+            - mountPath: "/config-template/"
               name: config
             - mountPath: "/rundir/"
               name: rundir
+          envFrom:
+            - secretRef:
+                name: hexdns-knot-xfr
         - name: reloader
           image: as207960/hexdns-knot-sidecar:(version)
           imagePullPolicy: Always
@@ -125,3 +187,178 @@ spec:
       role: primary
   policyTypes:
   - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-knot-primary
+spec:
+  selector:
+    app: hexdns
+    part: knot
+    role: primary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-knot-secondary
+data:
+  knot.conf: |
+    server:
+        identity: "HexDNS"
+        listen: 0.0.0.0@53
+        listen: ::@53
+
+    database:
+        journal-db-mode: asynchronous
+
+    log:
+      - target: stdout
+        any: info
+    
+    key:
+      - id: secondary-xfr
+        algorithm: hmac-sha256
+        secret: (xfr-secret)
+    
+    remote:
+      - id: primary
+        address: (primary-address)
+        key: secondary-xfr
+
+    template:
+      - id: zone
+        journal-content: none
+        master: primary
+
+    zone:
+      - domain: catalog.dns.as207960.ltd.uk.
+        master: primary
+        catalog-role: interpret
+        catalog-template: zone
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-knot-secondary
+  labels:
+    app: hexdns
+    part: knot
+    role: secondary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: knot
+      role: secondary
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: knot
+        role: secondary
+    spec:
+      volumes:
+        - name: knot
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: hexdns-knot-secondary
+        - name: rundir
+          emptyDir: {}
+      containers:
+        - name: knot
+          image: cznic/knot:3.0
+          imagePullPolicy: Always
+          command: [
+            "sh", "-c",
+            "cp /config-template/knot.conf /config/knot.conf &&
+             sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
+             sed -i \"s/(primary-address)/$HEXDNS_KNOT_PRIMARY_SERVICE_HOST/g\" /config/knot.conf &&
+             knotd"
+          ]
+          volumeMounts:
+            - mountPath: "/storage/"
+              name: knot
+            - mountPath: "/config-template/"
+              name: config
+            - mountPath: "/rundir/"
+              name: rundir
+          envFrom:
+            - secretRef:
+                name: hexdns-knot-xfr
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-knot-secondary
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: knot
+      role: secondary
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-knot-secondary-udp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-knot"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: secondary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-knot-secondary-tcp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-knot"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: secondary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp

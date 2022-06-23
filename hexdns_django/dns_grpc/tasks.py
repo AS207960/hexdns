@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
 
-NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
+NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net."]
 IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
@@ -259,13 +259,13 @@ def generate_fzone(zone: "models.DNSZone"):
 
     for record in zone.caarecord_set.all():
         zone_file += f"; CAA record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN CAA {record.flags} \"{encode_str(record.tag)}\" " \
+        zone_file += f"{record.record_name} {record.ttl} IN CAA {record.flag} \"{encode_str(record.tag)}\" " \
                      f"\"{encode_str(record.value)}\"\n"
 
     for record in zone.naptrrecord_set.all():
         zone_file += f"; NAPTR record {record.id}\n"
         zone_file += f"{record.record_name} {record.ttl} IN NAPTR {record.order} {record.preference} " \
-                     f"{record.flags} \"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
+                     f"\"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
                      f"\"{encode_str(record.regexp)}\" \"{encode_str(record.replacement)}\"\n"
 
     for record in zone.sshfprecord_set.all():
@@ -450,6 +450,10 @@ def update_catalog():
             zone_root = dnslib.DNSLabel(zone.zone_root)
             if is_active(zone):
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+                if zone.cds_disable:
+                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
+                else:
+                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
 
     for zone in models.ReverseDNSZone.objects.all():
         zone_network = ipaddress.ip_network(
@@ -458,6 +462,10 @@ def update_catalog():
         zone_root = network_to_apra(zone_network)
         if is_active(zone):
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+            if zone.cds_disable:
+                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
+            else:
+                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
 
     write_zone_file(zone_file, "catalog.")
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
