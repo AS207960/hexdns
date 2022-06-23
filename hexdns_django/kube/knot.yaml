@@ -49,7 +49,7 @@ data:
 
     policy:
       - id: zone
-        signing-threads: 4
+        signing-threads: 1
         algorithm: ecdsap256sha256
         ksk-shared: on
         dnskey-ttl: 86400
@@ -60,7 +60,7 @@ data:
         ksk-submission: zone
     
       - id: zone-cds-disable
-        signing-threads: 4
+        signing-threads: 1
         algorithm: ecdsap256sha256
         ksk-shared: on
         dnskey-ttl: 86400
@@ -88,11 +88,19 @@ data:
         dnssec-policy: zone-cds-disable
         acl: secondary-xfr
 
+    template:
+      - id: zone-secondary
+        storage: /zones
+        file: %s.zone
+        journal-content: none
+        dnssec-signing: off
+        acl: secondary-xfr
+
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
         file: /zones/catalog.zone
         catalog-role: interpret
-        catalog-template: [ zone, zone-cds-disable ]
+        catalog-template: [ zone, zone-cds-disable, zone-secondary ]
         acl: secondary-xfr
     
       - domain: cds-always.dns.as207960.ltd.uk.
@@ -240,11 +248,19 @@ data:
       - id: primary
         address: (primary-address)
         key: secondary-xfr
+      - id: ddns-primary
+        address: (ddns-primary-address)
+    
+    mod-updateproxy:
+      - id: default
+        remote: ddns-primary
+        timeout: 5000
 
     template:
       - id: zone
         journal-content: none
         master: primary
+        module: mod-updateproxy/default
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
@@ -286,15 +302,21 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: cznic/knot:3.0
+          image: as207960/knotd:1
           imagePullPolicy: Always
           command: [
             "sh", "-c",
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(primary-address)/$HEXDNS_KNOT_PRIMARY_SERVICE_HOST/g\" /config/knot.conf &&
+             sed -i \"s/(ddns-primary-address)/$HEXDNS_UPDATE_SERVICE_HOST/g\" /config/knot.conf &&
              knotd"
           ]
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
             - mountPath: "/storage/"
               name: knot

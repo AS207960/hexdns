@@ -1325,7 +1325,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         for rr in sorted(map(rrdata_key, rrs), key=lambda r: r[1]):
                             data.extend(rr[0])
 
-                        # print(data)
                         sig = decode_dss_signature(
                             this_priv_key.sign(data, ec.ECDSA(hashes.SHA256()))
                         )
@@ -1900,8 +1899,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 other_data=other_data
             )
 
-            print(dns_res.pack())
-
             outgoing_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
             outgoing_hmac.update(struct.pack('!H', len(incoming_tsig.mac)))
             outgoing_hmac.update(incoming_tsig.mac)
@@ -1919,8 +1916,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 req_tsig.rname, QTYPE.TSIG, getattr(CLASS, "*"), 0,
                 dnslib.RD(outgoing_tsig.make_tsig())
             ))
-
-            print(dns_res.pack())
 
         # RFC 2845 § 4.5.2
         now = datetime.datetime.utcnow()
@@ -2153,7 +2148,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return None
 
         def can_manage(rrtype, record_name: dnslib.DNSLabel):
-            print(tsig_key.restrict_to, record_name)
             if tsig_key.restrict_to != "@":
                 restrict_suffix = dnslib.DNSLabel(tsig_key.restrict_to)
                 if not record_name.matchSuffix(restrict_suffix):
@@ -2184,13 +2178,13 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 def _try_update():
                     if rr.rtype == QTYPE.CNAME:
                         if self.any_records(record_name, zone, include_cname=False):
-                            return
+                            return False
                     elif self.any_record_type(record_name, zone, QTYPE.CNAME):
-                        return
+                        return False
 
                     records = get_record_models(rr.rtype, record_name)
                     if records is None:
-                        return
+                        return True
 
                     for record in records:
                         record_rr = record.to_rr(rr.rname)
@@ -2198,39 +2192,41 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                         if rr.rdata == record_rr.rdata:
                             record.update_from_rr(rr)
                             record.save()
-                            return
-                    if rr.rtype in [QTYPE.A, QTYPE.AAAA]:
-                        new_record = models.AddressRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.MX:
-                        new_record = models.MXRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.NS:
-                        new_record = models.NSRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.TXT:
-                        new_record = models.TXTRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.SRV:
-                        new_record = models.SRVRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.CAA:
-                        new_record = models.CAARecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.NAPTR:
-                        new_record = models.NAPTRRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.DS:
-                        new_record = models.DSRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.LOC:
-                        new_record = models.LOCRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.HINFO:
-                        new_record = models.HINFORecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.RP:
-                        new_record = models.RPRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.DHCID:
-                        new_record = models.DHCIDRecord.from_rr(rr, zone)
-                    elif rr.rtype == QTYPE.CNAME:
-                        new_record = models.CNAMERecord.from_rr(rr, zone)
-                    else:
-                        return
+                            return False
 
+                    return True
+
+                if rr.rtype in [QTYPE.A, QTYPE.AAAA]:
+                    new_record = models.AddressRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.MX:
+                    new_record = models.MXRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.NS:
+                    new_record = models.NSRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.TXT:
+                    new_record = models.TXTRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.SRV:
+                    new_record = models.SRVRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.CAA:
+                    new_record = models.CAARecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.NAPTR:
+                    new_record = models.NAPTRRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.DS:
+                    new_record = models.DSRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.LOC:
+                    new_record = models.LOCRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.HINFO:
+                    new_record = models.HINFORecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.RP:
+                    new_record = models.RPRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.DHCID:
+                    new_record = models.DHCIDRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.CNAME:
+                    new_record = models.CNAMERecord.from_rr(rr, zone)
+                else:
+                    continue
+
+                if _try_update():
                     new_record.save()
-
-                _try_update()
 
             # RFC 2136 § 3.4.2.3
             elif rr.rclass == getattr(CLASS, "*"):

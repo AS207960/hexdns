@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 
-from .. import forms, models
+from .. import forms, models, tasks
 from . import utils
 
 
@@ -47,6 +47,7 @@ def create_szone(request):
                         primary=primary_server
                     )
                     zone_obj.save()
+                    tasks.add_szone.delay(zone_obj.id)
 
                     if status == "redirect":
                         return redirect(extra)
@@ -136,6 +137,7 @@ def delete_szone(request, zone_id):
             })
         else:
             user_zone.delete()
+            tasks.update_catalog.delay()
             if status == "redirect":
                 return redirect(extra)
             return redirect('szones')

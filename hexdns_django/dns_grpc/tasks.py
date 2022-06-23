@@ -174,6 +174,14 @@ def generate_fzone(zone: "models.DNSZone"):
         elif type(address) == ipaddress.IPv6Address:
             zone_file += f"{record.record_name} {record.ttl} IN AAAA {address}\n"
 
+        if record.auto_reverse:
+            for zone in models.ReverseDNSZone.objects.raw(
+                "SELECT * FROM dns_grpc_reversednszone WHERE ("
+                "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
+                [address]
+            ):
+                update_rzone.delay(zone.id)
+
     for record in zone.dynamicaddressrecord_set.all():
         zone_file += f"; Dynamic address record {record.id}\n"
         if record.current_ipv4:
@@ -355,6 +363,17 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
     return zone_file
 
 
+def generate_szone(zone: "models.SecondaryDNSZone"):
+    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_file = f"$ORIGIN {zone_root}\n"
+
+    for record in zone.secondarydnszonerecord_set.all():
+        zone_file += f"; Record {record.id}\n"
+        zone_file += f"{record.record_name} {record.ttl} IN TYPE{record.rtype} \# {len(record.rdata)} {record.rdata.hex()}\n"
+
+    return zone_file
+
+
 def write_zone_file(zone_contents: str, zone_name: str):
     with open(f"{settings.ZONE_FILE_LOCATION}/{zone_name}zone", "w", encoding="utf8", newline='\n') as f:
         f.write(zone_contents)
@@ -423,6 +442,30 @@ def update_rzone(zone_id: str):
     send_reload_message(zone_root)
 
 
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
+def add_szone(zone_id: str):
+    zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_file = generate_szone(zone)
+    write_zone_file(zone_file, str(zone_root))
+    update_catalog.delay()
+
+
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
+def update_szone(zone_id: str):
+    zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_file = generate_szone(zone)
+    write_zone_file(zone_file, str(zone_root))
+    send_reload_message(zone_root)
+
+
 def is_active(zone):
     try:
         account = zone.get_user().account
@@ -466,6 +509,13 @@ def update_catalog():
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
             else:
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+
+    for zone in models.SecondaryDNSZone.objects.all():
+        if pattern.match(zone.zone_root):
+            zone_root = dnslib.DNSLabel(zone.zone_root)
+            if is_active(zone):
+                zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
 
     write_zone_file(zone_file, "catalog.")
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))

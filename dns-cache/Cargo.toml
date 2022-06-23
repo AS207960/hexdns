@@ -31,3 +31,11 @@ flurry = "0.4"
 
 [build-dependencies]
 tonic-build = { version = "0.7" }
+
+[lib]
+name = "dns_cache"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dns-cache"
+path = "src/main.rs"

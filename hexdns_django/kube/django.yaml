@@ -777,6 +777,67 @@ spec:
                 privileged: true
           restartPolicy: OnFailure
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hexdns-update-aname
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: update-aname
+            part-type: cronjob
+        spec:
+          shareProcessNamespace: true
+          volumes:
+            - name: static
+              persistentVolumeClaim:
+                claimName: hexdns-django-static
+            - name: media
+              persistentVolumeClaim:
+                claimName: hexdns-django-media
+          containers:
+            - name: django
+              image: as207960/hexdns-django:(version)
+              imagePullPolicy: Always
+              command: ["sh", "-c", "python3 manage.py update-aname-zones"]
+              volumeMounts:
+                - mountPath: "/app/static/"
+                  name: static
+                - mountPath: "/app/media/"
+                  name: media
+              envFrom:
+                - configMapRef:
+                    name: hexdns-django-conf
+                - secretRef:
+                    name: hexdns-db-creds
+                  prefix: "DB_"
+                - secretRef:
+                    name: hexdns-django-secret
+                - secretRef:
+                    name: hexdns-keycloak
+                  prefix: "KEYCLOAK_"
+                - secretRef:
+                    name: hexdns-email
+                  prefix: "EMAIL_"
+                - secretRef:
+                    name: hexdns-github
+                  prefix: "GITHUB_"
+                - secretRef:
+                    name: hexdns-google
+                  prefix: "GOOGLE_"
+                - secretRef:
+                    name: hexdns-rpc
+          restartPolicy: OnFailure
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -888,6 +949,10 @@ spec:
         matchLabels:
           app: hexdns
           part: cache
+    - podSelector:
+        matchLabels:
+          app: hexdns
+          part: update
     ports:
     - protocol: TCP
       port: 50051

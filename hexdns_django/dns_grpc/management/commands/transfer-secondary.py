@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from dns_grpc import models
+from dns_grpc import models, tasks
 import socket
 import struct
 import dnslib
@@ -106,6 +106,7 @@ class Command(BaseCommand):
                 zone.serial = serial
                 zone.error = False
                 zone.save()
+                tasks.update_szone.delay(zone.id)
                 print(f"Successfully updated from {zone.primary}")
             else:
                 zone.error = True
