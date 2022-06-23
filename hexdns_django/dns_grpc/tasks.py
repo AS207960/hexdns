@@ -406,10 +406,12 @@ def add_fzone(zone_id: str):
 )
 def update_fzone(zone_id: str):
     zone = models.DNSZone.objects.get(id=zone_id)
-    zone_root = dnslib.DNSLabel(zone.zone_root)
-    zone_file = generate_fzone(zone)
-    write_zone_file(zone_file, str(zone_root))
-    send_reload_message(zone_root)
+    pattern = re.compile("^[a-zA-Z0-9-.]+$")
+    if pattern.match(zone.zone_root):
+        zone_root = dnslib.DNSLabel(zone.zone_root)
+        zone_file = generate_fzone(zone)
+        write_zone_file(zone_file, str(zone_root))
+        send_reload_message(zone_root)
 
 
 @shared_task(
@@ -418,13 +420,15 @@ def update_fzone(zone_id: str):
 )
 def add_rzone(zone_id: str):
     zone = models.ReverseDNSZone.objects.get(id=zone_id)
-    zone_file = generate_rzone(zone)
-    zone_network = ipaddress.ip_network(
-        (zone.zone_root_address, zone.zone_root_prefix)
-    )
-    zone_root = network_to_apra(zone_network)
-    write_zone_file(zone_file, str(zone_root))
-    update_catalog.delay()
+    pattern = re.compile("^[a-zA-Z0-9-.]+$")
+    if pattern.match(zone.zone_root):
+        zone_file = generate_rzone(zone)
+        zone_network = ipaddress.ip_network(
+            (zone.zone_root_address, zone.zone_root_prefix)
+        )
+        zone_root = network_to_apra(zone_network)
+        write_zone_file(zone_file, str(zone_root))
+        update_catalog.delay()
 
 
 @shared_task(
