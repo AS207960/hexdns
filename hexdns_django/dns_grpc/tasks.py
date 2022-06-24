@@ -175,12 +175,12 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record.record_name} {record.ttl} IN AAAA {address}\n"
 
         if record.auto_reverse:
-            for zone in models.ReverseDNSZone.objects.raw(
+            for rzone in models.ReverseDNSZone.objects.raw(
                 "SELECT * FROM dns_grpc_reversednszone WHERE ("
                 "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
                 [str(address)]
             ):
-                update_rzone.delay(zone.id)
+                update_rzone.delay(rzone.id)
 
     for record in zone.dynamicaddressrecord_set.all():
         zone_file += f"; Dynamic address record {record.id}\n"
