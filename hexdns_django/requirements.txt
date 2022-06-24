@@ -23,3 +23,4 @@ pika
 python-dateutil
 kubernetes==18.17.0a1
 celery
+idna

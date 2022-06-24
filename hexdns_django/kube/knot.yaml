@@ -41,6 +41,8 @@ data:
     remote:
       - id: unbound-no-dns64
         address: (unbound-no-dns64)@5053
+      - id: notify-sidecar
+        address: 127.0.0.1@5353
     
     submission:
       - id: zone
@@ -78,6 +80,7 @@ data:
         dnssec-signing: on
         dnssec-policy: zone
         acl: secondary-xfr
+        notify: notify-sidecar
 
     template:
       - id: zone-cds-disable
@@ -87,6 +90,7 @@ data:
         dnssec-signing: on
         dnssec-policy: zone-cds-disable
         acl: secondary-xfr
+        notify: notify-sidecar
 
     template:
       - id: zone-secondary
@@ -95,6 +99,7 @@ data:
         journal-content: none
         dnssec-signing: off
         acl: secondary-xfr
+        notify: notify-sidecar
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
@@ -102,6 +107,7 @@ data:
         catalog-role: interpret
         catalog-template: [ zone, zone-cds-disable, zone-secondary ]
         acl: secondary-xfr
+        notify: notify-sidecar
     
       - domain: cds-always.dns.as207960.ltd.uk.
         template: zone
@@ -158,8 +164,14 @@ spec:
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
+            sleep 15 &&
              knotd"
           ]
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 15
+            periodSeconds: 10
           volumeMounts:
             - mountPath: "/zones/"
               name: zones
@@ -256,17 +268,24 @@ data:
         remote: ddns-primary
         timeout: 5000
 
+    acl:
+      - id: notify
+        address: 127.0.0.1
+        action: notify
+
     template:
       - id: zone
         journal-content: none
         master: primary
         module: mod-updateproxy/default
+        acl: notify
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
         master: primary
         catalog-role: interpret
         catalog-template: zone
+        acl: notify
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -277,7 +296,7 @@ metadata:
     part: knot
     role: secondary
 spec:
-  replicas: 1
+  replicas: 6
   selector:
     matchLabels:
       app: hexdns
@@ -310,12 +329,13 @@ spec:
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(primary-address)/$HEXDNS_KNOT_PRIMARY_SERVICE_HOST/g\" /config/knot.conf &&
              sed -i \"s/(ddns-primary-address)/$HEXDNS_UPDATE_SERVICE_HOST/g\" /config/knot.conf &&
+             sleep 15 &&
              knotd"
           ]
           readinessProbe:
             tcpSocket:
               port: 53
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
           volumeMounts:
             - mountPath: "/storage/"
@@ -327,6 +347,13 @@ spec:
           envFrom:
             - secretRef:
                 name: hexdns-knot-xfr
+        - name: reloader
+          image: as207960/hexdns-knot-sidecar-secondary:(version)
+          imagePullPolicy: Always
+          command: ["python3", "/app/sidecar-secondary.py"]
+          envFrom:
+            - secretRef:
+                name: hexdns-rpc
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

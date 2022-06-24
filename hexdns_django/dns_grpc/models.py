@@ -5,7 +5,7 @@ import struct
 import math
 import secrets
 import hashlib
-
+import idna
 import django_keycloak_auth.clients
 import dnslib
 import codecs
@@ -478,6 +478,15 @@ class DNSZoneRecord(models.Model):
             return dnslib.DNSLabel(self.zone.zone_root)
         else:
             return dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}")
+
+    @property
+    def idna_label(self):
+        if self.record_name == "@":
+            return "@"
+        try:
+            return idna.encode(self.record_name, uts46=True)
+        except idna.IDNAError:
+            return None
 
     @classmethod
     def dns_label_to_record_name(cls, rname, zone):
@@ -1830,12 +1839,12 @@ class SVCBBaseRecord(DNSZoneRecord):
     @property
     def svcb_record_name(self):
         if not self.port and not self.scheme:
-            return self.record_name
+            return self.idna_label
         else:
             if self.record_name == "@":
                 return f"_{self.port}._{self.scheme}"
             else:
-                return f"_{self.port}._{self.scheme}.{self.record_name}"
+                return f"_{self.port}._{self.scheme}.{self.idna_label}"
 
     @property
     def dns_label(self):

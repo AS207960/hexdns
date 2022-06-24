@@ -167,158 +167,192 @@ def generate_fzone(zone: "models.DNSZone"):
     zone_file = generate_zone_header(zone, zone_root)
 
     for record in zone.addressrecord_set.all():
-        zone_file += f"; Address record {record.id}\n"
-        address = ipaddress.ip_address(record.address)
-        if type(address) == ipaddress.IPv4Address:
-            zone_file += f"{record.record_name} {record.ttl} IN A {address}\n"
-        elif type(address) == ipaddress.IPv6Address:
-            zone_file += f"{record.record_name} {record.ttl} IN AAAA {address}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; Address record {record.id}\n"
+            address = ipaddress.ip_address(record.address)
+            if type(address) == ipaddress.IPv4Address:
+                zone_file += f"{record_name} {record.ttl} IN A {address}\n"
+            elif type(address) == ipaddress.IPv6Address:
+                zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
 
-        if record.auto_reverse:
-            for rzone in models.ReverseDNSZone.objects.raw(
-                "SELECT * FROM dns_grpc_reversednszone WHERE ("
-                "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
-                [str(address)]
-            ):
-                update_rzone.delay(rzone.id)
+            if record.auto_reverse:
+                for rzone in models.ReverseDNSZone.objects.raw(
+                    "SELECT * FROM dns_grpc_reversednszone WHERE ("
+                    "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
+                    [str(address)]
+                ):
+                    update_rzone.delay(rzone.id)
 
     for record in zone.dynamicaddressrecord_set.all():
-        zone_file += f"; Dynamic address record {record.id}\n"
-        if record.current_ipv4:
-            zone_file += f"{record.record_name} {record.ttl} IN A {record.current_ipv4}\n"
-        if record.current_ipv6:
-            zone_file += f"{record.record_name} {record.ttl} IN AAAA {record.current_ipv6}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; Dynamic address record {record.id}\n"
+            if record.current_ipv4:
+                zone_file += f"{record_name} {record.ttl} IN A {record.current_ipv4}\n"
+            if record.current_ipv6:
+                zone_file += f"{record_name} {record.ttl} IN AAAA {record.current_ipv6}\n"
 
     for record in zone.anamerecord_set.all():
-        zone_file += f"; ANAME record {record.id}\n"
-        alias_label = dnslib.DNSLabel(record.alias)
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; ANAME record {record.id}\n"
+            alias_label = dnslib.DNSLabel(record.alias)
 
-        if alias_label.matchSuffix(zone_root):
-            own_record_name = alias_label.stripSuffix(zone_root)
-            search_name = ".".join(map(lambda n: n.decode(), own_record_name.label))
-            own_records = zone.addressrecord_set.filter(record_name=search_name)
-            for r in own_records:
-                address = ipaddress.ip_address(r.address)
-                if type(address) == ipaddress.IPv4Address:
-                    zone_file += f"{record.record_name} {record.ttl} IN A {address}\n"
-                elif type(address) == ipaddress.IPv6Address:
-                    zone_file += f"{record.record_name} {record.ttl} IN AAAA {address}\n"
-        else:
-            question_a = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.A))
-            question_aaaa = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.AAAA))
-            try:
-                res_pkt_a = question_a.send(
-                    settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
-                    ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
-                )
-                res_pkt_aaaa = question_aaaa.send(
-                    settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
-                    ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
-                )
-            except socket.timeout:
-                raise dnslib.DNSError(f"Failed to get address for {record.alias}: timeout")
-            except struct.error:
-                raise dnslib.DNSError(f"Failed to get address for {record.alias}: invalid response")
-            res_a = dnslib.DNSRecord.parse(res_pkt_a)
-            res_aaaa = dnslib.DNSRecord.parse(res_pkt_aaaa)
-            for rr in res_a.rr:
-                zone_file += f"{record.record_name} {record.ttl} IN A {rr.rdata}\n"
-            for rr in res_aaaa.rr:
-                zone_file += f"{record.record_name} {record.ttl} IN AAAA {rr.rdata}\n"
+            if alias_label.matchSuffix(zone_root):
+                own_record_name = alias_label.stripSuffix(zone_root)
+                search_name = ".".join(map(lambda n: n.decode(), own_record_name.label))
+                own_records = zone.addressrecord_set.filter(record_name=search_name)
+                for r in own_records:
+                    address = ipaddress.ip_address(r.address)
+                    if type(address) == ipaddress.IPv4Address:
+                        zone_file += f"{record_name} {record.ttl} IN A {address}\n"
+                    elif type(address) == ipaddress.IPv6Address:
+                        zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
+            else:
+                question_a = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.A))
+                question_aaaa = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.AAAA))
+                try:
+                    res_pkt_a = question_a.send(
+                        settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
+                        ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
+                    )
+                    res_pkt_aaaa = question_aaaa.send(
+                        settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
+                        ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
+                    )
+                except socket.timeout:
+                    raise dnslib.DNSError(f"Failed to get address for {record.alias}: timeout")
+                except struct.error as e:
+                    raise dnslib.DNSError(f"Failed to get address for {record.alias}: invalid response ({e})")
+                res_a = dnslib.DNSRecord.parse(res_pkt_a)
+                res_aaaa = dnslib.DNSRecord.parse(res_pkt_aaaa)
+                for rr in res_a.rr:
+                    zone_file += f"{record_name} {record.ttl} IN A {rr.rdata}\n"
+                for rr in res_aaaa.rr:
+                    zone_file += f"{record_name} {record.ttl} IN AAAA {rr.rdata}\n"
 
     for record in zone.githubpagesrecord_set.all():
-        zone_file += f"; Github pages record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 185.199.108.153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 185.199.109.153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 185.199.110.153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 185.199.111.153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2606:50c0:8000::153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2606:50c0:8001::153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2606:50c0:8002::153\n"
-        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2606:50c0:8003::153\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; Github pages record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN A 185.199.108.153\n"
+            zone_file += f"{record_name} {record.ttl} IN A 185.199.109.153\n"
+            zone_file += f"{record_name} {record.ttl} IN A 185.199.110.153\n"
+            zone_file += f"{record_name} {record.ttl} IN A 185.199.111.153\n"
+            zone_file += f"{record_name} {record.ttl} IN AAAA 2606:50c0:8000::153\n"
+            zone_file += f"{record_name} {record.ttl} IN AAAA 2606:50c0:8001::153\n"
+            zone_file += f"{record_name} {record.ttl} IN AAAA 2606:50c0:8002::153\n"
+            zone_file += f"{record_name} {record.ttl} IN AAAA 2606:50c0:8003::153\n"
 
     for record in zone.cnamerecord_set.all():
-        zone_file += f"; CNAME record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN CNAME {dnslib.DNSLabel(record.alias)}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; CNAME record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN CNAME {dnslib.DNSLabel(record.alias)}\n"
 
     for record in zone.redirectrecord_set.all():
-        zone_file += f"; Redirect record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN A 45.129.95.254\n"
-        zone_file += f"{record.record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
-        zone_file += f"{record.record_name} {record.ttl} IN CAA 0 iodef \"mailto:noc@as207960.net\"\n"
-        zone_file += f"{record.record_name} {record.ttl} IN CAA 0 issue \"letsencrypt.org\"\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; Redirect record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN A 45.129.95.254\n"
+            zone_file += f"{record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA 0 iodef \"mailto:noc@as207960.net\"\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA 0 issue \"letsencrypt.org\"\n"
 
     for record in zone.mxrecord_set.all():
-        zone_file += f"; MX record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN MX {record.priority} {dnslib.DNSLabel(record.exchange)}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; MX record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN MX {record.priority} {dnslib.DNSLabel(record.exchange)}\n"
 
     for record in zone.nsrecord_set.all():
-        zone_file += f"; NS record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; NS record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
 
     for record in zone.txtrecord_set.all():
-        zone_file += f"; TXT record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN TXT \"{encode_str(record.data)}\"\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; TXT record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN TXT \"{encode_str(record.data)}\"\n"
 
     for record in zone.srvrecord_set.all():
-        zone_file += f"; SRV record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN SRV {record.priority} {record.weight} {record.port} " \
-                     f"{dnslib.DNSLabel(record.target)}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; SRV record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN SRV {record.priority} {record.weight} {record.port} " \
+                         f"{dnslib.DNSLabel(record.target)}\n"
 
     for record in zone.caarecord_set.all():
-        zone_file += f"; CAA record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN CAA {record.flag} \"{encode_str(record.tag)}\" " \
-                     f"\"{encode_str(record.value)}\"\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; CAA record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA {record.flag} \"{encode_str(record.tag)}\" " \
+                         f"\"{encode_str(record.value)}\"\n"
 
     for record in zone.naptrrecord_set.all():
-        zone_file += f"; NAPTR record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN NAPTR {record.order} {record.preference} " \
-                     f"\"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
-                     f"\"{encode_str(record.regexp)}\" \"{encode_str(record.replacement)}\"\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; NAPTR record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN NAPTR {record.order} {record.preference} " \
+                         f"\"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
+                         f"\"{encode_str(record.regexp)}\" \"{encode_str(record.replacement)}\"\n"
 
     for record in zone.sshfprecord_set.all():
-        pubkey = record.key
-        if pubkey.key_type == b"ssh-rsa":
-            algo_num = 1
-        elif pubkey.key_type == b"ssh-dsa":
-            algo_num = 2
-        elif pubkey.key_type.startswith(b"ecdsa-sha"):
-            algo_num = 3
-        elif pubkey.key_type == b"ssh-ed25519":
-            algo_num = 4
-        else:
-            continue
+        record_name = record.idna_label
+        if record_name:
+            pubkey = record.key
+            if pubkey.key_type == b"ssh-rsa":
+                algo_num = 1
+            elif pubkey.key_type == b"ssh-dsa":
+                algo_num = 2
+            elif pubkey.key_type.startswith(b"ecdsa-sha"):
+                algo_num = 3
+            elif pubkey.key_type == b"ssh-ed25519":
+                algo_num = 4
+            else:
+                continue
 
-        zone_file += f"; SSHFP record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN SSHFP {algo_num} 1 " \
-                     f"{hashlib.sha1(pubkey._decoded_key).hexdigest()}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN SSHFP {algo_num} 2 " \
-                     f"{hashlib.sha256(pubkey._decoded_key).hexdigest()}\n"
+            zone_file += f"; SSHFP record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN SSHFP {algo_num} 1 " \
+                         f"{hashlib.sha1(pubkey._decoded_key).hexdigest()}\n"
+            zone_file += f"{record_name} {record.ttl} IN SSHFP {algo_num} 2 " \
+                         f"{hashlib.sha256(pubkey._decoded_key).hexdigest()}\n"
 
     for record in zone.dsrecord_set.all():
-        zone_file += f"; DS record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN DS {record.key_tag} {record.algorithm} " \
-                     f"{record.digest_type} {record.digest}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; DS record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN DS {record.key_tag} {record.algorithm} " \
+                         f"{record.digest_type} {record.digest}\n"
 
     for record in zone.locrecord_set.all():
-        d1, m1, s1 = dd_to_dms(record.latitude)
-        d2, m2, s2 = dd_to_dms(record.longitude)
-        ns = "S" if record.latitude < 0 else "N"
-        ew = "W" if record.longitude < 0 else "E"
+        record_name = record.idna_label
+        if record_name:
+            d1, m1, s1 = dd_to_dms(record.latitude)
+            d2, m2, s2 = dd_to_dms(record.longitude)
+            ns = "S" if record.latitude < 0 else "N"
+            ew = "W" if record.longitude < 0 else "E"
 
-        zone_file += f"; LOC record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN LOC {d1} {m1} {s1} {ns} {d2} {m2} {s2} {ew} " \
-                     f"{record.altitude}m {record.size}m {record.hp}m {record.vp}m\n"
+            zone_file += f"; LOC record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN LOC {d1} {m1} {s1} {ns} {d2} {m2} {s2} {ew} " \
+                         f"{record.altitude}m {record.size}m {record.hp}m {record.vp}m\n"
 
     for record in zone.hinforecord_set.all():
-        zone_file += f"; HINFO record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN HINFO \"{encode_str(record.cpu)}\" " \
-                     f"\"{encode_str(record.os)}\"\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; HINFO record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN HINFO \"{encode_str(record.cpu)}\" " \
+                         f"\"{encode_str(record.os)}\"\n"
 
     for record in zone.rprecord_set.all():
-        zone_file += f"; RP record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN RP {dnslib.DNSLabel(record.mailbox)} " \
-                     f"{dnslib.DNSLabel(record.txt)}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; RP record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN RP {dnslib.DNSLabel(record.mailbox)} " \
+                         f"{dnslib.DNSLabel(record.txt)}\n"
 
     for record in zone.httpsrecord_set.all():
         svcb_record = record.svcb_record
@@ -329,8 +363,10 @@ def generate_fzone(zone: "models.DNSZone"):
         zone_file += f"{record.svcb_record_name} {record.ttl} IN TYPE65 \# {len(data)} {data.hex()}\n"
 
     for record in zone.dhcidrecord_set.all():
-        zone_file += f"; DHCID record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN DHCID {base64.b64encode(record.data).decode()}\n"
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; DHCID record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN DHCID {base64.b64encode(record.data).decode()}\n"
 
     return zone_file
 
