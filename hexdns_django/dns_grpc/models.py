@@ -484,7 +484,7 @@ class DNSZoneRecord(models.Model):
         if self.record_name == "@":
             return "@"
         try:
-            return idna.encode(self.record_name, uts46=True)
+            return idna.encode(self.record_name, uts46=True).decode()
         except idna.IDNAError:
             return None
 
