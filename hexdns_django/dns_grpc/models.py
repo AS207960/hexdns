@@ -481,7 +481,7 @@ class DNSZoneRecord(models.Model):
 
     @property
     def idna_label(self):
-        if self.record_name == "@":
+        if self.record_name.strip() == "@" or self.record_name.strip() == '':
             return "@"
         try:
             return idna.encode(self.record_name, uts46=True).decode()
@@ -1296,7 +1296,7 @@ class DSRecord(DNSZoneRecord):
     key_tag = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     algorithm = models.PositiveSmallIntegerField(choices=ALGORITHMS)
     digest_type = models.PositiveSmallIntegerField(choices=DIGEST_TYPES)
-    digest = models.TextField()
+    digest = models.TextField(validators=[hex_validator])
 
     @property
     def digest_bin(self):
@@ -1841,7 +1841,7 @@ class SVCBBaseRecord(DNSZoneRecord):
         if not self.port and not self.scheme:
             return self.idna_label
         else:
-            if self.record_name == "@":
+            if self.record_name.strip() == "@" or self.record_name.strip() == '':
                 return f"_{self.port}._{self.scheme}"
             else:
                 return f"_{self.port}._{self.scheme}.{self.idna_label}"

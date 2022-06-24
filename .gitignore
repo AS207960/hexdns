@@ -213,4 +213,8 @@ hexdns_django/secrets
 hexdns_django/static
 hexdns_django/media
 hexdns_django/zones
-knot
+knot/db
+knot/secondary
+knot/ksk.pem
+knot/knot.conf
+knot/knot2.conf

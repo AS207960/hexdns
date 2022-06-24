@@ -10,6 +10,7 @@ import struct
 import typing
 import time
 import re
+import idna
 import requests.exceptions
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.backends import default_backend
@@ -248,8 +249,15 @@ def generate_fzone(zone: "models.DNSZone"):
     for record in zone.cnamerecord_set.all():
         record_name = record.idna_label
         if record_name:
-            zone_file += f"; CNAME record {record.id}\n"
-            zone_file += f"{record_name} {record.ttl} IN CNAME {dnslib.DNSLabel(record.alias)}\n"
+            try:
+                if record.alias == "@":
+                    alias = zone_root
+                else:
+                    alias = dnslib.DNSLabel(idna.encode(record.alias, uts46=True))
+                zone_file += f"; CNAME record {record.id}\n"
+                zone_file += f"{record_name} {record.ttl} IN CNAME {alias}\n"
+            except idna.IDNAError:
+                pass
 
     for record in zone.redirectrecord_set.all():
         record_name = record.idna_label

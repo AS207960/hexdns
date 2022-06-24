@@ -20,6 +20,8 @@
     <orderEntry type="jdk" jdkName="Python 3.8 (hexdns)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Bundled Protobuf Distribution" level="application" />
+    <orderEntry type="module" module-name="hexdns_django" />
+    <orderEntry type="module" module-name="knot" />
   </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_CONFIGURATION" value="Django" />

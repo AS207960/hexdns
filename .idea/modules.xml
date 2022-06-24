@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/hexdns.iml" filepath="$PROJECT_DIR$/.idea/hexdns.iml" />
+      <module fileurl="file://$PROJECT_DIR$/hexdns_django/.idea/hexdns_django.iml" filepath="$PROJECT_DIR$/hexdns_django/.idea/hexdns_django.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../knot/.idea/knot.iml" filepath="$PROJECT_DIR$/../knot/.idea/knot.iml" />
     </modules>
   </component>
 </project>

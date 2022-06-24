@@ -60,6 +60,7 @@ data:
         cds-cdnskey-publish: always
         zsk-lifetime: 0
         ksk-submission: zone
+        nsec3-iterations: 10
     
       - id: zone-cds-disable
         signing-threads: 1
@@ -71,6 +72,7 @@ data:
         cds-cdnskey-publish: delete-dnssec
         zsk-lifetime: 0
         ksk-submission: zone
+        nsec3-iterations: 10
 
     template:
       - id: zone
@@ -157,7 +159,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: cznic/knot:3.0
+          image: as207960/knotd:1
           imagePullPolicy: Always
           command: [
             "sh", "-c",
@@ -243,6 +245,7 @@ data:
         identity: "HexDNS"
         listen: 0.0.0.0@53
         listen: ::@53
+        nsid: (nsid)
 
     database:
         journal-db-mode: asynchronous
@@ -329,6 +332,7 @@ spec:
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(primary-address)/$HEXDNS_KNOT_PRIMARY_SERVICE_HOST/g\" /config/knot.conf &&
              sed -i \"s/(ddns-primary-address)/$HEXDNS_UPDATE_SERVICE_HOST/g\" /config/knot.conf &&
+             sed -i \"s/(nsid)/$HOSTNAME/g\" /config/knot.conf &&
              sleep 15 &&
              knotd"
           ]
