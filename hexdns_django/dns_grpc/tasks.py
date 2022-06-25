@@ -12,10 +12,7 @@ import time
 import re
 import idna
 import requests.exceptions
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric.ec import (
-    EllipticCurvePrivateKey,
     EllipticCurvePublicKey,
 )
 
@@ -113,17 +110,17 @@ def dd_to_dms(dd: float) -> typing.Tuple[int, int, float]:
 
 def generate_zone_header(zone, zone_root):
     if hasattr(zone, "custom_ns") and zone.custom_ns.count():
-        primary_ns = zone.custom_ns.first().nameserver
+        primary_ns = dnslib.DNSLabel(zone.custom_ns.first().nameserver)
     else:
         primary_ns = NAMESERVERS[0]
 
     zone_file = f"$ORIGIN {zone_root}\n"
-    zone_file += f"@ 86400 IN SOA {primary_ns} noc.as207960.net {int(zone.last_modified.timestamp())} " \
+    zone_file += f"@ 86400 IN SOA {primary_ns} noc.as207960.net. {int(zone.last_modified.timestamp())} " \
                  f"86400 3600 3600000 3600\n"
 
     if hasattr(zone, "custom_ns") and zone.custom_ns.count():
         for ns in zone.custom_ns.all():
-            zone_file += f"@ 86400 IN NS {ns.nameserver}\n"
+            zone_file += f"@ 86400 IN NS {dnslib.DNSLabel(ns.nameserver)}\n"
     else:
         for ns in NAMESERVERS:
             zone_file += f"@ 86400 IN NS {ns}\n"

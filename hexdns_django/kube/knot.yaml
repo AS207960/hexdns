@@ -51,26 +51,26 @@ data:
 
     policy:
       - id: zone
-        signing-threads: 1
+        signing-threads: 4
         algorithm: ecdsap256sha256
         ksk-shared: on
         dnskey-ttl: 86400
         reproducible-signing: on
         nsec3: on
         cds-cdnskey-publish: always
-        zsk-lifetime: 0
+        zsk-lifetime: 30d
         ksk-submission: zone
         nsec3-iterations: 10
     
       - id: zone-cds-disable
-        signing-threads: 1
+        signing-threads: 4
         algorithm: ecdsap256sha256
         ksk-shared: on
         dnskey-ttl: 86400
         reproducible-signing: on
         nsec3: on
         cds-cdnskey-publish: delete-dnssec
-        zsk-lifetime: 0
+        zsk-lifetime: 30d
         ksk-submission: zone
         nsec3-iterations: 10
 
