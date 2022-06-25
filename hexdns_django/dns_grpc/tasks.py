@@ -115,7 +115,7 @@ def generate_zone_header(zone, zone_root):
         primary_ns = NAMESERVERS[0]
 
     zone_file = f"$ORIGIN {zone_root}\n"
-    zone_file += f"@ 86400 IN SOA {primary_ns} noc.as207960.net. {int(zone.last_modified.timestamp())} " \
+    zone_file += f"@ 86400 IN SOA {primary_ns} noc.as207960.net. {int(time.time())} " \
                  f"86400 3600 3600000 3600\n"
 
     if hasattr(zone, "custom_ns") and zone.custom_ns.count():
