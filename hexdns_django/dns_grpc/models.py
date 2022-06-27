@@ -13,6 +13,7 @@ import sshpubkeys
 import socket
 import uuid
 import kubernetes
+import string
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -486,6 +487,9 @@ class DNSZoneRecord(models.Model):
         try:
             return idna.encode(self.record_name, uts46=True).decode()
         except idna.IDNAError:
+            if all(ord(c) < 127 and c in string.printable for c in self.record_name):
+                return self.record_name
+
             return None
 
     @classmethod
