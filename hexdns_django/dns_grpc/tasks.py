@@ -12,6 +12,7 @@ import time
 import re
 import idna
 import requests.exceptions
+import keycloak.exceptions
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
@@ -515,9 +516,7 @@ def is_active(zone):
     try:
         account = zone.get_user().account
         return account.subscription_active
-    except models.Account.DoesNotExist:
-        return False
-    except requests.exceptions.RequestException:
+    except (models.Account.DoesNotExist, keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
         return False
 
 
