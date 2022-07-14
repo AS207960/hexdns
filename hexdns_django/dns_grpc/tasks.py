@@ -130,7 +130,7 @@ def generate_zone_header(zone, zone_root):
         zone_file += "@ 86400 IN CDS 0 0 0 00\n"
         zone_file += "@ 86400 IN CDNSKEY 0 3 0 AA==\n"
     else:
-        digest, tag = utils.make_zone_digest(zone.zone_root)
+        digest, tag = utils.make_zone_digest(zone_root)
         dnskey_bytes = utils.get_dnskey().key
 
         zone_file += f"@ 86400 IN CDS {tag} 13 2 {digest}\n"
