@@ -490,6 +490,8 @@ class DNSZoneRecord(models.Model):
             if all(ord(c) < 127 and c in string.printable for c in self.record_name):
                 return self.record_name
 
+            dns_label = dnslib.DNSLabel(self.record_name)
+
             return None
 
     @classmethod

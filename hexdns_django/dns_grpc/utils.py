@@ -6,7 +6,7 @@ import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
-from .. import grpc, models, tasks
+from dns_grpc import models, tasks
 from django.conf import settings
 
 psl = publicsuffixlist.PublicSuffixList()

@@ -6,8 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 
-from .. import forms, models, tasks
-from . import utils
+from .. import forms, models, tasks, utils
 
 
 @login_required

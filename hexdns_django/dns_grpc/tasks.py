@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from . import models, apps
+from . import models, apps, utils
 import dnslib
 import base64
 import ipaddress
@@ -130,20 +130,8 @@ def generate_zone_header(zone, zone_root):
         zone_file += "@ 86400 IN CDS 0 0 0 00\n"
         zone_file += "@ 86400 IN CDNSKEY 0 3 0 AA==\n"
     else:
-        nums = settings.DNSSEC_PUBKEY.public_numbers()
-        dnskey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
-
-        buffer = dnslib.DNSBuffer()
-        rd = dnslib.DNSKEY(
-            257,
-            3,
-            13,
-            dnskey_bytes,
-        )
-        buffer.encode_name(dnslib.DNSLabel(zone_root))
-        rd.pack(buffer)
-        digest = hashlib.sha256(buffer.data).hexdigest()
-        tag = make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
+        digest, tag = utils.make_zone_digest(zone.zone_root)
+        dnskey_bytes = utils.get_dnskey().key
 
         zone_file += f"@ 86400 IN CDS {tag} 13 2 {digest}\n"
 
@@ -524,11 +512,59 @@ def is_active(zone):
     autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
     ignore_result=True
 )
+def update_signal_zones():
+    pattern = re.compile("^[a-zA-Z0-9-.]+$")
+
+    for ns in NAMESERVERS:
+        zone_root = dnslib.DNSLabel(f"_signal.{ns}")
+
+        zone_file = f"$ORIGIN {zone_root}\n"
+        zone_file += f"@ 86400 IN SOA {NAMESERVERS[0]} noc.as207960.net. {int(time.time())} " \
+                     f"86400 3600 3600000 3600\n"
+
+        for ns2 in NAMESERVERS:
+            zone_file += f"@ 86400 IN NS {ns2}\n"
+
+        for zone in models.DNSZone.objects.all():
+            if pattern.match(zone.zone_root):
+                cds_zone_root = dnslib.DNSLabel(zone.zone_root)
+                if zone.cds_disable:
+                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS 0 0 0 00\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
+                else:
+                    digest, tag = utils.make_zone_digest(zone.zone_root)
+                    dnskey_bytes = utils.get_dnskey().key
+
+                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
+
+                    for cds in zone.additional_cds.all():
+                        zone_file += f"; Additional CDS {cds.id}\n"
+                        zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
+
+                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
+
+                    for cdnskey in zone.additional_cdnskey.all():
+                        zone_file += f"; Additional CDNSKEY {cdnskey.id}\n"
+                        zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
+                                     f"{cdnskey.public_key}\n"
+
+        write_zone_file(zone_file, str(zone_root))
+        send_reload_message(zone_root)
+
+
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
 def update_catalog():
     zone_file = "$ORIGIN catalog.dns.as207960.ltd.uk.\n"
     zone_file += f"@ 0 IN SOA invalid. noc.as207960.net {int(time.time())} 3600 600 2147483646 0\n"
     zone_file += "@ 0 IN NS invalid.\n"
     zone_file += "version 0 IN TXT \"2\"\n"
+
+    for i, ns in enumerate(NAMESERVERS):
+        zone_file += f"signal{i}.zones 0 IN PTR _signal.{ns}\n"
+        zone_file += f"group.signal{i}.zones 0 IN TXT \"zone\"\n"
 
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
 
@@ -563,3 +599,5 @@ def update_catalog():
 
     write_zone_file(zone_file, "catalog.")
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
+
+    update_signal_zones.delay()

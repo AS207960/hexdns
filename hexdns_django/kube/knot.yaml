@@ -166,7 +166,8 @@ spec:
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
-            sleep 15 &&
+             sleep 15 &&
+             /rundir/knot.pid;
              knotd"
           ]
           readinessProbe:
@@ -271,16 +272,31 @@ data:
         remote: ddns-primary
         timeout: 5000
 
+    mod-queryignoretsig:
+      - id: default
+
+    mod-stats:
+      - id: custom
+        flag-presence: on
+        reply-nodata: on
+        query-size: on
+        reply-size: on
+        edns-presence: on
+        query-type: on
+
     acl:
       - id: notify
         address: 127.0.0.1
         action: notify
 
     template:
+      - id: default
+        global-module: mod-stats/custom
+
       - id: zone
         journal-content: none
         master: primary
-        module: mod-updateproxy/default
+        module: [ mod-updateproxy/default, mod-queryignoretsig/default ]
         acl: notify
 
     zone:
@@ -324,7 +340,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:1
+          image: as207960/knotd:2
           imagePullPolicy: Always
           command: [
             "sh", "-c",
@@ -358,6 +374,22 @@ spec:
           envFrom:
             - secretRef:
                 name: hexdns-rpc
+        - name: exporter
+          image: as207960/knot-exporter:2
+          imagePullPolicy: Always
+          command: [
+            "sh", "-c",
+            "sleep 20 && 
+            python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
+          ]
+          readinessProbe:
+            tcpSocket:
+              port: 9433
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/rundir/"
+              name: rundir
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

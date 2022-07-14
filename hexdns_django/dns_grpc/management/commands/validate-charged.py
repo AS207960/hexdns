@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
 import django_keycloak_auth.clients
-from dns_grpc import models, views
+from dns_grpc import models
 import requests
 
 
@@ -56,4 +56,4 @@ class Command(BaseCommand):
                         zone.charged = False
                         zone.save()
 
-            views.utils.log_usage(data["user"], off_session=True)
+            dns_grpc.utils.log_usage(data["user"], off_session=True)

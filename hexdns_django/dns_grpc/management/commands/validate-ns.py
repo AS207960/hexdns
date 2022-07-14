@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
-from dns_grpc import models, views
+from dns_grpc import models
 import keycloak.exceptions
 import random
 import retry
@@ -12,7 +12,7 @@ WANTED_NS = [dnslib.DNSLabel('ns1.as207960.net'), dnslib.DNSLabel('ns2.as207960.
 
 
 def mail_valid(user, zone):
-    feedback_url = views.utils.get_feedback_url(
+    feedback_url = dns_grpc.utils.get_feedback_url(
         f"HexDNS for {zone.zone_root}", zone.id
     )
 

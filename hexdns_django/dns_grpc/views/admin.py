@@ -2,8 +2,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
-from .. import forms, models, tasks
-from . import utils
+from .. import forms, models, tasks, utils
 
 
 @login_required

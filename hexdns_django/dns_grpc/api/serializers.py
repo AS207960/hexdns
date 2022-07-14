@@ -370,7 +370,7 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
 
-        dnssec_digest, dnssec_tag = views.utils.make_zone_digest(instance.zone_root)
+        dnssec_digest, dnssec_tag = dns_grpc.utils.make_zone_digest(instance.zone_root)
         nums = settings.DNSSEC_PUBKEY.public_numbers()
         pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
         ret["dnssec"] = {

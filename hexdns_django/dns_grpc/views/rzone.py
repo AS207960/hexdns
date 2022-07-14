@@ -8,8 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .. import forms, models, tasks
-from . import utils
+from .. import forms, models, tasks, utils
 
 
 @login_required
