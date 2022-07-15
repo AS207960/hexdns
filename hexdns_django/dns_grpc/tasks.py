@@ -528,24 +528,26 @@ def update_signal_zones():
         for zone in models.DNSZone.objects.all():
             if pattern.match(zone.zone_root):
                 cds_zone_root = dnslib.DNSLabel(zone.zone_root)
+                zone_file += f"; Zone {zone.id}\n"
+
                 if zone.cds_disable:
-                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS 0 0 0 00\n"
-                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS 0 0 0 00\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY 0 3 0 AA==\n"
                 else:
                     digest, tag = utils.make_zone_digest(zone.zone_root)
                     dnskey_bytes = utils.get_dnskey().key
 
-                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS {tag} 13 2 {digest}\n"
 
                     for cds in zone.additional_cds.all():
                         zone_file += f"; Additional CDS {cds.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
+                        zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
 
-                    zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
 
                     for cdnskey in zone.additional_cdnskey.all():
                         zone_file += f"; Additional CDNSKEY {cdnskey.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)}{str(zone_root)} 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
+                        zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
                                      f"{cdnskey.public_key}\n"
 
         write_zone_file(zone_file, str(zone_root))

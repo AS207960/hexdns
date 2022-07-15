@@ -330,6 +330,11 @@ spec:
         part: knot
         role: secondary
     spec:
+      tolerations:
+        - key: special
+          operator: Equal
+          value: edge
+          effect: NoSchedule
       volumes:
         - name: knot
           emptyDir: {}
