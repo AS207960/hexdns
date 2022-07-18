@@ -502,8 +502,10 @@ def update_szone(zone_id: str):
 
 def is_active(zone):
     try:
-        account = zone.get_user().account
-        return account.subscription_active
+        user = zone.get_user()
+        if not user:
+           return True
+        return user.account.subscription_active
     except models.Account.DoesNotExist:
         return False
     except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
