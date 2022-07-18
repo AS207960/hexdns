@@ -504,8 +504,10 @@ def is_active(zone):
     try:
         account = zone.get_user().account
         return account.subscription_active
-    except (models.Account.DoesNotExist, keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
+    except models.Account.DoesNotExist:
         return False
+    except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
+        return True
 
 
 @shared_task(
