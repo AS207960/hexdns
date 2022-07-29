@@ -1120,7 +1120,7 @@ class NAPTRRecord(DNSZoneRecord):
     preference = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     flags = models.CharField(max_length=255)
     service = models.CharField(max_length=255)
-    regexp = models.CharField(max_length=255)
+    regexp = models.CharField(max_length=255, blank=True, null=True)
     replacement = models.CharField(max_length=255)
 
     @classmethod

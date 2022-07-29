@@ -292,7 +292,7 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"; NAPTR record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN NAPTR {record.order} {record.preference} " \
                          f"\"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
-                         f"\"{encode_str(record.regexp)}\" \"{encode_str(record.replacement)}\"\n"
+                         f"\"{encode_str(record.regexp)}\" {dnslib.DNSLabel(record.replacement)}\n"
 
     for record in zone.sshfprecord_set.all():
         record_name = record.idna_label

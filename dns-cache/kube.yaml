@@ -6,7 +6,7 @@ metadata:
     app: hexdns
     part: cache
 spec:
-  replicas: 6
+  replicas: 0
   minReadySeconds: 15
   strategy:
     type: RollingUpdate
@@ -82,7 +82,8 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53
@@ -100,7 +101,8 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53
@@ -118,7 +120,8 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53
@@ -136,7 +139,8 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53
