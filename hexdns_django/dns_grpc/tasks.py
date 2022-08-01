@@ -235,15 +235,19 @@ def generate_fzone(zone: "models.DNSZone"):
     for record in zone.cnamerecord_set.all():
         record_name = record.idna_label
         if record_name:
-            try:
-                if record.alias == "@":
-                    alias = zone_root
-                else:
+            if record.alias == "@":
+                alias = zone_root
+            else:
+                try:
                     alias = dnslib.DNSLabel(idna.encode(record.alias, uts46=True))
+                except idna.IDNAError:
+                    if all(ord(c) < 127 and c in string.printable for c in record.alias):
+                        alias = dnslib.DNSLabel(record.alias)
+                    else:
+                        continue
+
                 zone_file += f"; CNAME record {record.id}\n"
                 zone_file += f"{record_name} {record.ttl} IN CNAME {alias}\n"
-            except idna.IDNAError:
-                pass
 
     for record in zone.redirectrecord_set.all():
         record_name = record.idna_label
