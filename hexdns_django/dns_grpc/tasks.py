@@ -11,6 +11,7 @@ import typing
 import time
 import re
 import idna
+import string
 import requests.exceptions
 import keycloak.exceptions
 from cryptography.hazmat.primitives.asymmetric.ec import (
