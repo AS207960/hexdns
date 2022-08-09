@@ -216,5 +216,6 @@ hexdns_django/zones
 knot/db
 knot/secondary
 knot/ksk.pem
+knot/k.pem
 knot/knot.conf
 knot/knot2.conf

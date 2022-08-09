@@ -167,7 +167,7 @@ spec:
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
              sleep 15 &&
-             /rundir/knot.pid;
+             rm /rundir/knot.pid;
              knotd"
           ]
           readinessProbe:
