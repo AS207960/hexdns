@@ -17,6 +17,10 @@ def main():
     sock.listen(1)
 
     parameters = pika.URLParameters(os.getenv("RABBITMQ_RPC_URL"))
+
+    x = threading.Thread(target=notify_thread, args=(sock, parameters), daemon=True)
+    x.start()
+
     connection = pika.BlockingConnection(parameters=parameters)
     channel = connection.channel()
 
@@ -28,9 +32,6 @@ def main():
 
     channel.basic_qos(prefetch_count=0)
     channel.basic_consume(queue=queue.method.queue, on_message_callback=callback, auto_ack=False)
-
-    x = threading.Thread(target=notify_thread, args=(sock, parameters), daemon=True)
-    x.start()
 
     print("RPC handler now running", flush=True)
     try:
