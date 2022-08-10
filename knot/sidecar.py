@@ -55,8 +55,11 @@ def callback(channel, method, properties, body: bytes):
     except libknot.control.KnotCtlError:
         channel.basic_reject(delivery_tag=method.delivery_tag)
     finally:
-        ctl.send(libknot.control.KnotCtlType.END)
-        ctl.close()
+        try:
+            ctl.send(libknot.control.KnotCtlType.END)
+            ctl.close()
+        except libknot.control.KnotCtlError:
+            pass
 
 
 def notify_thread(sock, parameters):
