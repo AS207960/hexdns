@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path("", views.fzone.zones, name="zones"),
+    path("setup_subscription/", views.fzone.setup_subscription, name="setup_subscription"),
     path("create_zone/", views.fzone.create_zone, name="create_zone"),
     path("setup_domains_zone/", views.fzone.create_domains_zone, name="create_domains_zone"),
     path("setup_domain_zone_list/", views.fzone.create_domain_zone_list, name="create_domain_zone_list"),

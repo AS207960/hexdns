@@ -19,11 +19,34 @@ from .. import forms, models, tasks, utils
 def zones(request):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zones = models.DNSZone.get_object_list(access_token)
+    no_subscription = len(user_zones) != 0 and not request.user.account.subscription_id
+    subscription_inactive = len(user_zones) != 0 and not request.user.account.subscription_active
 
     return render(request, "dns_grpc/fzone/zones.html", {
         "zones": user_zones,
-        "account": request.user.account
+        "account": request.user.account,
+        "no_subscription": no_subscription,
+        "subscription_inactive": subscription_inactive
     })
+
+
+@login_required
+def setup_subscription(request):
+    if request.user.account.subscription_id:
+        return redirect('zones')
+
+    status, extra = utils.log_usage(
+        request.user, extra=0, redirect_uri=settings.EXTERNAL_URL_BASE + reverse('zones'),
+        can_reject=True, off_session=False
+    )
+    if status == "error":
+        return render(request, "dns_grpc/fzone/setup_subscription.html", {
+            "error": extra
+        })
+    else:
+        if status == "redirect":
+            return redirect(extra)
+        return redirect('zones')
 
 
 @login_required

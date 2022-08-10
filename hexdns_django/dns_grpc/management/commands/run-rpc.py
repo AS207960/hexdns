@@ -39,10 +39,11 @@ class Command(BaseCommand):
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        if msg.state in (
-                dns_grpc.proto.billing_pb2.SUB_PENDING,
-                dns_grpc.proto.billing_pb2.SUB_CANCELLED
-        ):
+        if msg.state == dns_grpc.proto.billing_pb2.SUB_PENDING:
+            account.subscription_active = False
+            account.save()
+        elif msg.state == dns_grpc.proto.billing_pb2.SUB_CANCELLED:
+            account.subscription_id = None
             account.subscription_active = False
             account.save()
         elif msg.state in (

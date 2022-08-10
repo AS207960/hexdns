@@ -1,0 +1,11 @@
+{% extends 'dns_grpc/base.html' %}
+{% block content %}
+    <div class="container my-3">
+        <div class="bg-light p-3 rounded">
+            <h1 class="display-4">Error setting up subscription&trade;</h1>
+            <hr class="my-4">
+            <p>{{ error }}</p>
+            <a href="{% url 'zones' %}" class="btn btn-primary">Back to zones</a>
+        </div>
+    </div>
+{% endblock %}⏎ 
