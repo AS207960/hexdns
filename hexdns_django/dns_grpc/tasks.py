@@ -381,24 +381,32 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
     )
     zone_root = network_to_apra(zone_network)
     zone_file = generate_zone_header(zone, zone_root)
-    account = zone.get_user().account
+    account = zone.get_user().account.id
 
     for record in zone.ptrrecord_set.all():
         zone_file += f"; PTR record {record.id}\n"
-        zone_file += f"{address_to_apra(record.record_address)} {record.ttl} IN PTR {dnslib.DNSLabel(record.pointer)}\n"
+        zone_file += f"{address_to_apra(ipaddress.ip_address(record.record_address))} {record.ttl} IN PTR " \
+                     f"{dnslib.DNSLabel(record.pointer)}\n"
 
     for record in zone.reversensrecord_set.all():
         zone_file += f"; NS record {record.id}\n"
-        zone_file += f"{address_to_apra(record.record_address)} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
+        zone_file += f"{record.record_prefix}.{zone_root} {record.ttl} IN NS " \
+                     f"{dnslib.DNSLabel(record.nameserver)}\n"
 
+    zones = {}
     for record in models.AddressRecord.objects.raw(
             "SELECT * FROM dns_grpc_addressrecord WHERE (auto_reverse AND address << inet %s)",
             [str(zone_network)]
     ):
-        if record.zone.get_user().account == account:
+        if record.zone.id in zones:
+            account2 = zones[record.zone.id]
+        else:
+            account2 = record.zone.get_user().account.id
+            zones[record.zone.id] = account2
+        if account2 == account:
             zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
             zone_file += f"; Address record {record.id}\n"
-            zone_file += f"{address_to_apra(record.address)} {record.ttl} IN PTR {zone_ptr}\n"
+            zone_file += f"{address_to_apra(ipaddress.ip_address(record.address))} {record.ttl} IN PTR {zone_ptr}\n"
 
     return zone_file
 
