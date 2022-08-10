@@ -154,6 +154,7 @@ def generate_fzone(zone: "models.DNSZone"):
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_zone_header(zone, zone_root)
 
+    rzones = set()
     for record in zone.addressrecord_set.all():
         record_name = record.idna_label
         if record_name:
@@ -170,7 +171,10 @@ def generate_fzone(zone: "models.DNSZone"):
                     "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
                     [str(address)]
                 ):
-                    update_rzone.delay(rzone.id)
+                    rzones.add(rzone.id)
+
+    for rzone in rzones:
+        update_rzone.delay(rzone)
 
     for record in zone.dynamicaddressrecord_set.all():
         record_name = record.idna_label
