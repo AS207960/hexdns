@@ -1,0 +1,229 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hexdns-kres-conf
+data:
+  kresd.conf: |
+    modules = { 'dns64' }
+    
+    net.listen("::", 5053)
+    
+    cache.storage = 'lmdb:///var/cache/knot-resolver'
+    cache.size = 100 * MB
+    cache.max_ttl(10)
+    
+    dns64.config({ prefix = '2a0d:1a40:7900:6:0:2::' })
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hexdns-kres-no-dns64-conf
+data:
+  kresd.conf: |
+    net.listen("::", 5053)
+    
+    cache.storage = 'lmdb:///var/cache/knot-resolver'
+    cache.size = 100 * MB
+    cache.max_ttl(10)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-kres
+  labels:
+    app: hexdns
+    part: kres
+    dns64: "yes"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: kres
+      dns64: "yes"
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: kres
+        dns64: "yes"
+    spec:
+      volumes:
+        - name: conf
+          configMap:
+            name: hexdns-kres-conf
+        - name: cache
+          emptyDir: {}
+      containers:
+        - name: kresd
+          image: cznic/knot-resolver:v5.5.1
+          args:
+            - "-c"
+            - "/etc/knot-resolver/kresd.conf"
+            - "-n"
+          ports:
+            - containerPort: 5053
+          volumeMounts:
+            - mountPath: "/etc/knot-resolver/kresd.conf"
+              name: conf
+              subPath: kresd.conf
+            - mountPath: "/var/cache"
+              name: cache
+        - name: kres-cache-gc
+          image: cznic/knot-resolver:v5.5.1
+          command:
+            - "/usr/sbin/kres-cache-gc"
+            - "-c"
+            - "/var/cache/knot-resolver"
+            - "-d"
+            - "1000"
+          volumeMounts:
+            - mountPath: "/etc/knot-resolver/kresd.conf"
+              name: conf
+              subPath: kresd.conf
+            - mountPath: "/var/cache"
+              name: cache
+        - name: clatd
+          image: as207960/clatd
+          command: [
+            "/bin/bash", "-c",
+            "/clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'"
+          ]
+          securityContext:
+            privileged: true
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-kres
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: kres
+  policyTypes:
+  - Ingress
+  ingress:
+#  - from:
+#    - podSelector: {}
+  - ports:
+    - protocol: TCP
+      port: 5053
+    - protocol: UDP
+      port: 5053
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-unbound
+  labels:
+    app: hexdns
+    part: kres
+    dns64: "yes"
+spec:
+  selector:
+    app: hexdns
+    part: kres
+    dns64: "yes"
+  ports:
+    - port: 5053
+      targetPort: 5053
+      protocol: UDP
+      name: dns-udp
+    - port: 5053
+      targetPort: 5053
+      protocol: TCP
+      name: dns-tcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-kres-no-dns64
+  labels:
+    app: hexdns
+    part: kres
+    dns64: "no"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: kres
+      dns64: "no"
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: kres
+        dns64: "no"
+    spec:
+      volumes:
+        - name: conf
+          configMap:
+            name: hexdns-kres-no-dns64-conf
+        - name: cache
+          emptyDir: {}
+      containers:
+        - name: kresd
+          image: cznic/knot-resolver:v5.5.1
+          args:
+            - "-c"
+            - "/etc/knot-resolver/kresd.conf"
+            - "-n"
+          ports:
+            - containerPort: 5053
+          volumeMounts:
+            - mountPath: "/etc/knot-resolver/kresd.conf"
+              name: conf
+              subPath: kresd.conf
+            - mountPath: "/var/cache"
+              name: cache
+        - name: kres-cache-gc
+          image: cznic/knot-resolver:v5.5.1
+          command:
+            - "/usr/sbin/kres-cache-gc"
+            - "-c"
+            - "/var/cache/knot-resolver"
+            - "-d"
+            - "1000"
+          volumeMounts:
+            - mountPath: "/etc/knot-resolver/kresd.conf"
+              name: conf
+              subPath: kresd.conf
+            - mountPath: "/var/cache"
+              name: cache
+        - name: clatd
+          image: as207960/clatd
+          command: [
+            "/bin/bash", "-c",
+            "/clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'"
+          ]
+          securityContext:
+            privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-unbound-no-dns64
+  labels:
+    app: hexdns
+    part: kres
+    dns64: "no"
+spec:
+  selector:
+    app: hexdns
+    part: kres
+    dns64: "no"
+  ports:
+    - port: 5053
+      targetPort: 5053
+      protocol: UDP
+      name: dns-udp
+    - port: 5053
+      targetPort: 5053
+      protocol: TCP
+      name: dns-tcp
