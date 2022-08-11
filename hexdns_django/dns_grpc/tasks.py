@@ -22,6 +22,8 @@ NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net."]
 IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
+pika_client = apps.PikaClient()
+
 
 def network_to_apra(network: IP_NETWORK) -> dnslib.DNSLabel:
     if type(network) == ipaddress.IPv6Network:
@@ -428,7 +430,7 @@ def write_zone_file(zone_contents: str, zone_name: str):
 
 
 def send_reload_message(label: dnslib.DNSLabel):
-    pika_client = apps.PikaClient()
+    global pika_client
 
     def pub(channel):
         channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
