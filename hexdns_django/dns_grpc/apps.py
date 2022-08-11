@@ -14,6 +14,9 @@ class _InnerPikaClient:
     internal_lock = threading.Lock()
 
     def __init__(self):
+        self.parent_thread = threading.current_thread()
+        self.__connection = None
+        self.channel = None
         self.setup_connection()
         thread = threading.Thread(target=self.__hb_thread)
         thread.setDaemon(True)
@@ -26,6 +29,10 @@ class _InnerPikaClient:
 
     def __hb_thread(self):
         while True:
+            if not self.parent_thread.is_alive():
+                with self.internal_lock:
+                    self.__connection.close()
+                    break
             try:
                 with self.internal_lock:
                     self.__connection.process_data_events()
