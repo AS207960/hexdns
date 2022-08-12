@@ -23,6 +23,12 @@ class _InnerPikaClient:
         thread.start()
 
     def setup_connection(self):
+        if self.__connection:
+            try:
+                self.__connection.close()
+            except pika.exceptions.AMQPError:
+                pass
+
         pika_parameters = pika.URLParameters(settings.RABBITMQ_RPC_URL)
         self.__connection = pika.BlockingConnection(parameters=pika_parameters)
         self.channel = self.__connection.channel()
@@ -55,10 +61,13 @@ class PikaClient:
 
     def get_channel(self, cb):
         client = self.__get_client()
+        if not client.channel.is_open:
+            client.setup_connection()
+            
         try:
             with client.internal_lock:
                 cb(client.channel)
-        except pika.exceptions.ChannelClosed:
+        except pika.exceptions.AMQPChannelError:
             with client.internal_lock:
                 client.setup_connection()
                 cb(client.channel)
