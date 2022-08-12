@@ -444,7 +444,11 @@ def send_reload_message(label: dnslib.DNSLabel):
     ignore_result=True
 )
 def add_fzone(zone_id: str):
-    zone = models.DNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.DNSZone.objects.get(id=zone_id)
+    except models.DNSZone.DoesNotExist:
+        return
+
     zone_file = generate_fzone(zone)
     write_zone_file(zone_file, str(dnslib.DNSLabel(zone.zone_root)))
     update_catalog.delay()
@@ -455,7 +459,11 @@ def add_fzone(zone_id: str):
     ignore_result=True
 )
 def update_fzone(zone_id: str):
-    zone = models.DNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.DNSZone.objects.get(id=zone_id)
+    except models.DNSZone.DoesNotExist:
+        return
+
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
     if pattern.match(zone.zone_root):
         zone_root = dnslib.DNSLabel(zone.zone_root)
@@ -469,7 +477,11 @@ def update_fzone(zone_id: str):
     ignore_result=True
 )
 def add_rzone(zone_id: str):
-    zone = models.ReverseDNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.ReverseDNSZone.objects.get(id=zone_id)
+    except models.ReverseDNSZone.DoesNotExist:
+        return
+
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
     if pattern.match(zone.zone_root):
         zone_file = generate_rzone(zone)
@@ -486,7 +498,11 @@ def add_rzone(zone_id: str):
     ignore_result=True
 )
 def update_rzone(zone_id: str):
-    zone = models.ReverseDNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.ReverseDNSZone.objects.get(id=zone_id)
+    except models.ReverseDNSZone.DoesNotExist:
+        return
+
     zone_file = generate_rzone(zone)
     zone_network = ipaddress.ip_network(
         (zone.zone_root_address, zone.zone_root_prefix)
@@ -501,7 +517,11 @@ def update_rzone(zone_id: str):
     ignore_result=True
 )
 def add_szone(zone_id: str):
-    zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    except models.SecondaryDNSZone.DoesNotExist:
+        return
+
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, str(zone_root))
@@ -513,7 +533,11 @@ def add_szone(zone_id: str):
     ignore_result=True
 )
 def update_szone(zone_id: str):
-    zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    try:
+        zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    except models.SecondaryDNSZone.DoesNotExist:
+        return
+
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, str(zone_root))

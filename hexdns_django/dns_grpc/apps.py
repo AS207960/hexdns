@@ -63,7 +63,7 @@ class PikaClient:
         client = self.__get_client()
         if not client.channel.is_open:
             client.setup_connection()
-            
+            c
         try:
             with client.internal_lock:
                 cb(client.channel)
