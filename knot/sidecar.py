@@ -57,7 +57,10 @@ def callback_reload(channel, method, properties, body: bytes):
         print(f"Reloaded {zone}", flush=True)
         channel.basic_ack(delivery_tag=method.delivery_tag)
     except libknot.control.KnotCtlError:
-        channel.basic_reject(delivery_tag=method.delivery_tag)
+        if e.data[libknot.control.KnotCtlDataIdx.ERROR] == "no such zone found":
+            pass
+        else:
+            channel.basic_reject(delivery_tag=method.delivery_tag)
     finally:
         try:
             ctl.send(libknot.control.KnotCtlType.END)
@@ -77,8 +80,11 @@ def callback_resign(channel, method, properties, body: bytes):
         ctl.receive_block()
         print(f"Reloaded {zone}", flush=True)
         channel.basic_ack(delivery_tag=method.delivery_tag)
-    except libknot.control.KnotCtlError:
-        channel.basic_reject(delivery_tag=method.delivery_tag)
+    except libknot.control.KnotCtlError as e:
+        if e.data[libknot.control.KnotCtlDataIdx.ERROR] == "no such zone found":
+            pass
+        else:
+            channel.basic_reject(delivery_tag=method.delivery_tag)
     finally:
         try:
             ctl.send(libknot.control.KnotCtlType.END)
