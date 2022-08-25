@@ -1,10 +1,11 @@
 from django.core.management.base import BaseCommand
 from dns_grpc import models, tasks, apps
 import ipaddress
+import dnslib
 
 
 class Command(BaseCommand):
-    help = "Force an update of any zones using ANAME records"
+    help = "Force DNSSEC resigning of all zones"
 
     def handle(self, *args, **options):
         pika_client = apps.PikaClient()
