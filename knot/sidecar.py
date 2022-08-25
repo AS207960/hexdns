@@ -25,13 +25,17 @@ def main():
     channel = connection.channel()
 
     channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
+    channel.exchange_declare(exchange='hexdns_primary_resign', exchange_type='fanout', durable=True)
     channel.exchange_declare(exchange='hexdns_secondary_reload', exchange_type='fanout', durable=True)
 
     queue = channel.queue_declare(queue='', exclusive=True)
+    resign_queue = channel.queue_declare(queue='', exclusive=True)
     channel.queue_bind(exchange='hexdns_primary_reload', queue=queue.method.queue)
+    channel.queue_bind(exchange='hexdns_primary_resign', queue=resign_queue.method.queue)
 
     channel.basic_qos(prefetch_count=0)
-    channel.basic_consume(queue=queue.method.queue, on_message_callback=callback, auto_ack=False)
+    channel.basic_consume(queue=queue.method.queue, on_message_callback=callback_reload, auto_ack=False)
+    channel.basic_consume(queue=resign_queue.method.queue, on_message_callback=callback_resign, auto_ack=False)
 
     print("RPC handler now running", flush=True)
     try:
@@ -41,7 +45,7 @@ def main():
         sock.close()
 
 
-def callback(channel, method, properties, body: bytes):
+def callback_reload(channel, method, properties, body: bytes):
     zone = body.decode()
     print(f"Reloading {zone}", flush=True)
     ctl = libknot.control.KnotCtl()
@@ -49,6 +53,27 @@ def callback(channel, method, properties, body: bytes):
 
     try:
         ctl.send_block(cmd="zone-reload", zone=zone)
+        ctl.receive_block()
+        print(f"Reloaded {zone}", flush=True)
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+    except libknot.control.KnotCtlError:
+        channel.basic_reject(delivery_tag=method.delivery_tag)
+    finally:
+        try:
+            ctl.send(libknot.control.KnotCtlType.END)
+            ctl.close()
+        except libknot.control.KnotCtlError:
+            pass
+
+
+def callback_resign(channel, method, properties, body: bytes):
+    zone = body.decode()
+    print(f"Reloading {zone}", flush=True)
+    ctl = libknot.control.KnotCtl()
+    ctl.connect("/rundir/knot.sock")
+
+    try:
+        ctl.send_block(cmd="zone-sign", zone=zone)
         ctl.receive_block()
         print(f"Reloaded {zone}", flush=True)
         channel.basic_ack(delivery_tag=method.delivery_tag)

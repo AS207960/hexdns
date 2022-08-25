@@ -848,6 +848,77 @@ spec:
                     name: hexdns-rpc
           restartPolicy: OnFailure
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hexdns-resign
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: update-aname
+            part-type: cronjob
+        spec:
+          shareProcessNamespace: true
+          volumes:
+            - name: static
+              persistentVolumeClaim:
+                claimName: hexdns-django-static
+            - name: media
+              persistentVolumeClaim:
+                claimName: hexdns-django-media
+            - name: pubkey
+              configMap:
+                name: hexdns-key-pub
+            - name: domains-pubkey
+              configMap:
+                name: domains-jwt-pub
+          containers:
+            - name: django
+              image: as207960/hexdns-django:(version)
+              imagePullPolicy: Always
+              command: ["sh", "-c", "python3 manage.py resign-zones"]
+              volumeMounts:
+                - mountPath: "/app/static/"
+                  name: static
+                - mountPath: "/app/media/"
+                  name: media
+                - mountPath: "/pubkey/"
+                  name: pubkey
+                - mountPath: "/domains-pubkey/"
+                  name: domains-pubkey
+              envFrom:
+                - configMapRef:
+                    name: hexdns-django-conf
+                - secretRef:
+                    name: hexdns-db-creds
+                  prefix: "DB_"
+                - secretRef:
+                    name: hexdns-django-secret
+                - secretRef:
+                    name: hexdns-keycloak
+                  prefix: "KEYCLOAK_"
+                - secretRef:
+                    name: hexdns-email
+                  prefix: "EMAIL_"
+                - secretRef:
+                    name: hexdns-github
+                  prefix: "GITHUB_"
+                - secretRef:
+                    name: hexdns-google
+                  prefix: "GOOGLE_"
+                - secretRef:
+                    name: hexdns-rpc
+          restartPolicy: OnFailure
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -8,9 +8,7 @@ data:
     
     net.listen("::", 5053)
     
-    cache.storage = 'lmdb:///var/cache/knot-resolver'
-    cache.size = 100 * MB
-    cache.max_ttl(10)
+    cache.close()
     
     dns64.config({ prefix = '2a0d:1a40:7900:6:0:2::' })
 ---
@@ -22,9 +20,7 @@ data:
   kresd.conf: |
     net.listen("::", 5053)
     
-    cache.storage = 'lmdb:///var/cache/knot-resolver'
-    cache.size = 100 * MB
-    cache.max_ttl(10)
+    cache.close()
 ---
 apiVersion: apps/v1
 kind: Deployment

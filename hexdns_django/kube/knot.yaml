@@ -22,7 +22,7 @@ data:
         listen: ::@53
 
     database:
-        journal-db-mode: asynchronous
+        journal-db-mode: robust
 
     log:
       - target: stdout
@@ -78,30 +78,34 @@ data:
       - id: zone
         storage: /zones
         file: %s.zone
-        journal-content: none
         dnssec-signing: on
         dnssec-policy: zone
         acl: secondary-xfr
         notify: notify-sidecar
+        zonefile-sync: -1
+        zonefile-load: difference-no-serial
+        journal-content: all
 
-    template:
       - id: zone-cds-disable
         storage: /zones
         file: %s.zone
-        journal-content: none
         dnssec-signing: on
         dnssec-policy: zone-cds-disable
         acl: secondary-xfr
         notify: notify-sidecar
+        zonefile-sync: -1
+        zonefile-load: difference-no-serial
+        journal-content: all
 
-    template:
       - id: zone-secondary
         storage: /zones
         file: %s.zone
-        journal-content: none
         dnssec-signing: off
         acl: secondary-xfr
         notify: notify-sidecar
+        zonefile-sync: -1
+        zonefile-load: difference-no-serial
+        journal-content: all
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
@@ -159,7 +163,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:1
+          image: as207960/knotd:3
           imagePullPolicy: Always
           command: [
             "sh", "-c",
@@ -345,7 +349,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:2
+          image: as207960/knotd:3
           imagePullPolicy: Always
           command: [
             "sh", "-c",

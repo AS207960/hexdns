@@ -3,6 +3,7 @@ from django.conf import settings
 import django_keycloak_auth.clients
 from dns_grpc import models
 import requests
+import dns_grpc.tasks
 
 
 class Command(BaseCommand):
