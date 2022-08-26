@@ -14,6 +14,8 @@ import idna
 import string
 import requests.exceptions
 import keycloak.exceptions
+import os
+import tempfile
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
@@ -425,8 +427,10 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
 
 
 def write_zone_file(zone_contents: str, zone_name: str):
-    with open(f"{settings.ZONE_FILE_LOCATION}/{zone_name}zone", "w", encoding="utf8", newline='\n') as f:
+    with tempfile.NamedTemporaryFile("w", encoding="utf8", newline='\n', dir=settings.ZONE_FILE_LOCATION, delete=False) as f:
         f.write(zone_contents)
+
+    os.rename(f.name, f"{settings.ZONE_FILE_LOCATION}/{zone_name}zone")
 
 
 def send_reload_message(label: dnslib.DNSLabel):
