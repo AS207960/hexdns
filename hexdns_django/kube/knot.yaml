@@ -163,7 +163,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:3
+          image: as207960/knotd:6
           imagePullPolicy: Always
           command: [
             "sh", "-c",
@@ -349,7 +349,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:3
+          image: as207960/knotd:6
           imagePullPolicy: Always
           command: [
             "sh", "-c",

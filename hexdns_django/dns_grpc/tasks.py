@@ -486,15 +486,13 @@ def add_rzone(zone_id: str):
     except models.ReverseDNSZone.DoesNotExist:
         return
 
-    pattern = re.compile("^[a-zA-Z0-9-.]+$")
-    if pattern.match(zone.zone_root):
-        zone_file = generate_rzone(zone)
-        zone_network = ipaddress.ip_network(
-            (zone.zone_root_address, zone.zone_root_prefix)
-        )
-        zone_root = network_to_apra(zone_network)
-        write_zone_file(zone_file, str(zone_root))
-        update_catalog.delay()
+    zone_file = generate_rzone(zone)
+    zone_network = ipaddress.ip_network(
+        (zone.zone_root_address, zone.zone_root_prefix)
+    )
+    zone_root = network_to_apra(zone_network)
+    write_zone_file(zone_file, str(zone_root))
+    update_catalog.delay()
 
 
 @shared_task(
