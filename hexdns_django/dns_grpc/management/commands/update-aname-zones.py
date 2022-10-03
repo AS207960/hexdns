@@ -9,3 +9,5 @@ class Command(BaseCommand):
         for zone in models.DNSZone.objects.filter():
             if zone.anamerecord_set.count() > 0:
                 tasks.update_fzone.delay(zone.id)
+
+        tasks.update_catalog.delay()

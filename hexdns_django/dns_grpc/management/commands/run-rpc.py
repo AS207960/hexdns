@@ -1,10 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from django.db import transaction
-from django.contrib.auth import get_user_model
 import pika
-import decimal
-from dns_grpc import models, views
+from dns_grpc import models, tasks
 import dns_grpc.proto.billing_pb2
 
 
@@ -52,5 +49,7 @@ class Command(BaseCommand):
         ):
             account.subscription_active = True
             account.save()
+
+        tasks.update_catalog.delay()
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
