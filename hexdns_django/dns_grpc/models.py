@@ -134,30 +134,48 @@ class DNSZone(models.Model):
                     record_name = dnslib.DNSLabel("@")
                 if record.rtype == dnslib.QTYPE.A:
                     r = AddressRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.AAAA:
                     r = AddressRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.CNAME:
                     r = CNAMERecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.MX:
                     r = MXRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
                     r = NSRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.TXT:
                     r = TXTRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.SRV:
                     r = SRVRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.CAA:
                     r = CAARecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
                 elif record.rtype == dnslib.QTYPE.NAPTR:
                     r = NAPTRRecord.from_rr(record, self)
+                    if r.ttl <= 1:
+                        r.ttl = 3600
                     r.save()
 
 
