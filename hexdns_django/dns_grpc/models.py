@@ -779,23 +779,29 @@ class RedirectRecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
-        api_client = kubernetes.client.NetworkingV1beta1Api()
+        api_client = kubernetes.client.NetworkingV1Api()
         dns_name = ".".join(l.decode() for l in self.dns_label.label)
         ingress_name = str(self.id).replace("_", "-")
 
-        spec = kubernetes.client.NetworkingV1beta1IngressSpec(
-            rules=[kubernetes.client.NetworkingV1beta1IngressRule(
+        spec = kubernetes.client.models.V1IngressSpec(
+            rules=[kubernetes.client.models.V1IngressRule(
                 host=dns_name,
-                http=kubernetes.client.NetworkingV1beta1HTTPIngressRuleValue(
-                    paths=[kubernetes.client.NetworkingV1beta1HTTPIngressPath(
-                        backend=kubernetes.client.NetworkingV1beta1IngressBackend(
-                            service_name="hexdns-redirect",
-                            service_port=8000
+                http=kubernetes.client.models.V1HTTPIngressRuleValue(
+                    paths=[kubernetes.client.models.V1HTTPIngressPath(
+                        path_type="Prefix",
+                        path="/",
+                        backend=kubernetes.client.models.V1IngressBackend(
+                            service=kubernetes.client.models.V1IngressServiceBackend(
+                                name="hexdns-redirect",
+                                port=kubernetes.client.models.V1ServiceBackendPort(
+                                    number=8000
+                                )
+                            )
                         )
                     )]
                 )
             )],
-            tls=[kubernetes.client.NetworkingV1beta1IngressTLS(
+            tls=[kubernetes.client.models.V1IngressTLS(
                 hosts=[dns_name],
                 secret_name=f"{ingress_name}-tls"
             )]
@@ -804,13 +810,13 @@ class RedirectRecord(DNSZoneRecord):
         try:
             api_client.read_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
             api_client.patch_namespaced_ingress(
-                ingress_name, settings.KUBE_NAMESPACE, kubernetes.client.NetworkingV1beta1Ingress(spec=spec)
+                ingress_name, settings.KUBE_NAMESPACE, kubernetes.client.models.V1Ingress(spec=spec)
             )
         except kubernetes.client.ApiException as e:
             if e.status == 404:
                 api_client.create_namespaced_ingress(
-                    settings.KUBE_NAMESPACE, kubernetes.client.NetworkingV1beta1Ingress(
-                        metadata=kubernetes.client.V1ObjectMeta(
+                    settings.KUBE_NAMESPACE, kubernetes.client.models.V1Ingress(
+                        metadata=kubernetes.client.models.V1ObjectMeta(
                             name=ingress_name,
                             annotations={
                                 "cert-manager.io/cluster-issuer": "letsencrypt"
@@ -826,7 +832,7 @@ class RedirectRecord(DNSZoneRecord):
 
     def delete(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
-        api_client = kubernetes.client.NetworkingV1beta1Api()
+        api_client = kubernetes.client.NetworkingV1Api()
         ingress_name = str(self.id).replace("_", "-")
         api_client.delete_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
         return super().delete(*args, **kwargs)
