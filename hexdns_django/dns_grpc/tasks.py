@@ -5,8 +5,6 @@ import dnslib
 import base64
 import ipaddress
 import hashlib
-import socket
-import struct
 import typing
 import time
 import re
@@ -206,27 +204,12 @@ def generate_fzone(zone: "models.DNSZone"):
                     elif type(address) == ipaddress.IPv6Address:
                         zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
             else:
-                question_a = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.A))
-                question_aaaa = dnslib.DNSRecord(q=dnslib.DNSQuestion(record.alias, dnslib.QTYPE.AAAA))
-                try:
-                    res_pkt_a = question_a.send(
-                        settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
-                        ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
-                    )
-                    res_pkt_aaaa = question_aaaa.send(
-                        settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT,
-                        ipv6=settings.RESOLVER_NO_DNS64_IPV6, tcp=True, timeout=30
-                    )
-                except socket.timeout:
-                    raise dnslib.DNSError(f"Failed to get address for {record.alias}: timeout")
-                except struct.error as e:
-                    raise dnslib.DNSError(f"Failed to get address for {record.alias}: invalid response ({e})")
-                res_a = dnslib.DNSRecord.parse(res_pkt_a)
-                res_aaaa = dnslib.DNSRecord.parse(res_pkt_aaaa)
-                for rr in res_a.rr:
-                    zone_file += f"{record_name} {record.ttl} IN A {rr.rdata}\n"
-                for rr in res_aaaa.rr:
-                    zone_file += f"{record_name} {record.ttl} IN AAAA {rr.rdata}\n"
+                for r in record.cached.all():
+                    address = ipaddress.ip_address(r.address)
+                    if type(address) == ipaddress.IPv4Address:
+                        zone_file += f"{record_name} {record.ttl} IN A {address}\n"
+                    elif type(address) == ipaddress.IPv6Address:
+                        zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
 
     for record in zone.githubpagesrecord_set.all():
         record_name = record.idna_label
@@ -255,8 +238,8 @@ def generate_fzone(zone: "models.DNSZone"):
                     else:
                         continue
 
-                zone_file += f"; CNAME record {record.id}\n"
-                zone_file += f"{record_name} {record.ttl} IN CNAME {alias}\n"
+            zone_file += f"; CNAME record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN CNAME {alias}\n"
 
     for record in zone.redirectrecord_set.all():
         record_name = record.idna_label

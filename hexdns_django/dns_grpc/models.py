@@ -679,23 +679,22 @@ class ANAMERecord(DNSZoneRecord):
                         ttl=self.ttl,
                     ))
         else:
-            question = dnslib.DNSRecord(q=dnslib.DNSQuestion(self.alias, qtype))
-            try:
-                res_pkt = question.send(
-                    settings.RESOLVER_NO_DNS64_ADDR, port=settings.RESOLVER_NO_DNS64_PORT, ipv6=True, tcp=True, timeout=30
-                )
-            except socket.timeout:
-                raise DNSError(f"Failed to get address for {self.alias}: timeout")
-            except struct.error:
-                raise DNSError(f"Failed to get address for {self.alias}: invalid response")
-            res = dnslib.DNSRecord.parse(res_pkt)
-            for rr in res.rr:
-                out.append(dnslib.RR(
-                    query_name,
-                    qtype,
-                    rdata=rr.rdata,
-                    ttl=self.ttl
-                ))
+            for r in self.cached.all():
+                address = ipaddress.ip_address(r.address)
+                if type(address) == ipaddress.IPv4Address and qtype == dnslib.QTYPE.A:
+                    out.append(dnslib.RR(
+                        query_name,
+                        dnslib.QTYPE.A,
+                        rdata=dnslib.A(address.compressed),
+                        ttl=self.ttl,
+                    ))
+                elif type(address) == ipaddress.IPv6Address and qtype == dnslib.QTYPE.AAAA:
+                    out.append(dnslib.RR(
+                        query_name,
+                        dnslib.QTYPE.AAAA,
+                        rdata=dnslib.AAAA(address.compressed),
+                        ttl=self.ttl,
+                    ))
 
         return out
 
@@ -709,6 +708,14 @@ class ANAMERecord(DNSZoneRecord):
         verbose_name = "ANAME record"
         verbose_name_plural = "ANAME records"
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+
+class ANAMERecordCache(models.Model):
+    record = models.ForeignKey(ANAMERecord, on_delete=models.CASCADE, related_name='cached')
+    address = models.GenericIPAddressField(verbose_name="Address (IPv4/IPv6)")
+
+    def __str__(self):
+        return f"{self.record.alias} -> {self.address}"
 
 
 class CNAMERecord(DNSZoneRecord):
