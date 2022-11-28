@@ -20,6 +20,7 @@ data:
         identity: "HexDNS"
         listen: 0.0.0.0@53
         listen: ::@53
+        background-workers: 1
 
     database:
         journal-db-mode: robust
@@ -170,9 +171,8 @@ spec:
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
-             sleep 15 &&
-             rm /rundir/knot.pid;
-             knotd"
+             sleep 15;
+             while true; do rm /rundir/knot.pid; knotd; done"
           ]
           readinessProbe:
             tcpSocket:

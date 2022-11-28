@@ -502,6 +502,7 @@ def update_rzone(zone_id: str):
     ignore_result=True
 )
 def add_szone(zone_id: str):
+    return
     try:
         zone = models.SecondaryDNSZone.objects.get(id=zone_id)
     except models.SecondaryDNSZone.DoesNotExist:
@@ -518,6 +519,7 @@ def add_szone(zone_id: str):
     ignore_result=True
 )
 def update_szone(zone_id: str):
+    return
     try:
         zone = models.SecondaryDNSZone.objects.get(id=zone_id)
     except models.SecondaryDNSZone.DoesNotExist:
