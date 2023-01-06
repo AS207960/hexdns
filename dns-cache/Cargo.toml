@@ -12,7 +12,7 @@ async-trait = "0.1"
 trust-dns-server = "0.21"
 trust-dns-proto = "0.21"
 trust-dns-client = "0.21"
-tokio = { version = "1.19", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
+tokio = { version = "1.20", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
 log = "0.4"
 pretty_env_logger = "0.4"
 futures = "0.3"
