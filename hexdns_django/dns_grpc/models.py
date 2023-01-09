@@ -10,7 +10,6 @@ import django_keycloak_auth.clients
 import dnslib
 import codecs
 import sshpubkeys
-import socket
 import uuid
 import kubernetes
 import string
@@ -21,8 +20,7 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import as207960_utils.models
-from .proto import dns_pb2
-from . import apps, svcb, tasks
+from . import svcb, tasks
 
 if settings.KUBE_IN_CLUSTER:
     kubernetes.config.load_incluster_config()
@@ -401,6 +399,7 @@ class SecondaryDNSZone(models.Model):
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
+    error_message = models.CharField(max_length=255, blank=True, null=True)
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
     cds_disable = models.BooleanField(default=False, blank=True)

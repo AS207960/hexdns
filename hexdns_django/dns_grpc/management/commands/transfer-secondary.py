@@ -13,9 +13,10 @@ class Command(BaseCommand):
             try:
                 addrs = socket.getaddrinfo(zone.primary, 53, family=socket.AF_UNSPEC, proto=socket.IPPROTO_TCP)
             except OSError as e:
-                zone.error = True
-                zone.save()
                 print(f"Can't get address of {zone.primary}: {e}")
+                zone.error = True
+                zone.error_message = f"Can't get address of {zone.primary}"
+                zone.save()
                 continue
             sock = None
             for addr in addrs:
@@ -30,9 +31,10 @@ class Command(BaseCommand):
                     pass
 
             if sock is None:
-                zone.error = True
-                zone.save()
                 print(f"Can't connect to {zone.primary}")
+                zone.error = True
+                zone.error_message = f"Can't connect to {zone.primary}"
+                zone.save()
                 continue
 
             try:
@@ -44,22 +46,23 @@ class Command(BaseCommand):
                 response_bytes = sock.recv(response_len)
                 soa_response = dnslib.DNSRecord.parse(response_bytes)
                 if len(soa_response.rr) != 1:
-                    zone.error = True
-                    zone.save()
                     print(f"Invalid SOA response from {zone.primary}")
+                    zone.error = True
+                    zone.error_message = f"Invalid SOA response from {zone.primary}"
+                    zone.save()
                     sock.close()
                     continue
                 serial = soa_response.rr[0].rdata.times[0]
                 if serial == zone.serial:
+                    print(f"Identical serial on {zone.zone_root}, not updating")
                     zone.error = False
                     zone.save()
-                    print(f"Identical serial on {zone.zone_root}, not updating")
                     sock.close()
                     continue
             except (OSError, ValueError, dnslib.DNSError) as e:
+                print(f"Failed to sync from {zone.primary}: {e}")
                 zone.error = True
                 zone.save()
-                print(f"Failed to sync from {zone.primary}: {e}")
                 continue
 
             try:
@@ -74,10 +77,12 @@ class Command(BaseCommand):
                     response_bytes = sock.recv(response_len)
                     axfr_response = dnslib.DNSRecord.parse(response_bytes)
                     if axfr_response.header.rcode != dnslib.RCODE.NOERROR:
+                        print(f"Failed to sync from {zone.primary}: {dnslib.RCODE.get(axfr_response.header.rcode())}")
                         zone.error = True
+                        zone.error_message = f"Failed to sync from {zone.primary}: " \
+                                             f"got response {dnslib.RCODE.get(axfr_response.header.rcode())}"
                         zone.save()
-                        print(f"Failed to sync from {zone.primary}: {axfr_response.header.rcode}")
-                        break
+                        continue
                     for rr in axfr_response.rr:
                         if rr.rtype == dnslib.QTYPE.SOA and rr.rname == zone.zone_root:
                             seen_soa += 1
@@ -94,9 +99,9 @@ class Command(BaseCommand):
                     if seen_soa >= 2:
                         break
             except (OSError, ValueError, dnslib.DNSError) as e:
+                print(f"Failed to sync from {zone.primary}: {e}")
                 zone.error = True
                 zone.save()
-                print(f"Failed to sync from {zone.primary}: {e}")
                 continue
 
             if seen_soa == 2:
@@ -105,12 +110,14 @@ class Command(BaseCommand):
                     rr.save()
                 zone.serial = serial
                 zone.error = False
+                zone.error_message = None
                 zone.save()
                 tasks.update_szone.delay(zone.id)
                 print(f"Successfully updated from {zone.primary}")
             else:
-                zone.error = True
-                zone.save()
                 print(f"Invalid number of SOAs from {zone.primary}")
+                zone.error = True
+                zone.error_message = f"Invalid number of SOAs received from {zone.primary}"
+                zone.save()
 
             sock.close()

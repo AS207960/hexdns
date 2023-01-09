@@ -18,7 +18,7 @@ drf-nested-routers
 pyjwt
 cryptography
 django-cockroachdb==3.1.*
-git+https://github.com/AS207960/python-utils@4d441c9749c057687d5a33dc4972a1421a570f9a
+git+https://github.com/AS207960/python-utils@4ce5f3f8000b8b6f9e875b68adcbe387fd519b02
 pika
 python-dateutil
 kubernetes==24.2.0

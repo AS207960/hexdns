@@ -27,6 +27,9 @@
             <div class="alert alert-danger" role="alert">
                 <h4 class="alert-heading">Transfer failed</h4>
                 <p>On our last attempt to sync the zone there was an error.</p>
+                {% if zone.error_message %}
+                    <p>{{ zone.error_message }}</p>
+                {% endif %}
                 <hr>
                 <p class="mb-0">
                     Please ensure the primary is configured as described <a href="https://docs.glauca.digital/hexdns/secondary/" class="alert-link">here</a>.

@@ -695,7 +695,7 @@ spec:
       template:
         metadata:
           annotations:
-            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+            cni.projectcalico.org/ipv6pools: "[\"axfr-ip6-ippool\"]"
           labels:
             app: hexdns
             part: transfer-secondary
