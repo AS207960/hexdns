@@ -13,7 +13,6 @@ import sshpubkeys
 import uuid
 import kubernetes
 import string
-import keycloak.exceptions
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
