@@ -403,7 +403,6 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
     zone_file = f"$ORIGIN {zone_root}\n"
 
     for record in zone.secondarydnszonerecord_set.all():
-        continue
         zone_file += f"; Record {record.id}\n"
         zone_file += record.record_text
 
