@@ -404,7 +404,7 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
 
     for record in zone.secondarydnszonerecord_set.all():
         zone_file += f"; Record {record.id}\n"
-        zone_file += record.record_text
+        zone_file += f"{record.record_text}\n"
 
     return zone_file
 
