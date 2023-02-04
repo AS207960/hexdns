@@ -52,25 +52,16 @@
         </h2>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                <tr>
-                    <th>Record name</th>
-                    <th>Type</th>
-                    <th>TTL</th>
-                </tr>
-                </thead>
                 <tbody>
                 {% if zone.secondarydnszonerecord_set.all %}
                     {% for record in zone.secondarydnszonerecord_set.all %}
                         <tr>
-                            <td>{{ record.record_name }}</td>
-                            <td>{{ record.rtype_name }}</td>
-                            <td>{{ record.ttl }}</td>
+                            <td>{{ record.record_text }}</td>
                         </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="5">No records</td>
+                        <td colspan="1">No records</td>
                     </tr>
                 {% endif %}
                 </tbody>

@@ -87,14 +87,9 @@ class Command(BaseCommand):
                         if rr.rtype == dnslib.QTYPE.SOA and rr.rname == zone.zone_root:
                             seen_soa += 1
                         if rr.rclass == dnslib.CLASS.IN and (rr.rtype != dnslib.QTYPE.SOA or seen_soa <= 1):
-                            data = dnslib.DNSBuffer()
-                            rr.rdata.pack(data)
                             rrs.append(models.SecondaryDNSZoneRecord(
                                 zone=zone,
-                                record_name=str(rr.rname),
-                                ttl=rr.ttl,
-                                rtype=int(rr.rtype),
-                                rdata=data.data
+                                record_text=rr.toZone(),
                             ))
                     if seen_soa >= 2:
                         break

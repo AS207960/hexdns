@@ -403,8 +403,9 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
     zone_file = f"$ORIGIN {zone_root}\n"
 
     for record in zone.secondarydnszonerecord_set.all():
+        continue
         zone_file += f"; Record {record.id}\n"
-        zone_file += f"{record.record_name} {record.ttl} IN TYPE{record.rtype} \# {len(record.rdata)} {record.rdata.hex()}\n"
+        zone_file += record.record_text
 
     return zone_file
 
@@ -502,7 +503,6 @@ def update_rzone(zone_id: str):
     ignore_result=True
 )
 def add_szone(zone_id: str):
-    return
     try:
         zone = models.SecondaryDNSZone.objects.get(id=zone_id)
     except models.SecondaryDNSZone.DoesNotExist:
@@ -519,7 +519,6 @@ def add_szone(zone_id: str):
     ignore_result=True
 )
 def update_szone(zone_id: str):
-    return
     try:
         zone = models.SecondaryDNSZone.objects.get(id=zone_id)
     except models.SecondaryDNSZone.DoesNotExist:

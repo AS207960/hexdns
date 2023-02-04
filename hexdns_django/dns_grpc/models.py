@@ -454,23 +454,14 @@ class SecondaryDNSZone(models.Model):
 class SecondaryDNSZoneRecord(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_szonerecord", primary_key=True)
     zone = models.ForeignKey(SecondaryDNSZone, on_delete=models.CASCADE)
-    record_name = models.CharField(max_length=255)
-    ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)")
-    rtype = models.PositiveSmallIntegerField()
-    rdata = models.BinaryField()
+    record_text = models.TextField()
 
     class Meta:
         verbose_name = "Secondary DNS Zone Record"
         verbose_name_plural = "Secondary DNS Zones Record"
-        ordering = ('record_name', 'rtype')
-        indexes = [models.Index(fields=['record_name', 'zone'])]
 
     def __str__(self):
-        return f"{self.record_name} IN {self.rtype_name} {self.ttl}"
-
-    @property
-    def rtype_name(self):
-        return dnslib.QTYPE.get(self.rtype)
+        return self.record_text
 
 
 class DNSZoneRecord(models.Model):
