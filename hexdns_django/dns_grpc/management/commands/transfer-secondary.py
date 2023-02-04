@@ -77,10 +77,10 @@ class Command(BaseCommand):
                     response_bytes = sock.recv(response_len)
                     axfr_response = dnslib.DNSRecord.parse(response_bytes)
                     if axfr_response.header.rcode != dnslib.RCODE.NOERROR:
-                        print(f"Failed to sync from {zone.primary}: {dnslib.RCODE.get(axfr_response.header.rcode())}")
+                        print(f"Failed to sync from {zone.primary}: {dnslib.RCODE.get(axfr_response.header.rcode)}")
                         zone.error = True
                         zone.error_message = f"Failed to sync from {zone.primary}: " \
-                                             f"got response {dnslib.RCODE.get(axfr_response.header.rcode())}"
+                                             f"got response {dnslib.RCODE.get(axfr_response.header.rcode)}"
                         zone.save()
                         continue
                     for rr in axfr_response.rr:
