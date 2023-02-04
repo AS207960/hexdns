@@ -3,6 +3,8 @@ from django.conf import settings
 import django_keycloak_auth.clients
 from dns_grpc import models
 import requests
+import requests.exceptions
+import keycloak.exceptions
 import dns_grpc.utils
 
 
@@ -13,7 +15,10 @@ class Command(BaseCommand):
         user_zones = {}
 
         for zone in models.DNSZone.objects.all():
-            user = zone.get_user()
+            try:
+                user = zone.get_user()
+            except (models.Account.DoesNotExist, keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
+                continue
 
             if user.username not in user_zones:
                 user_zones[user.username] = {

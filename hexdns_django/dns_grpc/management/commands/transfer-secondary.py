@@ -42,7 +42,10 @@ class Command(BaseCommand):
                 sock.sendall(struct.pack("!H", len(soa_query)))
                 sock.sendall(soa_query)
                 response_len_bytes = sock.recv(2)
-                response_len = struct.unpack("!H", response_len_bytes)[0]
+                try:
+                    response_len = struct.unpack("!H", response_len_bytes)[0]
+                except struct.error:
+                    print(f"Invalid SOA response from {zone.primary}")
                 response_bytes = sock.recv(response_len)
                 soa_response = dnslib.DNSRecord.parse(response_bytes)
                 if len(soa_response.rr) != 1:
@@ -93,7 +96,7 @@ class Command(BaseCommand):
                             ))
                     if seen_soa >= 2:
                         break
-            except (OSError, ValueError, dnslib.DNSError) as e:
+            except (OSError, ValueError, dnslib.DNSError, struct.error) as e:
                 print(f"Failed to sync from {zone.primary}: {e}")
                 zone.error = True
                 zone.save()
