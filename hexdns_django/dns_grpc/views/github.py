@@ -268,12 +268,12 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
             setup_form = forms.GithubPagesSetupForm(request.POST)
             setup_form.fields['source_branch'].choices = list(map(lambda b: (b["name"], b["name"]), branches))
 
-            if setup_form.cleaned_data["record_name"] == "@":
-                dns_name = zone_obj.zone_root
-            else:
-                dns_name = f"{setup_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
-
             if setup_form.is_valid():
+                if setup_form.cleaned_data["record_name"] == "@":
+                    dns_name = zone_obj.zone_root
+                else:
+                    dns_name = f"{setup_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+
                 requests.post(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
                     "Authorization": f"token {get_installation_token(installation)}",
                     "Accept": "application/vnd.github.switcheroo-preview+json"
