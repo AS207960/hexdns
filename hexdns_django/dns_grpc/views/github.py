@@ -247,7 +247,9 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
         raise PermissionDenied()
 
     branches_r = requests.get(f"https://api.github.com/repos/{owner}/{repo}/branches", headers={
-            "Authorization": f"token {get_installation_token(installation)}"
+        "Authorization": f"token {get_installation_token(installation)}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
     })
 
     if branches_r.status_code == 404:
@@ -260,7 +262,9 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
     branches = branches_r.json()
 
     pages_r = requests.get(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
-            "Authorization": f"token {get_installation_token(installation)}"
+        "Authorization": f"token {get_installation_token(installation)}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
     })
 
     if pages_r.status_code == 404:
@@ -276,7 +280,8 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
 
                 requests.post(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
                     "Authorization": f"token {get_installation_token(installation)}",
-                    "Accept": "application/vnd.github.switcheroo-preview+json"
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28"
                 }, json={
                     "source": {
                         "branch": setup_form.cleaned_data["source_branch"],
@@ -285,7 +290,8 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
                 }).raise_for_status()
                 requests.put(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
                     "Authorization": f"token {get_installation_token(installation)}",
-                    "Accept": "application/vnd.github.switcheroo-preview+json"
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28"
                 }, json={
                     "cname": dns_name,
                 }).raise_for_status()

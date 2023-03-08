@@ -484,7 +484,11 @@ class DNSZoneRecord(models.Model):
         if self.record_name == "@":
             return dnslib.DNSLabel(self.zone.zone_root)
         else:
-            return dnslib.DNSLabel(f"{self.record_name}.{self.zone.zone_root}")
+            return dnslib.DNSLabel(f"{self.idna_label}.{self.zone.zone_root}")
+
+    @property
+    def record_label(self):
+        return self.idna_label
 
     @property
     def idna_label(self):
@@ -496,8 +500,6 @@ class DNSZoneRecord(models.Model):
             if all(ord(c) < 127 and c in string.printable for c in self.record_name):
                 return self.record_name
 
-            dns_label = dnslib.DNSLabel(self.record_name)
-
             return None
 
     @classmethod
@@ -508,6 +510,19 @@ class DNSZoneRecord(models.Model):
         else:
             record_label = rname.stripSuffix(zone_name)
             return ".".join(map(lambda n: n.decode().lower(), record_label.label))
+
+    def validate_unique(self, exclude=None):
+        if "record_name" not in exclude:
+            other_cnames = len(
+                self.zone.cnamerecord_set
+                .filter(record_name=self.record_label)
+            )
+            if other_cnames >= 1:
+                raise ValidationError({
+                    "record_name": "A CNAME already exists with the same label"
+                })
+
+        super().validate_unique(exclude=exclude)
 
     def __str__(self):
         return self.record_name
@@ -734,17 +749,7 @@ class CNAMERecord(DNSZoneRecord):
                 "record_name": "CNAME records cannot exit at the zone root"
             })
 
-    def validate_unique(self, exclude=None):
-        if "record_name" not in exclude:
-            other_cnames = len(
-                self.__class__.objects
-                    .filter(zone=self.zone, record_name=self.record_name.lower())
-                    .exclude(id=self.id)
-            )
-            if other_cnames >= 1:
-                raise ValidationError({
-                    "record_name": "Another CNAME already exists with the same label"
-                })
+        super().clean_fields(exclude=exclude)
 
     def save(self, *args, **kwargs):
         self.alias = self.alias.lower()
@@ -762,6 +767,37 @@ class CNAMERecord(DNSZoneRecord):
             rdata=dnslib.CNAME(self.alias),
             ttl=self.ttl,
         )
+
+    def validate_unique(self, exclude=None):
+        if "record_name" not in exclude:
+            other_records = 0
+            other_records += len(
+                self.zone.cnamerecord_set
+                .filter(record_name=self.record_label)
+                .exclude(id=self.id)
+            )
+
+            record_types = [
+                self.zone.addressrecord_set, self.zone.dynamicaddressrecord_set, self.zone.anamerecord_set,
+                self.zone.githubpagesrecord_set, self.zone.redirectrecord_set, self.zone.mxrecord_set,
+                self.zone.nsrecord_set, self.zone.txtrecord_set, self.zone.srvrecord_set, self.zone.caarecord_set,
+                self.zone.naptrrecord_set, self.zone.sshfprecord_set, self.zone.dsrecord_set, self.zone.locrecord_set,
+                self.zone.hinforecord_set, self.zone.rprecord_set, self.zone.dhcidrecord_set,
+            ]
+            for t in record_types:
+                other_records += len(t.filter(record_name=self.record_label))
+
+            for r in self.zone.httpsrecord_set.all():
+                if r.record_label == self.record_label:
+                    other_records += 1
+                    break
+
+            if other_records >= 1:
+                raise ValidationError({
+                    "record_name": "Another record already exists with the same label"
+                })
+
+        super().validate_unique(exclude=exclude)
 
     class Meta(DNSZoneRecord.Meta):
         verbose_name = "CNAME record"
@@ -1843,6 +1879,10 @@ class SVCBBaseRecord(DNSZoneRecord):
             return dnslib.DNSLabel(self.zone.zone_root)
         else:
             return dnslib.DNSLabel(f"{record_name}.{self.zone.zone_root}")
+
+    @property
+    def record_label(self):
+        return self.svcb_record_name
 
     @property
     def svcb_data(self):
