@@ -15,7 +15,9 @@
                         <div class="btn-group">
                             <a href="{% url 'edit_szone' zone.id %}" class="btn btn-primary">&#x1f58a; Edit</a>
                             <a href="{% url 'delete_szone' zone.id %}" class="btn btn-danger">&#x1f5d1; Delete</a>
-                            <a href="{{ sharing_uri }}" class="btn btn-info">&#x1f91d; Share</a>
+                            {% if sharing_uri %}
+                                <a href="{{ sharing_uri }}" class="btn btn-info">&#x1f91d; Share</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

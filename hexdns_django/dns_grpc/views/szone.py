@@ -67,13 +67,16 @@ def view_szone(request, zone_id):
     if not user_zone.has_scope(access_token, 'view'):
         raise PermissionDenied
 
-    sharing_data = {
-        "referrer": settings.OIDC_CLIENT_ID,
-        "referrer_uri": request.build_absolute_uri()
-    }
-    sharing_data_uri = urllib.parse.urlencode(sharing_data)
-    sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
-                  f"{user_zone.resource_id}?{sharing_data_uri}"
+    if user_zone.get_user() == request.user:
+        sharing_data = {
+            "referrer": settings.OIDC_CLIENT_ID,
+            "referrer_uri": request.build_absolute_uri()
+        }
+        sharing_data_uri = urllib.parse.urlencode(sharing_data)
+        sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
+                      f"{user_zone.resource_id}?{sharing_data_uri}"
+    else:
+        sharing_uri = None
 
     return render(
         request,
