@@ -1,98 +1,26 @@
-#apiVersion: apps/v1
-#kind: DaemonSet
-#metadata:
-#  name: hexdns-coredns
-#  labels:
-#    app: hexdns
-#spec:
-#  selector:
-#    matchLabels:
-#      app: hexdns
-#      part: coredns
-#  template:
-#    metadata:
-#      labels:
-#        app: hexdns
-#        part: coredns
-#    spec:
-#      tolerations:
-#        - key: special
-#          operator: Equal
-#          value: edge
-#          effect: NoSchedule
-#      containers:
-#        - name: coredns
-#          image: coredns/coredns
-#          args: ["-conf", "/conf/Corefile"]
-#          imagePullPolicy: Always
-#          ports:
-#            - containerPort: 53
-#          env:
-#            - name: POD_NAME
-#              valueFrom:
-#                fieldRef:
-#                  fieldPath: metadata.name
-#          volumeMounts:
-#            - name: conf
-#              mountPath: /conf/
-#          livenessProbe:
-#            httpGet:
-#              port: 8080
-#              path: /health
-#            initialDelaySeconds: 3
-#            periodSeconds: 3
-#          readinessProbe:
-#            httpGet:
-#              port: 8181
-#              path: /ready
-#            initialDelaySeconds: 3
-#            periodSeconds: 3
-#      terminationGracePeriodSeconds: 30
-#      volumes:
-#        - name: conf
-#          configMap:
-#            name: hexdns-coredns-conf
-#---
-#apiVersion: v1
-#kind: ConfigMap
-#metadata:
-#  name: hexdns-coredns-conf
-#data:
-#  Corefile: |
-#    .:53 {
-#        health
-#        ready
-#        log . "{\"remote\": \"{remote}\", \"port\": {port}, \"id\": {>id}, \"proto\": \"{proto}\", \"duration\": \"{duration}\", \"question\": {\"size\": {size}, \"type\": \"{type}\", \"class\": \"{class}\", \"name\": \"{name}\", \"dnssec_ok\": {>do}, \"bufsize\": {>bufsize}, \"opcode\": {>opcode}}, \"response\": {\"code\": \"{rcode}\", \"size\": {rsize}, \"flags\": \"{>rflags}\"}}"
-#        errors
-#        any
-#        cancel
-#        cache 86400 {
-#          denial 9984 30
-#          prefetch 1 60m
-#        }
-#        chaos "HexDns" "noc@as207960.net"
-#        grpc . [{$HEXDNS_GRPC_SERVICE_HOST}]:50051
-#        loadbalance round_robin
-#        nsid {$POD_NAME}
-#    }
-#---
 apiVersion: v1
 kind: Service
 metadata:
   name: hexdns-coredns-udp
   annotations:
     metallb.universe.tf/allow-shared-ip: "hexdns-coredns"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:1"
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53
       protocol: UDP
       name: dns-udp
+    - port: 853
+      targetPort: 853
+      protocol: UDP
+      name: dns-quic
 ---
 apiVersion: v1
 kind: Service
@@ -100,12 +28,58 @@ metadata:
   name: hexdns-coredns-tcp
   annotations:
     metallb.universe.tf/allow-shared-ip: "hexdns-coredns"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:1"
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
   selector:
     app: hexdns
-    part: cache
+    part: knot
+    role: secondary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns-udp-2
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns-2"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:e"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: secondary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp
+    - port: 853
+      targetPort: 853
+      protocol: UDP
+      name: dns-quic
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-coredns-tcp-2
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-coredns-2"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:e"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: secondary
   ports:
     - port: 53
       targetPort: 53

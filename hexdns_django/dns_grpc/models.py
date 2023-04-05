@@ -797,6 +797,9 @@ class CNAMERecord(DNSZoneRecord):
                     "record_name": "Another record already exists with the same label"
                 })
 
+        if exclude is None:
+            exclude = []
+        exclude.append("record_name")
         super().validate_unique(exclude=exclude)
 
     class Meta(DNSZoneRecord.Meta):

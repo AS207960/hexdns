@@ -251,6 +251,14 @@ data:
         listen: 0.0.0.0@53
         listen: ::@53
         nsid: (nsid)
+        key-file: /quic/tls.key
+        cert-file: /quic/tls.crt
+    
+    xdp:
+        listen: eth0
+        udp: on
+        tcp: off
+        quic: on
 
     database:
         journal-db-mode: asynchronous
@@ -347,9 +355,12 @@ spec:
             name: hexdns-knot-secondary
         - name: rundir
           emptyDir: {}
+        - name: quic-keys
+          secret:
+              secretName: hexdns-quic
       containers:
         - name: knot
-          image: as207960/knotd:6
+          image: as207960/knotd:7
           imagePullPolicy: Always
           command: [
             "sh", "-c",
@@ -373,9 +384,14 @@ spec:
               name: config
             - mountPath: "/rundir/"
               name: rundir
+            - mountPath: "/quic/"
+              name: quic-keys
           envFrom:
             - secretRef:
                 name: hexdns-knot-xfr
+          securityContext:
+            capabilities:
+              add: [ "NET_RAW", "NET_ADMIN", "SYS_ADMIN", "IPC_LOCK", "SYS_RESOURCE" ]
         - name: reloader
           image: as207960/hexdns-knot-sidecar-secondary:(version)
           imagePullPolicy: Always
@@ -418,41 +434,28 @@ spec:
       port: 53
     - protocol: UDP
       port: 53
+    - protocol: UDP
+      port: 853
 ---
-apiVersion: v1
-kind: Service
+apiVersion: cert-manager.io/v1
+kind: Certificate
 metadata:
-  name: hexdns-knot-secondary-udp
-  annotations:
-    metallb.universe.tf/allow-shared-ip: "hexdns-knot"
+  name: hexdns-quic-cert
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
-  selector:
-    app: hexdns
-    part: knot
-    role: secondary
-  ports:
-    - port: 53
-      targetPort: 53
-      protocol: UDP
-      name: dns-udp
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hexdns-knot-secondary-tcp
-  annotations:
-    metallb.universe.tf/allow-shared-ip: "hexdns-knot"
-spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
-  selector:
-    app: hexdns
-    part: knot
-    role: secondary
-  ports:
-    - port: 53
-      targetPort: 53
-      protocol: TCP
-      name: dns-tcp
+  secretName: hexdns-quic
+  duration: 2160h
+  renewBefore: 360h
+  commonName: ns1.as207960.net
+  isCA: false
+  privateKey:
+    size: 384
+    algorithm: ECDSA
+  usages:
+    - server auth
+  dnsNames:
+    - ns1.as207960.net
+    - ns2.as207960.net
+  issuerRef:
+    name: letsencrypt-as207960-ltd-uk
+    kind: ClusterIssuer
+    group: cert-manager.io
