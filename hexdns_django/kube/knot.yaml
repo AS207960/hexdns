@@ -456,6 +456,6 @@ spec:
     - ns1.as207960.net
     - ns2.as207960.net
   issuerRef:
-    name: letsencrypt-as207960-ltd-uk
+    name: gts-as207960-ltd-uk
     kind: ClusterIssuer
     group: cert-manager.io

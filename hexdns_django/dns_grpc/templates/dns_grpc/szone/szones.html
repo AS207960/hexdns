@@ -10,6 +10,24 @@
         </div>
     </section>
     <div class="container my-3">
+        {% if no_subscription %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">No subscription</h4>
+                <p>
+                    You currently have no HexDNS subscription. We won't be serving any of your zones until the
+                    subscription is active.
+                </p>
+                <a href="{% url 'setup_subscription' %}" class="btn btn-primary">Setup subscription</a>
+            </div>
+        {% elif subscription_inactive %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Inactive subscription</h4>
+                <p>
+                    Your HexDNS subscription is not currently active. We won't be serving any of your zones until the
+                    subscription is active. Please complete setup <a href="https://billing.as207960.net">in the billing system</a>.
+                </p>
+            </div>
+        {% endif %}
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-dark">

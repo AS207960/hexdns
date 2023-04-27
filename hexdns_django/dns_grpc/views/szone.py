@@ -13,8 +13,15 @@ from .. import forms, models, tasks, utils
 def szones(request):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zones = models.SecondaryDNSZone.get_object_list(access_token)
+    no_subscription = len(user_zones) != 0 and not request.user.account.subscription_id
+    subscription_inactive = len(user_zones) != 0 and not request.user.account.subscription_active
 
-    return render(request, "dns_grpc/szone/szones.html", {"zones": user_zones})
+    return render(request, "dns_grpc/szone/szones.html", {
+        "zones": user_zones,
+        "account": request.user.account,
+        "no_subscription": no_subscription,
+        "subscription_inactive": subscription_inactive
+    })
 
 
 @login_required
