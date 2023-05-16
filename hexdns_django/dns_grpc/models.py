@@ -16,7 +16,7 @@ import string
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import as207960_utils.models
@@ -114,67 +114,69 @@ class DNSZone(models.Model):
         except (dnslib.DNSError, ValueError, IndexError) as e:
             raise ValueError(f"Invalid zone file: {str(e)}")
         else:
-            if overwrite:
-                self.addressrecord_set.all().delete()
-                self.cnamerecord_set.all().delete()
-                self.mxrecord_set.all().delete()
-                self.nsrecord_set.all().delete()
-                self.txtrecord_set.all().delete()
-                self.srvrecord_set.all().delete()
-                self.caarecord_set.all().delete()
-                self.naptrrecord_set.all().delete()
+            with transaction.atomic():
+                if overwrite:
+                    self.addressrecord_set.all().delete()
+                    self.cnamerecord_set.all().delete()
+                    self.mxrecord_set.all().delete()
+                    self.nsrecord_set.all().delete()
+                    self.txtrecord_set.all().delete()
+                    self.srvrecord_set.all().delete()
+                    self.caarecord_set.all().delete()
+                    self.naptrrecord_set.all().delete()
 
-            for record in records:
-                if record.rclass != dnslib.CLASS.IN:
-                    continue
-                record_name = record.rname.stripSuffix(suffix)
-                if len(record_name.label) == 0:
-                    record_name = dnslib.DNSLabel("@")
-                if record.rtype == dnslib.QTYPE.A:
-                    r = AddressRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.AAAA:
-                    r = AddressRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.CNAME:
-                    r = CNAMERecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.MX:
-                    r = MXRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
-                    r = NSRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.TXT:
-                    r = TXTRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.SRV:
-                    r = SRVRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.CAA:
-                    r = CAARecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
-                elif record.rtype == dnslib.QTYPE.NAPTR:
-                    r = NAPTRRecord.from_rr(record, self)
-                    if r.ttl <= 1:
-                        r.ttl = 3600
-                    r.save()
+                for record in records:
+                    if record.rclass != dnslib.CLASS.IN:
+                        continue
+                    record_name = record.rname.stripSuffix(suffix)
+                    if len(record_name.label) == 0:
+                        record_name = dnslib.DNSLabel("@")
+                    if record.rtype == dnslib.QTYPE.A:
+                        r = AddressRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.AAAA:
+                        r = AddressRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.CNAME:
+                        r = CNAMERecord.from_rr(record, self)
+                        self.cnamerecord_set.filter(record_name=r.record_name).delete()
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.MX:
+                        r = MXRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
+                        r = NSRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.TXT:
+                        r = TXTRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.SRV:
+                        r = SRVRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.CAA:
+                        r = CAARecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.NAPTR:
+                        r = NAPTRRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
 
 
 def hex_validator(value):
