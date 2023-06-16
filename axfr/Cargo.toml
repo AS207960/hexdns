@@ -1,0 +1,29 @@
+[package]
+name = "axfr"
+description = "AS207960 AXFR server"
+version = "0.1.0"
+authors = ["Q <q@as207960.net>"]
+edition = "2021"
+
+[dependencies]
+trust-dns-server = "0.22"
+trust-dns-proto = { version = "0.22", features = ["dnssec"] }
+trust-dns-client = "0.22"
+tokio = { version = "1.19", features = ["macros", "io-util", "rt", "rt-multi-thread", "net", "sync"] }
+log = "0.4"
+pretty_env_logger = "0.4"
+clap = { version = "4", features = ["cargo", "env"] }
+tonic = "0.9"
+futures-util = "0.3"
+prost = "0.11"
+hmac = "0.12"
+sha2 = "0.10"
+constant_time_eq = "0.2"
+rustdns = "0.4"
+base64 = "0.21"
+data-encoding = "2"
+hex = "0.4"
+chrono = "0.4"
+
+[build-dependencies]
+tonic-build = { version = "0.9" }

@@ -25,10 +25,12 @@
             <table class="table table-striped table-hover">
                 <thead class="table-dark">
                 <tr>
-                    <th>Record name</th>
+                    <th>Name</th>
+                    <th>Record</th>
                     <th>Type</th>
                     <th>Restricted to</th>
                     <th>Secret</th>
+                    <th>Last used</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -36,6 +38,7 @@
                 {% if zone.dnszoneupdatesecrets_set.all %}
                     {% for record in zone.dnszoneupdatesecrets_set.all %}
                         <tr>
+                            <td>{{ record.name }}</td>
                             <td>{{ record.id }}.{{ zone.zone_root }}</td>
                             <td>
                                 {% if record.type == "U" %}
@@ -46,6 +49,13 @@
                             </td>
                             <td>{{ record.restrict_to }}</td>
                             <td>{{ record.secret_str }}</td>
+                            <td>
+                                {% if record.last_used %}
+                                    {{ record.last_used }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
                                     <a href="{% url 'edit_zone_secret' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>

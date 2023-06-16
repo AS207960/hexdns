@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package as207960.dns.axfr;
+
+service AXFRService {
+  rpc GetTSIGSecret(TSIGRequest) returns (TSIGSecret);
+  rpc CheckIPACL(IPACLRequest) returns (IPACLResponse);
+}
+
+message TSIGRequest {
+  string key_name = 1;
+}
+
+message TSIGSecret {
+  bytes secret = 1;
+}
+
+message IPACLRequest {
+  string zone_name = 1;
+  oneof ip_addr {
+    fixed32 v4 = 2;
+    bytes v6 = 3;
+  }
+}
+
+message IPACLResponse {
+  bool allowed = 1;
+}

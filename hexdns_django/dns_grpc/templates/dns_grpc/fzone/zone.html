@@ -14,6 +14,7 @@
                             <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone file</a>
                             <a href="{% url 'export_zone_file' zone.id %}" class="btn btn-primary">Export zone file</a>
                             <a href="{% url 'edit_zone_secrets' zone.id %}" class="btn btn-secondary">Edit update secrets</a>
+                            <a href="{% url 'edit_zone_axfr' zone.id %}" class="btn btn-secondary">Edit AXFR</a>
                             <a href="{% url 'edit_zone_cds' zone.id %}" class="btn btn-secondary">Manage CDS</a>
                             <a href="{% url 'verify_google' zone.id %}" class="btn btn-success">Verify with Google</a>
                             <a href="{% url 'setup_icloud' zone.id %}" class="btn btn-secondary">Setup for iCloud Custom Email</a>

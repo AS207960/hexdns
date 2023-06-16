@@ -257,18 +257,73 @@ class DNSZoneUpdateSecrets(models.Model):
 
     id = as207960_utils.models.TypedUUIDField("hexdns_zoneupdatesecret", primary_key=True)
     zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
     type = models.CharField(max_length=1, choices=TYPES)
     restrict_to = models.CharField(
         max_length=255, default="@", verbose_name="Restrict to (@ for zone root)"
     )
     secret = models.BinaryField(default=make_update_secret)
+    last_used = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.id}.{self.zone.zone_root}"
+        return f"{self.name} ({self.id}.{self.zone.zone_root})"
 
     @property
     def secret_str(self):
         return base64.b64encode(self.secret).decode()
+
+
+class DNSZoneAXFRSecrets(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneaxfrsecret", primary_key=True)
+    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    secret = models.BinaryField(default=make_update_secret)
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.id}.{self.zone.zone_root})"
+
+    @property
+    def secret_str(self):
+        return base64.b64encode(self.secret).decode()
+
+
+class DNSZoneAXFRIPACL(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneaxfripacl", primary_key=True)
+    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    address = models.GenericIPAddressField(db_index=True)
+    prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)], db_index=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.address}/{self.prefix})"
+
+    def clean(self):
+        try:
+            ipaddress.ip_network((self.address, self.prefix))
+        except ValueError as e:
+            raise ValidationError(str(e))
+
+    @property
+    def network(self):
+        try:
+            return ipaddress.ip_network(
+                (self.address, self.prefix)
+            )
+        except ValueError:
+            return None
+
+
+class DNSZoneAXFRNotify(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_zoneaxfrnotify", primary_key=True)
+    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    server = models.CharField(max_length=255)
+    port = models.PositiveSmallIntegerField(default=53, validators=[MaxValueValidator(65535)])
+
+    def __str__(self):
+        return f"{self.name} ({self.server}:{self.port})"
 
 
 class ReverseDNSZone(models.Model):
@@ -376,6 +431,59 @@ class ReverseDNSZoneAdditionalCDNSKEY(models.Model):
     def delete(self, *args, **kwargs):
         tasks.update_rzone.delay(self.dns_zone.id)
         return super().delete(*args, **kwargs)
+
+
+class ReverseDNSZoneAXFRSecrets(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzoneaxfrsecret", primary_key=True)
+    zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    secret = models.BinaryField(default=make_update_secret)
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.id}.{self.zone.zone_root})"
+
+    @property
+    def secret_str(self):
+        return base64.b64encode(self.secret).decode()
+
+
+class ReverseDNSZoneAXFRIPACL(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzoneaxfripacl", primary_key=True)
+    zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    address = models.GenericIPAddressField(db_index=True)
+    prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)], db_index=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.address}/{self.prefix})"
+
+    def clean(self):
+        try:
+            ipaddress.ip_network((self.address, self.prefix))
+        except ValueError as e:
+            raise ValidationError(str(e))
+
+    @property
+    def network(self):
+        try:
+            return ipaddress.ip_network(
+                (self.address, self.prefix)
+            )
+        except ValueError:
+            return None
+
+
+class ReverseDNSZoneAXFRNotify(models.Model):
+    id = as207960_utils.models.TypedUUIDField("hexdns_rzoneaxfrnotify", primary_key=True)
+    zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    server = models.CharField(max_length=255)
+    port = models.PositiveSmallIntegerField(default=53, validators=[MaxValueValidator(65535)])
+
+    def __str__(self):
+        return f"{self.name} ({self.server}:{self.port})"
 
 
 class ReverseDNSZoneCustomNS(models.Model):

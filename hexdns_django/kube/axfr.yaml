@@ -1,0 +1,162 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-knot-axfr
+data:
+  knot.conf: |
+    server:
+        identity: "HexDNS"
+        listen: 0.0.0.0@53
+        listen: ::@5053
+        nsid: (nsid)
+
+    database:
+        journal-db-mode: asynchronous
+
+    log:
+      - target: stdout
+        any: info
+    
+    key:
+      - id: secondary-xfr
+        algorithm: hmac-sha256
+        secret: (xfr-secret)
+    
+    remote:
+      - id: primary
+        address: (primary-address)
+        key: secondary-xfr
+
+    acl:
+      - id: notify
+        address: 127.0.0.1
+        action: notify
+
+    template:
+      - id: default
+        global-module: mod-stats/custom
+
+      - id: zone
+        journal-content: none
+        master: primary
+        acl: notify
+
+    zone:
+      - domain: catalog.dns.as207960.ltd.uk.
+        master: primary
+        catalog-role: interpret
+        catalog-template: zone
+        acl: notify
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-axfr
+  labels:
+    app: hexdns
+    part: axfr
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: hexdns
+      part: axfr
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: axfr
+    spec:
+      volumes:
+        - name: knot
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: hexdns-knot-axfr
+        - name: rundir
+          emptyDir: {}
+      containers:
+        - name: knot
+          image: as207960/knotd:7
+          imagePullPolicy: Always
+          command: [
+            "sh", "-c",
+            "cp /config-template/knot.conf /config/knot.conf &&
+             sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
+             sed -i \"s/(primary-address)/$HEXDNS_KNOT_PRIMARY_SERVICE_HOST/g\" /config/knot.conf &&
+             sed -i \"s/(nsid)/$HOSTNAME/g\" /config/knot.conf &&
+             sleep 15 &&
+             while true; do rm /rundir/knot.pid; knotd; done"
+          ]
+          readinessProbe:
+            tcpSocket:
+              port: 5053
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/storage/"
+              name: knot
+            - mountPath: "/config-template/"
+              name: config
+            - mountPath: "/rundir/"
+              name: rundir
+          envFrom:
+            - secretRef:
+                name: hexdns-knot-xfr
+        - name: reloader
+          image: as207960/hexdns-knot-sidecar-secondary:(version)
+          imagePullPolicy: Always
+          command: ["python3", "/app/sidecar-secondary.py"]
+          envFrom:
+            - secretRef:
+                name: hexdns-rpc
+        - name: axfr
+          image: as207960/hexdns-axfr:1
+          imagePullPolicy: Always
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/storage/"
+              name: knot
+          env:
+            - name: DNS_PORT
+              value: "53"
+            - name: DNS_ADDR
+              value: "::"
+            - name: DNS_ZONES
+              value: "/storage"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-axfr
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: axfr
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 53
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-axfr
+spec:
+  selector:
+    app: hexdns
+    part: axfr
+  type: LoadBalancer
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP

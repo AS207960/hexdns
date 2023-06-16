@@ -951,11 +951,6 @@ spec:
         app: hexdns
         part: grpc
     spec:
-      tolerations:
-        - key: special
-          operator: Equal
-          value: edge
-          effect: NoSchedule
       volumes:
         - name: static
           persistentVolumeClaim:

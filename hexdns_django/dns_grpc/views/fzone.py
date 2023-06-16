@@ -1746,6 +1746,221 @@ def delete_zone_secret(request, record_id):
 
 
 @login_required
+def edit_zone_axfr(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    return render(
+        request,
+        "dns_grpc/fzone/zone_axfr.html",
+        {"zone": user_zone, },
+    )
+
+
+@login_required
+def create_zone_axfr_secret(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRSecretForm(
+            request.POST, instance=models.DNSZoneAXFRSecrets(zone=user_zone), has_id=False)
+        if record_form.is_valid():
+            record_form.save()
+            return redirect("edit_zone_axfr", user_zone.id)
+    else:
+        record_form = forms.AXFRSecretForm(instance=models.DNSZoneAXFRSecrets(zone=user_zone), has_id=False)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create AXFR secret", "form": record_form, },
+    )
+
+
+@login_required
+def edit_zone_axfr_secret(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRSecrets, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRSecretForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.save()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+    else:
+        record_form = forms.AXFRSecretForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit AXFR secret", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_axfr_secret(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRSecrets, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.delete()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_record.html",
+        {"title": "Delete AXFR secret", "record": user_record, },
+    )
+
+
+@login_required
+def create_zone_axfr_ip_acl(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRIPAClForm(
+            request.POST, instance=models.DNSZoneAXFRIPACL(zone=user_zone), has_id=False)
+        if record_form.is_valid():
+            record_form.save()
+            return redirect("edit_zone_axfr", user_zone.id)
+    else:
+        record_form = forms.AXFRIPAClForm(instance=models.DNSZoneAXFRIPACL(zone=user_zone), has_id=False)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create AXFR IP ACL", "form": record_form, },
+    )
+
+
+@login_required
+def edit_zone_axfr_ip_acl(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRIPACL, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRIPAClForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.save()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+    else:
+        record_form = forms.AXFRIPAClForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit AXFR IP ACL", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_axfr_ip_acl(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRIPACL, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.delete()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_record.html",
+        {"title": "Delete AXFR IP ACL", "record": user_record, },
+    )
+
+
+@login_required
+def create_zone_axfr_notify(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRNotifyForm(
+            request.POST, instance=models.DNSZoneAXFRNotify(zone=user_zone), has_id=False)
+        if record_form.is_valid():
+            record_form.save()
+            return redirect("edit_zone_axfr", user_zone.id)
+    else:
+        record_form = forms.AXFRNotifyForm(instance=models.DNSZoneAXFRNotify(zone=user_zone), has_id=False)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create AXFR notify target", "form": record_form, },
+    )
+
+
+@login_required
+def edit_zone_axfr_notify(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRNotify, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.AXFRNotifyForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.save()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+    else:
+        record_form = forms.AXFRNotifyForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit AXFR notify target", "form": record_form, },
+    )
+
+
+@login_required
+def delete_zone_axfr_notify(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSZoneAXFRNotify, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.delete()
+            return redirect("edit_zone_axfr", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/fzone/delete_record.html",
+        {"title": "Delete AXFR notify target", "record": user_record, },
+    )
+
+@login_required
 def edit_zone_custom_ns(request, zone_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(models.DNSZone, id=zone_id)

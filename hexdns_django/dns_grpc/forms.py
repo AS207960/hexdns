@@ -520,6 +520,7 @@ class UpdateSecretForm(forms.ModelForm):
         self.helper.field_class = 'col-lg-8 my-1'
         self.helper.layout = crispy_forms.layout.Layout(
             crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}") if has_id else None,
+            "name",
             crispy_forms.bootstrap.AppendedText("restrict_to", f".{self.instance.zone.zone_root}"),
             "type",
         )
@@ -528,7 +529,89 @@ class UpdateSecretForm(forms.ModelForm):
     class Meta:
         model = models.DNSZoneUpdateSecrets
         fields = "__all__"
-        exclude = ("zone", "secret")
+        exclude = ("zone", "secret", "last_used")
+        read_only = ("id",)
+
+
+class AXFRSecretForm(forms.ModelForm):
+    def __init__(self, *args, has_id=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        if has_id:
+            self.fields['id'].disabled = True
+            self.fields['id'].required = False
+        else:
+            del self.fields['id']
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}") if has_id else None,
+            "name"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneAXFRSecrets
+        fields = "__all__"
+        exclude = ("zone", "secret", "last_used")
+        read_only = ("id",)
+
+
+class AXFRIPAClForm(forms.ModelForm):
+    def __init__(self, *args, has_id=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        if has_id:
+            self.fields['id'].disabled = True
+            self.fields['id'].required = False
+        else:
+            del self.fields['id']
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}") if has_id else None,
+            "name",
+            "address",
+            "prefix"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneAXFRIPACL
+        fields = "__all__"
+        exclude = ("zone", "last_used")
+        read_only = ("id",)
+
+
+class AXFRNotifyForm(forms.ModelForm):
+    def __init__(self, *args, has_id=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        if has_id:
+            self.fields['id'].disabled = True
+            self.fields['id'].required = False
+        else:
+            del self.fields['id']
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("id", f".{self.instance.zone.zone_root}") if has_id else None,
+            "name",
+            "server",
+            "port"
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSZoneAXFRNotify
+        fields = "__all__"
+        exclude = ("zone",)
         read_only = ("id",)
 
 

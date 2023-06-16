@@ -219,3 +219,4 @@ knot/ksk.pem
 knot/k.pem
 knot/knot.conf
 knot/knot2.conf
+knot/knot-secondary.conf

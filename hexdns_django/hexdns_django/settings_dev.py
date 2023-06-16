@@ -88,7 +88,10 @@ WSGI_APPLICATION = "hexdns_django.wsgi.application"
 
 
 GRPCSERVER = {
-    "servicers": ["dns_grpc.grpc.grpc_hook"],
+    "servicers": [
+        "dns_grpc.grpc.grpc_hook",
+        "dns_grpc.axfr.grpc_hook",
+    ],
     "maximum_concurrent_rpcs": None,
 }
 

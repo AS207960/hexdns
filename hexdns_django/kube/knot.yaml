@@ -370,7 +370,7 @@ spec:
              sed -i \"s/(ddns-primary-address)/$HEXDNS_UPDATE_SERVICE_HOST/g\" /config/knot.conf &&
              sed -i \"s/(nsid)/$HOSTNAME/g\" /config/knot.conf &&
              sleep 15 &&
-             knotd"
+             while true; do rm /rundir/knot.pid; knotd; done"
           ]
           readinessProbe:
             tcpSocket:
