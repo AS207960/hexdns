@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
-./hexdns_django/build.sh || exit
-./axfr/build.sh || exit
-./knot/build.sh || exit
+cd hexdns_django || exit
+./build.sh || exit
+cd ../axfr || exit
+./build.sh || exit
+cd ../knot || exit
+./build.sh || exit
