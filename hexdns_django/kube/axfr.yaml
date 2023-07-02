@@ -113,7 +113,7 @@ spec:
             - secretRef:
                 name: hexdns-rpc
         - name: axfr
-          image: as207960/hexdns-axfr:1
+          image: as207960/hexdns-axfr:(version)
           imagePullPolicy: Always
           readinessProbe:
             tcpSocket:
