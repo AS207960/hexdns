@@ -65,6 +65,14 @@ RUN mkdir -p /home/rust/libs /home/rust/src /home/rust/.cargo && \
 
 WORKDIR /home/rust/src
 
+RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip && \
+  mkdir -p ~/.local && \
+  unzip protoc-23.3-linux-x86_64.zip -d ~/.local && \
+  rm protoc-23.3-linux-x86_64.zip && \
+  chmod +x ~/.local/bin/protoc
+
+ENV PROTOC=/home/rust/.local/bin/protoc
+
 ADD --chown=rust:rust . ./
 RUN USER=rust cargo build --release
 
