@@ -460,47 +460,41 @@ async fn send_response(
     }
 }
 
-async fn handle_requests(
+async fn process_request(
     client: axfr_proto::axfr_service_client::AxfrServiceClient<tonic::transport::Channel>,
     zone_root: std::path::PathBuf,
-    mut req_rx: tokio::sync::mpsc::Receiver<IncomingMessage>
+    req: IncomingMessage
 ) {
-    while let Some(req) = req_rx.recv().await {
-        match trust_dns_proto::op::Message::from_bytes(&req.msg) {
-            Ok(m) => {
-                let query = match m.queries().get(0) {
-                    Some(q) => trust_dns_client::op::LowerQuery::query(q.clone()),
-                    None => {
-                        continue;
-                    }
-                };
+    match trust_dns_proto::op::Message::from_bytes(&req.msg) {
+        Ok(m) => {
+            let query = match m.queries().get(0) {
+                Some(q) => trust_dns_client::op::LowerQuery::query(q.clone()),
+                None => {
+                    return
+                }
+            };
 
-                info!(
-                        "request:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
-                        id = m.id(),
-                        proto = req.context.protocol(),
-                        addr = map_nat64(req.addr.ip()),
-                        port = req.addr.port(),
-                        message_type = m.message_type(),
-                        op = m.op_code(),
-                        query = query.name(),
-                        qtype = query.query_type(),
-                        class = query.query_class(),
-                        qflags = m.header().flags(),
-                    );
+            info!(
+                    "request:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
+                    id = m.id(),
+                    proto = req.context.protocol(),
+                    addr = map_nat64(req.addr.ip()),
+                    port = req.addr.port(),
+                    message_type = m.message_type(),
+                    op = m.op_code(),
+                    query = query.name(),
+                    qtype = query.query_type(),
+                    class = query.query_class(),
+                    qflags = m.header().flags(),
+                );
 
-                let c = client.clone();
-                let z = zone_root.clone();
-                tokio::spawn(async move {
-                    handle_request(
-                        c, z, m, req.msg, query, req.addr,
-                        req.context
-                    ).await;
-                });
-            }
-            Err(e) => {
-                warn!("received malformed DNS message: {}", e);
-            }
+            handle_request(
+                client, zone_root, m, req.msg, query, req.addr,
+                req.context
+            ).await;
+        }
+        Err(e) => {
+            warn!("received malformed DNS message: {}", e);
         }
     }
 }
@@ -567,12 +561,7 @@ fn main() {
         axfr_proto::axfr_service_client::AxfrServiceClient::connect(args.get_one::<String>("upstream").unwrap().to_string())
     ).expect("Unable to connect to upstream server");
 
-    let (req_tx, req_rx) = tokio::sync::mpsc::channel::<IncomingMessage>(1024);
-
     let mut tasks: Vec<ServerTask> = vec![];
-
-    let task = runtime.spawn(handle_requests(client, zone_root, req_rx));
-    tasks.push(ServerTask(task));
 
     for udp_socket in &sockaddrs {
         info!("binding UDP to {:?}", udp_socket);
@@ -586,7 +575,8 @@ fn main() {
                     .expect("could not lookup local address")
             );
 
-        let task_req_tx = req_tx.clone();
+        let task_client = client.clone();
+        let task_zone_root = zone_root.clone();
         let send_udp_socket = udp_socket.clone();
         let (udp_res_tx, mut udp_res_rx) = tokio::sync::mpsc::channel(1024);
 
@@ -601,15 +591,16 @@ fn main() {
                     }
                 };
                 let msg: Vec<u8> = buf.iter().take(len).cloned().collect();
-                if let Err(_) = task_req_tx.send(IncomingMessage {
-                    msg,
-                    addr,
-                    context: MessageContext::Udp {
-                        res_tx: udp_res_tx.clone()
+                process_request(
+                    task_client.clone(), task_zone_root.clone(),
+                    IncomingMessage {
+                        msg,
+                        addr,
+                        context: MessageContext::Udp {
+                            res_tx: udp_res_tx.clone()
+                        }
                     }
-                }).await {
-                    break;
-                }
+                ).await;
             }
         });
         tasks.push(ServerTask(task));
@@ -636,7 +627,8 @@ fn main() {
                     .expect("could not lookup local address")
             );
 
-        let task_req_tx = req_tx.clone();
+        let task_client = client.clone();
+        let task_zone_root = zone_root.clone();
         let task = runtime.spawn(async move {
             loop {
                 let (tcp_stream, addr) = match tcp_listener.accept().await {
@@ -647,7 +639,8 @@ fn main() {
                     }
                 };
 
-                let stream_req_tx = task_req_tx.clone();
+                let stream_client = task_client.clone();
+                let stream_zone_root = task_zone_root.clone();
                 let (tcp_stream_rx, mut tcp_stream_tx) = tcp_stream.into_split();
                 let (tcp_res_tx, mut tcp_res_rx) = tokio::sync::mpsc::channel(1024);
                 tokio::spawn(async move {
@@ -702,15 +695,16 @@ fn main() {
                                                         break 'outer;
                                                     }
                                                     state = ReadTcpState::Len;
-                                                    if let Err(_) = stream_req_tx.send(IncomingMessage {
-                                                        msg,
-                                                        addr,
-                                                        context: MessageContext::Tcp {
-                                                            res_tx: tcp_res_tx.clone()
+                                                    process_request(
+                                                        stream_client.clone(), stream_zone_root.clone(),
+                                                        IncomingMessage {
+                                                            msg,
+                                                            addr,
+                                                            context: MessageContext::Tcp {
+                                                                res_tx: tcp_res_tx.clone()
+                                                            }
                                                         }
-                                                    }).await {
-                                                        break;
-                                                    }
+                                                    ).await;
                                                 }
                                                 Err(e) => {
                                                     match e.kind() {
