@@ -40,7 +40,26 @@ enum ReadTcpState {
 struct IncomingMessage {
     msg: Vec<u8>,
     addr: std::net::SocketAddr,
-    context: tokio::sync::mpsc::Sender<Vec<u8>>,
+    context: MessageContext,
+}
+
+#[derive(Debug, Clone)]
+enum MessageContext {
+    Udp {
+        res_tx: tokio::sync::mpsc::Sender<(std::net::SocketAddr, Vec<u8>)>,
+    },
+    Tcp {
+        res_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    }
+}
+
+impl MessageContext {
+    fn protocol(&self) -> &'static str {
+        match self {
+            MessageContext::Udp { .. } => "udp",
+            MessageContext::Tcp { .. } => "tcp",
+        }
+    }
 }
 
 fn map_nat64(ip: std::net::IpAddr) -> std::net::IpAddr {
@@ -73,7 +92,7 @@ async fn handle_request(
     msg_bytes: Vec<u8>,
     query: trust_dns_client::op::LowerQuery,
     addr: std::net::SocketAddr,
-    context: tokio::sync::mpsc::Sender<Vec<u8>>,
+    context: MessageContext,
 ) {
     if msg.message_type() != trust_dns_proto::op::header::MessageType::Query ||
         msg.op_code() != trust_dns_proto::op::op_code::OpCode::Query ||
@@ -400,7 +419,7 @@ fn sign_message(message: &mut trust_dns_proto::op::Message, tsig_context: &mut O
 async fn send_response(
     msg: trust_dns_proto::op::Message,
     addr: std::net::SocketAddr,
-    context: tokio::sync::mpsc::Sender<Vec<u8>>
+    context: MessageContext,
 ) {
     let mut bytes: Vec<u8> = Vec::with_capacity(512);
     let mut encoder= trust_dns_proto::serialize::binary::BinEncoder::with_mode(
@@ -416,15 +435,23 @@ async fn send_response(
         }
     }
 
-    info!("response:{id:<5} src:tcp://{addr}#{port:<5} response:{code:?} rflags:{rflags}",
+    info!("response:{id:<5} src:{proto}://{addr}#{port:<5} response:{code:?} rflags:{rflags}",
                 id = msg.id(),
+                proto = context.protocol(),
                 addr = addr.ip(),
                 port = addr.port(),
                 code = msg.response_code(),
                 rflags = msg.flags()
             );
 
-    let _ = context.send(bytes).await;
+    match context {
+        MessageContext::Udp { res_tx } => {
+            let _ = res_tx.send((addr, bytes)).await;
+        }
+        MessageContext::Tcp { res_tx } => {
+            let _ = res_tx.send(bytes).await;
+        }
+    }
 }
 
 async fn handle_requests(
@@ -445,8 +472,9 @@ async fn handle_requests(
                 let socket_addr = std::net::SocketAddr::new(addr, req.addr.port());
 
                 info!(
-                        "request:{id:<5} src:tcp://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
+                        "request:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
                         id = m.id(),
+                        proto = req.context.protocol(),
                         addr = addr,
                         port = req.addr.port(),
                         message_type = m.message_type(),
@@ -542,6 +570,56 @@ fn main() {
     let task = runtime.spawn(handle_requests(client, zone_root, req_rx));
     tasks.push(ServerTask(task));
 
+    for udp_socket in &sockaddrs {
+        info!("binding UDP to {:?}", udp_socket);
+        let udp_socket = std::sync::Arc::new(runtime.block_on(tokio::net::UdpSocket::bind(udp_socket))
+            .expect("Could not bind to UDP socket"));
+
+        info!(
+                "listening for UDP on {:?}",
+                udp_socket
+                    .local_addr()
+                    .expect("could not lookup local address")
+            );
+
+        let task_req_tx = req_tx.clone();
+        let send_udp_socket = udp_socket.clone();
+        let (udp_res_tx, mut udp_res_rx) = tokio::sync::mpsc::channel(1024);
+
+        let task = tokio::spawn(async move {
+            let mut buf = [0; 4096];
+            loop {
+                let (len, addr) = match udp_socket.recv_from(&mut buf).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        warn!("error receiving UDP connection: {}", e);
+                        continue;
+                    }
+                };
+                let msg: Vec<u8> = buf.iter().take(len).cloned().collect();
+                if let Err(_) = task_req_tx.send(IncomingMessage {
+                    msg,
+                    addr,
+                    context: MessageContext::Udp {
+                        res_tx: udp_res_tx.clone()
+                    }
+                }).await {
+                    break;
+                }
+            }
+        });
+        tasks.push(ServerTask(task));
+
+        let task = tokio::spawn(async move {
+            while let Some(res) = udp_res_rx.recv().await {
+                if let Err(e) = send_udp_socket.send_to(&res.1, res.0).await {
+                    warn!("failed to send UDP response: {}", e);
+                }
+            }
+        });
+        tasks.push(ServerTask(task));
+    }
+
     for tcp_listener in &sockaddrs {
         info!("binding TCP to {:?}", tcp_listener);
         let tcp_listener = runtime.block_on(tokio::net::TcpListener::bind(tcp_listener))
@@ -623,7 +701,9 @@ fn main() {
                                                     if let Err(_) = stream_req_tx.send(IncomingMessage {
                                                         msg,
                                                         addr,
-                                                        context: tcp_res_tx.clone()
+                                                        context: MessageContext::Tcp {
+                                                            res_tx: tcp_res_tx.clone()
+                                                        }
                                                     }).await {
                                                         break;
                                                     }
