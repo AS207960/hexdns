@@ -592,7 +592,7 @@ fn main() {
         let send_udp_socket = udp_socket.clone();
         let (udp_res_tx, mut udp_res_rx) = tokio::sync::mpsc::channel(1024);
 
-        let task = tokio::spawn(async move {
+        let task = runtime.spawn(async move {
             let mut buf = [0; 4096];
             loop {
                 let (len, addr) = match udp_socket.recv_from(&mut buf).await {
@@ -616,7 +616,7 @@ fn main() {
         });
         tasks.push(ServerTask(task));
 
-        let task = tokio::spawn(async move {
+        let task = runtime.spawn(async move {
             while let Some(res) = udp_res_rx.recv().await {
                 if let Err(e) = send_udp_socket.send_to(&res.1, res.0).await {
                     warn!("failed to send UDP response: {}", e);
