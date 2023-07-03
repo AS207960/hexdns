@@ -144,19 +144,43 @@ spec:
     - Ingress
   ingress:
     - ports:
-        - protocol: TCP
-          port: 5053
+      - protocol: TCP
+        port: 5053
+      - protocol: UDP
+        port: 5053
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: hexdns-axfr
+  name: hexdns-axfr-tcp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-axfr"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:1a"
 spec:
   selector:
     app: hexdns
     part: axfr
   type: LoadBalancer
+  externalTrafficPolicy: Local
   ports:
     - port: 53
       targetPort: 5053
       protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-axfr-udp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-axfr"
+    metallb.universe.tf/loadBalancerIPs: "2a0e:1cc1:1::1:1a"
+spec:
+  selector:
+    app: hexdns
+    part: axfr
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - port: 53
+      targetPort: 5053
+      protocol: UDP
