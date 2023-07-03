@@ -352,6 +352,7 @@ impl Parser {
             RecordType::CDNSKEY => RData::DNSSEC(DNSSECRData::CDNSKEY(parse_dnskey(tokens)?)),
             RecordType::NSEC3PARAM => RData::DNSSEC(DNSSECRData::NSEC3PARAM(parse_nsec3param(tokens)?)),
             RecordType::NSEC3 => RData::DNSSEC(DNSSECRData::NSEC3(parse_nsec3(tokens)?)),
+            RecordType::DS => RData::DNSSEC(DNSSECRData::DS(parse_ds(tokens)?)),
             RecordType::CDS => RData::DNSSEC(DNSSECRData::CDS(parse_ds(tokens)?)),
             RecordType::RRSIG => RData::DNSSEC(DNSSECRData::SIG(parse_sig(tokens)?)),
             RecordType::KEY => unimplemented!(),
