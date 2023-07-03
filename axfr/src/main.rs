@@ -98,13 +98,76 @@ async fn handle_request(
         msg.op_code() != trust_dns_proto::op::op_code::OpCode::Query ||
         msg.response_code() != trust_dns_proto::op::response_code::ResponseCode::NoError ||
         msg.query_count() != 1 || msg.answer_count() != 0 || msg.name_server_count() != 0 ||
-        query.query_type() != trust_dns_proto::rr::record_type::RecordType::AXFR ||
+        (query.query_type() != trust_dns_proto::rr::record_type::RecordType::AXFR &&
+            query.query_type() != trust_dns_proto::rr::record_type::RecordType::SOA) ||
         query.query_class() != trust_dns_proto::rr::dns_class::DNSClass::IN {
         let response_msg = trust_dns_proto::op::Message::error_msg(
             msg.id(), msg.op_code(),
             trust_dns_client::op::ResponseCode::Refused,
         );
         send_response(response_msg, addr, context).await;
+        return;
+    }
+
+    let zone_file_path = zone_root.join(format!("{}zone", query.name()));
+    let zone_file_contents = match std::fs::read_to_string(zone_file_path) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("failed to read zone file: {}", e);
+            let response_msg = trust_dns_proto::op::Message::error_msg(
+                msg.id(), msg.op_code(),
+                trust_dns_client::op::ResponseCode::ServFail,
+            );
+            send_response(response_msg, addr, context).await;
+            return;
+        }
+    };
+
+    let zone_file_lexer = trust_dns_client::serialize::txt::Lexer::new(&zone_file_contents);
+    let (origin, mut zone_file) = match parser::Parser::new()
+        .parse(zone_file_lexer, query.name().into(), trust_dns_proto::rr::DNSClass::IN) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("failed to parse zone file: {}", e);
+            let response_msg = trust_dns_proto::op::Message::error_msg(
+                msg.id(), msg.op_code(),
+                trust_dns_client::op::ResponseCode::ServFail,
+            );
+            send_response(response_msg, addr, context).await;
+            return;
+        }
+    };
+
+    let soa = match zone_file.remove(&trust_dns_client::rr::RrKey {
+        name: origin.into(),
+        record_type: trust_dns_client::rr::RecordType::SOA
+    }) {
+        Some(s) => s,
+        None => {
+            let response_msg = trust_dns_proto::op::Message::error_msg(
+                msg.id(), msg.op_code(),
+                trust_dns_client::op::ResponseCode::ServFail,
+            );
+            send_response(response_msg, addr, context).await;
+            return;
+        }
+    };
+
+    let mut header = trust_dns_proto::op::Header::new();
+    header.set_id(msg.id());
+    header.set_message_type(trust_dns_proto::op::MessageType::Response);
+    header.set_op_code(trust_dns_proto::op::OpCode::Query);
+    header.set_authoritative(true);
+    header.set_recursion_desired(msg.recursion_desired());
+    header.set_recursion_available(false);
+
+    let mut soa_response = trust_dns_proto::op::Message::new();
+    soa_response.set_header(header.clone());
+    soa_response.add_query(query.original().clone());
+    soa_response.add_answers(soa.records_without_rrsigs().cloned());
+
+    if query.query_type() == trust_dns_proto::rr::record_type::RecordType::SOA {
+        send_response(soa_response, addr, context.clone()).await;
         return;
     }
 
@@ -237,63 +300,6 @@ async fn handle_request(
             return;
         }
     }
-
-    let zone_file_path = zone_root.join(format!("{}zone", query.name()));
-    let zone_file_contents = match std::fs::read_to_string(zone_file_path) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("failed to read zone file: {}", e);
-            let response_msg = trust_dns_proto::op::Message::error_msg(
-                msg.id(), msg.op_code(),
-                trust_dns_client::op::ResponseCode::ServFail,
-            );
-            send_response(response_msg, addr, context).await;
-            return;
-        }
-    };
-
-    let zone_file_lexer = trust_dns_client::serialize::txt::Lexer::new(&zone_file_contents);
-    let (origin, mut zone_file) = match parser::Parser::new()
-        .parse(zone_file_lexer, query.name().into(), trust_dns_proto::rr::DNSClass::IN) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("failed to parse zone file: {}", e);
-            let response_msg = trust_dns_proto::op::Message::error_msg(
-                msg.id(), msg.op_code(),
-                trust_dns_client::op::ResponseCode::ServFail,
-            );
-            send_response(response_msg, addr, context).await;
-            return;
-        }
-    };
-
-    let soa = match zone_file.remove(&trust_dns_client::rr::RrKey {
-        name: origin.into(),
-        record_type: trust_dns_client::rr::RecordType::SOA
-    }) {
-        Some(s) => s,
-        None => {
-            let response_msg = trust_dns_proto::op::Message::error_msg(
-                msg.id(), msg.op_code(),
-                trust_dns_client::op::ResponseCode::ServFail,
-            );
-            send_response(response_msg, addr, context).await;
-            return;
-        }
-    };
-
-    let mut header = trust_dns_proto::op::Header::new();
-    header.set_id(msg.id());
-    header.set_message_type(trust_dns_proto::op::MessageType::Response);
-    header.set_op_code(trust_dns_proto::op::OpCode::Query);
-    header.set_authoritative(true);
-    header.set_recursion_desired(msg.recursion_desired());
-    header.set_recursion_available(false);
-
-    let mut soa_response = trust_dns_proto::op::Message::new();
-    soa_response.set_header(header.clone());
-    soa_response.add_query(query.original().clone());
-    soa_response.add_answers(soa.records_without_rrsigs().cloned());
 
     let mut soa_response_1 = soa_response.clone();
     match sign_message(&mut soa_response_1, &mut tsig_context) {
