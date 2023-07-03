@@ -358,8 +358,6 @@ fn sign_message(message: &mut trust_dns_proto::op::Message, tsig_context: &mut O
             encoder.emit_u16(tsig.fudge())?;
         }
 
-        println!("{:02x?}", tbs);
-
         let computed_sig: Vec<u8> = match tsig_context.algorithm {
             trust_dns_proto::rr::dnssec::rdata::tsig::TsigAlgorithm::HmacSha224 => {
                 let mut hmac = hmac::Hmac::<sha2::Sha224>::new_from_slice(&tsig_context.key).unwrap();
