@@ -444,7 +444,7 @@ async fn send_response(
     info!("response:{id:<5} src:{proto}://{addr}#{port:<5} response:{code:?} rflags:{rflags}",
                 id = msg.id(),
                 proto = context.protocol(),
-                addr = addr.ip(),
+                addr = map_nat64(addr.ip()),
                 port = addr.port(),
                 code = msg.response_code(),
                 rflags = msg.flags()
@@ -474,14 +474,12 @@ async fn handle_requests(
                         continue;
                     }
                 };
-                let addr = map_nat64(req.addr.ip());
-                let socket_addr = std::net::SocketAddr::new(addr, req.addr.port());
 
                 info!(
                         "request:{id:<5} src:{proto}://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
                         id = m.id(),
                         proto = req.context.protocol(),
-                        addr = addr,
+                        addr = map_nat64(req.addr.ip()),
                         port = req.addr.port(),
                         message_type = m.message_type(),
                         op = m.op_code(),
@@ -495,7 +493,7 @@ async fn handle_requests(
                 let z = zone_root.clone();
                 tokio::spawn(async move {
                     handle_request(
-                        c, z, m, req.msg, query, socket_addr,
+                        c, z, m, req.msg, query, req.addr,
                         req.context
                     ).await;
                 });
