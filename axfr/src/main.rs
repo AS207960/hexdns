@@ -447,7 +447,7 @@ async fn handle_requests(
                 let socket_addr = std::net::SocketAddr::new(addr, req.addr.port());
 
                 info!(
-                        " request:{id:<5} src:tcp://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
+                        "request:{id:<5} src:tcp://{addr}#{port:<5} {op}:{query}:{qtype}:{class} qflags:{qflags} type:{message_type}",
                         id = m.id(),
                         addr = addr,
                         port = req.addr.port(),

@@ -1,9 +1,10 @@
 import dnslib
 import grpc
 import ipaddress
+import dns_grpc.grpc
 from django.utils import timezone
 from .proto import axfr_pb2, axfr_pb2_grpc
-from . import grpc, models
+from . import models
 
 
 def grpc_hook(server):
@@ -13,7 +14,7 @@ def grpc_hook(server):
 class AXFRServiceServicer(axfr_pb2_grpc.AXFRServiceServicer):
     def GetTSIGSecret(self, request: axfr_pb2.TSIGRequest, context):
         key_name = dnslib.DNSLabel(request.key_name)
-        zone, label = grpc.DnsServiceServicer.find_zone(key_name)
+        zone, label = dns_grpc.grpc.DnsServiceServicer.find_zone(key_name)
 
         if not zone:
             context.set_code(grpc.StatusCode.NOT_FOUND)
@@ -37,7 +38,7 @@ class AXFRServiceServicer(axfr_pb2_grpc.AXFRServiceServicer):
 
     def CheckIPACL(self, request: axfr_pb2.IPACLRequest, context):
         zone_name = dnslib.DNSLabel(request.zone_name)
-        zone, _ = grpc.DnsServiceServicer.find_zone(zone_name)
+        zone, _ = dns_grpc.grpc.DnsServiceServicer.find_zone(zone_name)
 
         if not zone:
             context.set_code(grpc.StatusCode.NOT_FOUND)

@@ -1504,6 +1504,14 @@ class DSRecord(DNSZoneRecord):
         tasks.update_fzone.delay(self.zone.id)
         return super().delete(*args, **kwargs)
 
+    def clean_fields(self, exclude=None):
+        if self.record_name == "@" and "record_name" not in exclude:
+            raise ValidationError({
+                "record_name": "DS records cannot exit at the zone root"
+            })
+
+        super().clean_fields(exclude=exclude)
+
 
 class LOC(dnslib.RD):
     attrs = ('lat', 'long', 'altitude', 'size', 'hp', 'vp')

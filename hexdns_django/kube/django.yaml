@@ -1029,6 +1029,10 @@ spec:
         matchLabels:
           app: hexdns
           part: update
+    - podSelector:
+        matchLabels:
+          app: hexdns
+          part: axfr
     ports:
     - protocol: TCP
       port: 50051
