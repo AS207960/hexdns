@@ -730,7 +730,7 @@ fn main() {
                         if let Err(e) = tcp_stream_tx.write_u16(res.len() as u16).await {
                             warn!("failed to send TCP response: {}", e);
                         }
-                        if let Err(e) = tcp_stream_tx.write(&res).await {
+                        if let Err(e) = tcp_stream_tx.write_all(&res).await {
                             warn!("failed to send TCP response: {}", e);
                         }
                     }
