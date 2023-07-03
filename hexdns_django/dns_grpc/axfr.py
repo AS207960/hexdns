@@ -33,7 +33,7 @@ class AXFRServiceServicer(axfr_pb2_grpc.AXFRServiceServicer):
         tsig_key.save()
 
         return axfr_pb2.TSIGSecret(
-            secret=tsig_key.secret
+            secret=bytes(tsig_key.secret)
         )
 
     def CheckIPACL(self, request: axfr_pb2.IPACLRequest, context):
