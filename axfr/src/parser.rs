@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use base64::Engine;
+use trust_dns_proto::error::*;
 use trust_dns_client::error::*;
 use trust_dns_proto::rr::dnssec::rdata::{DNSSECRData, DNSKEY, NSEC3PARAM, NSEC3, DS, SIG};
-use trust_dns_client::rr::{DNSClass, LowerName, Name, RData, Record, RecordSet, RecordType, RrKey};
+use trust_dns_client::rr::{DNSClass, LowerName, Name, RData, Record, RecordSet, RrKey};
+use trust_dns_client::rr::rdata::{NULL};
+use trust_dns_client::rr::RecordType as TrustRecordType;
 use trust_dns_client::serialize::txt::RDataParser;
 use trust_dns_client::serialize::txt::{Lexer, Token};
+use trust_dns_proto::serialize::binary::BinEncoder;
 
 #[derive(Clone, Copy, Default)]
 pub struct Parser;
@@ -18,6 +22,159 @@ enum State {
     Record(Vec<String>),
     Include, // $INCLUDE <filename>
     Origin,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+#[allow(dead_code)]
+#[non_exhaustive]
+pub enum RecordType {
+    A,
+    AAAA,
+    ANAME,
+    //  AFSDB,      //	18	RFC 1183	AFS database record
+    ANY,
+    //  APL,        //	42	RFC 3123	Address Prefix List
+    AXFR,
+    CAA,
+    CDS,
+    CDNSKEY,
+    //  CERT,       // 37 RFC 4398 Certificate record
+    CNAME,
+    DHCID,
+    //  DLV,        //	32769	RFC 4431	DNSSEC Lookaside Validation record
+    //  DNAME,      // 39 RFC 2672 Delegation Name
+    DNAME,
+    CSYNC,
+    DNSKEY,
+    DS,
+    HINFO,
+    //  HIP,        // 55 RFC 5205 Host Identity Protocol
+    HTTPS,
+    //  IPSECKEY,   // 45 RFC 4025 IPsec Key
+    IXFR,
+    //  KX,         // 36 RFC 2230 Key eXchanger record
+    KEY,
+    //  LOC,        // 29 RFC 1876 Location record
+    LOC,
+    MX,
+    NAPTR,
+    NS,
+    NSEC,
+    NSEC3,
+    NSEC3PARAM,
+    NULL,
+    OPENPGPKEY,
+    OPT,
+    PTR,
+    RP,
+    RRSIG,
+    SIG,
+    SOA,
+    SRV,
+    SSHFP,
+    SVCB,
+    //  TA,         // 32768 N/A DNSSEC Trust Authorities
+    //  TKEY,       // 249 RFC 2930 Secret key record
+    TLSA,
+    TSIG,
+    TXT,
+    Unknown(u16),
+    ZERO,
+}
+
+impl RecordType {
+    fn to_trust(&self) -> TrustRecordType {
+        match self {
+            Self::A => TrustRecordType::A,
+            Self::AAAA => TrustRecordType::AAAA,
+            Self::ANAME => TrustRecordType::ANAME,
+            Self::ANY => TrustRecordType::ANY,
+            Self::AXFR => TrustRecordType::AXFR,
+            Self::CAA => TrustRecordType::CAA,
+            Self::CDS => TrustRecordType::CDS,
+            Self::CDNSKEY => TrustRecordType::CDNSKEY,
+            Self::CNAME => TrustRecordType::CNAME,
+            Self::DHCID => TrustRecordType::Unknown(49),
+            Self::DNAME => TrustRecordType::Unknown(39),
+            Self::CSYNC => TrustRecordType::CSYNC,
+            Self::DNSKEY => TrustRecordType::DNSKEY,
+            Self::DS => TrustRecordType::DS,
+            Self::HINFO => TrustRecordType::HINFO,
+            Self::HTTPS => TrustRecordType::HTTPS,
+            Self::IXFR => TrustRecordType::IXFR,
+            Self::KEY => TrustRecordType::KEY,
+            Self::LOC => TrustRecordType::Unknown(29),
+            Self::MX => TrustRecordType::MX,
+            Self::NAPTR => TrustRecordType::NAPTR,
+            Self::NS => TrustRecordType::NS,
+            Self::NSEC => TrustRecordType::NSEC,
+            Self::NSEC3 => TrustRecordType::NSEC3,
+            Self::NSEC3PARAM => TrustRecordType::NSEC3PARAM,
+            Self::NULL => TrustRecordType::NULL,
+            Self::OPENPGPKEY => TrustRecordType::OPENPGPKEY,
+            Self::OPT => TrustRecordType::OPT,
+            Self::PTR => TrustRecordType::PTR,
+            Self::RP => TrustRecordType::Unknown(17),
+            Self::RRSIG => TrustRecordType::RRSIG,
+            Self::SIG => TrustRecordType::SIG,
+            Self::SOA => TrustRecordType::SOA,
+            Self::SRV => TrustRecordType::SRV,
+            Self::SSHFP => TrustRecordType::SSHFP,
+            Self::SVCB => TrustRecordType::SVCB,
+            Self::TLSA => TrustRecordType::TLSA,
+            Self::TSIG => TrustRecordType::TSIG,
+            Self::TXT => TrustRecordType::TXT,
+            Self::Unknown(u) => TrustRecordType::Unknown(*u),
+            Self::ZERO => TrustRecordType::ZERO,
+        }
+    }
+}
+
+impl FromStr for RecordType {
+    type Err = ProtoError;
+
+    fn from_str(str: &str) -> ProtoResult<Self> {
+        debug_assert!(str.chars().all(|x| char::is_digit(x, 36)));
+        match str {
+            "A" => Ok(Self::A),
+            "AAAA" => Ok(Self::AAAA),
+            "ANAME" => Ok(Self::ANAME),
+            "AXFR" => Ok(Self::AXFR),
+            "CAA" => Ok(Self::CAA),
+            "CDNSKEY" => Ok(Self::CDNSKEY),
+            "CDS" => Ok(Self::CDS),
+            "CNAME" => Ok(Self::CNAME),
+            "CSYNC" => Ok(Self::CSYNC),
+            "DHCID" => Ok(Self::DHCID),
+            "DNSKEY" => Ok(Self::DNSKEY),
+            "DS" => Ok(Self::DS),
+            "HINFO" => Ok(Self::HINFO),
+            "HTTPS" => Ok(Self::HTTPS),
+            "KEY" => Ok(Self::KEY),
+            "LOC" => Ok(Self::LOC),
+            "MX" => Ok(Self::MX),
+            "NAPTR" => Ok(Self::NAPTR),
+            "NSEC" => Ok(Self::NSEC),
+            "NSEC3" => Ok(Self::NSEC3),
+            "NSEC3PARAM" => Ok(Self::NSEC3PARAM),
+            "NS" => Ok(Self::NS),
+            "NULL" => Ok(Self::NULL),
+            "OPENPGPKEY" => Ok(Self::OPENPGPKEY),
+            "PTR" => Ok(Self::PTR),
+            "RP" => Ok(Self::RP),
+            "RRSIG" => Ok(Self::RRSIG),
+            "SIG" => Ok(Self::SIG),
+            "SOA" => Ok(Self::SOA),
+            "SRV" => Ok(Self::SRV),
+            "SSHFP" => Ok(Self::SSHFP),
+            "SVCB" => Ok(Self::SVCB),
+            "TLSA" => Ok(Self::TLSA),
+            "TXT" => Ok(Self::TXT),
+            "TSIG" => Ok(Self::TSIG),
+            "ANY" | "*" => Ok(Self::ANY),
+            _ => Err(ProtoErrorKind::UnknownRecordTypeStr(str.to_string()).into()),
+        }
+    }
 }
 
 impl Parser {
@@ -199,8 +356,24 @@ impl Parser {
             RecordType::RRSIG => RData::DNSSEC(DNSSECRData::SIG(parse_sig(tokens)?)),
             RecordType::KEY => unimplemented!(),
             RecordType::NSEC => unimplemented!(),
+            RecordType::DHCID => RData::Unknown {
+                code: 49,
+                rdata: parse_dhcid(tokens)?
+            },
+            RecordType::DNAME => RData::Unknown {
+                code: 39,
+                rdata: parse_dname(tokens)?
+            },
+            RecordType::LOC => RData::Unknown {
+                code: 29,
+                rdata: parse_loc(tokens)?
+            },
+            RecordType::RP => RData::Unknown {
+                code: 17,
+                rdata: parse_rp(tokens)?
+            },
             _ => RData::parse(
-                rtype, tokens, Some(&origin),
+                rtype.to_trust(), tokens, Some(&origin),
             )?
         };
 
@@ -212,7 +385,7 @@ impl Parser {
         record.set_name(current_name.clone().ok_or_else(|| {
             ParseError::from(ParseErrorKind::Message("record name not specified"))
         })?);
-        record.set_rr_type(rtype);
+        record.set_rr_type(rtype.to_trust());
         record.set_dns_class(class);
 
         // slightly annoying, need to grab the TTL, then move rdata into the record,
@@ -358,7 +531,8 @@ fn parse_nsec3<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NS
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("next hashed owner".to_string())))?
         .to_ascii_uppercase();
-    let types = tokens.map(|t| RecordType::from_str(t).map_err(Into::into))
+    let types = tokens
+        .map(|t| RecordType::from_str(t).map_err(Into::into).map(|t| t.to_trust()))
         .collect::<Result<Vec<_>, ParseError>>()?;
 
     let opt_out = flags & 0b0000_0001 != 0;
@@ -430,7 +604,7 @@ fn parse_sig<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<SIG>
     let type_covered = tokens
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("type covered".to_string())))
-        .and_then(|s| RecordType::from_str(s).map_err(Into::into))?;
+        .and_then(|s| RecordType::from_str(s).map_err(Into::into).map(|t| t.to_trust()))?;
     let algorithm = tokens
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("algorithm".to_string())))
@@ -506,4 +680,220 @@ fn parse_datetime(dt: &str) -> ParseResult<u32> {
         dt.parse::<u32>()
             .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid timestamp".to_string())))?
     })
+}
+
+fn parse_dhcid<'i, I: Iterator<Item = &'i str>>(tokens: I) -> ParseResult<NULL> {
+    let data_str: String = tokens.collect();
+    if data_str.is_empty() {
+        return Err(ParseError::from(ParseErrorKind::Message(
+            "data not present",
+        )));
+    }
+
+    let data = base64::engine::general_purpose::STANDARD.decode(data_str)
+        .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid base64".to_string())))?;
+
+    Ok(NULL::with(data))
+}
+
+fn parse_dname<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NULL> {
+    let target = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("target".to_string())))
+        .and_then(|s| Name::from_str(s).map_err(Into::into))?;
+
+    let mut out = vec![];
+    let mut enc = BinEncoder::new(&mut out);
+    target.emit_as_canonical(&mut enc, true)?;
+    Ok(NULL::with(out))
+}
+
+fn parse_rp<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NULL> {
+    let mbox_dname = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("mbox-dname".to_string())))
+        .and_then(|s| Name::from_str(s).map_err(Into::into))?;
+    let txt_dname = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("txt-dname".to_string())))
+        .and_then(|s| Name::from_str(s).map_err(Into::into))?;
+
+    let mut out = vec![];
+    let mut enc = BinEncoder::new(&mut out);
+    mbox_dname.emit_as_canonical(&mut enc, true)?;
+    txt_dname.emit_as_canonical(&mut enc, true)?;
+    Ok(NULL::with(out))
+}
+
+fn parse_loc<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NULL> {
+    let d_lat = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))
+        .and_then(|s| s.parse::<u32>().map_err(Into::into))?;
+    let mut m_lat = 0u32;
+    let mut s_lat = 0f64;
+    let mut lat_mul = 1f64;
+
+    let n = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))?;
+    if n == "N" {
+        // do nothing
+    } else if n == "S" {
+        lat_mul = -1f64;
+    } else {
+        m_lat = n.parse::<u32>().map_err(Into::<ParseError>::into)?;
+
+        let n = tokens
+            .next()
+            .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))?;
+        if n == "N" {
+            // do nothing
+        } else if n == "S" {
+            lat_mul = -1f64;
+        } else {
+            s_lat = n.parse::<f64>()
+                .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float")))?;
+
+            let n = tokens
+                .next()
+                .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))?;
+            if n == "N" {
+                // do nothing
+            } else if n == "S" {
+                lat_mul = -1f64;
+            } else {
+                return Err(ParseError::from(ParseErrorKind::Message("Invalid latitude")));
+            }
+        }
+    }
+
+    let d_long = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))
+        .and_then(|s| s.parse::<u32>().map_err(Into::into))?;
+    let mut m_long = 0u32;
+    let mut s_long = 0f64;
+    let mut long_mul = 1f64;
+
+    let n = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees longitude".to_string())))?;
+    if n == "E" {
+        // do nothing
+    } else if n == "W" {
+        long_mul = -1f64;
+    } else {
+        m_long = n.parse::<u32>().map_err(Into::<ParseError>::into)?;
+
+        let n = tokens
+            .next()
+            .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees longitude".to_string())))?;
+        if n == "E" {
+            // do nothing
+        } else if n == "W" {
+            long_mul = -1f64;
+        } else {
+            s_long = n.parse::<f64>()
+                .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float")))?;
+
+            let n = tokens
+                .next()
+                .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees longitude".to_string())))?;
+            if n == "E" {
+                // do nothing
+            } else if n == "W" {
+                long_mul = -1f64;
+            } else {
+                return Err(ParseError::from(ParseErrorKind::Message("Invalid longitude")));
+            }
+        }
+    }
+
+    let alt = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("degrees latitude".to_string())))
+        .map(|s| s.trim_end_matches('m'))
+        .and_then(|s| s.parse::<f64>()
+            .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float"))))?;
+
+    let size = tokens
+        .next()
+        .map(|s| s.trim_end_matches('m'))
+        .map(|s| s.parse::<f64>()
+            .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float"))))
+        .unwrap_or_else(|| Ok(1f64))?;
+
+    let hp = tokens
+        .next()
+        .map(|s| s.trim_end_matches('m'))
+        .map(|s| s.parse::<f64>()
+            .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float"))))
+        .unwrap_or_else(|| Ok(10000f64))?;
+
+    let vp = tokens
+        .next()
+        .map(|s| s.trim_end_matches('m'))
+        .map(|s| s.parse::<f64>()
+            .map_err(|_| ParseError::from(ParseErrorKind::Message("invald float"))))
+        .unwrap_or_else(|| Ok(10f64))?;
+
+    if d_lat > 90 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid latitude")));
+    }
+    if m_lat > 59 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid latitude")));
+    }
+    if s_lat < 0.0 || s_lat >= 60.0 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid latitude")));
+    }
+    if d_long > 180 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid longitude")));
+    }
+    if m_long > 59 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid longitude")));
+    }
+    if s_long < 0.0 || s_long >= 60.0 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid longitude")));
+    }
+
+    if alt < -100000.00 || alt > 42849672.95 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid altitude")));
+    }
+
+    if size < 0.0 || size > 90000000.00 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid size")));
+    }
+    if hp < 0.0 || hp > 90000000.00 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid horizontal precision")));
+    }
+    if vp < 0.0 || vp > 90000000.00 {
+        return Err(ParseError::from(ParseErrorKind::Message("Invalid vertical precision")));
+    }
+
+    let mut out = vec![];
+    out.push(0u8);
+    out.push(enc_size(size * 100.0));
+    out.push(enc_size(hp * 100.0));
+    out.push(enc_size(vp * 100.0));
+
+    let lat = ((((d_lat as f64 * 60.0 * 60.0) + (m_lat as f64 * 60.0) + s_lat) * 1000.0 * lat_mul) + 2f64.powi(31)) as u32;
+    let long = ((((d_long as f64 * 60.0 * 60.0) + (m_long as f64 * 60.0) + s_long) * 1000.0 * long_mul) + 2f64.powi(31)) as u32;
+    let alt = ((alt + 100000.0) * 100.0) as u32;
+
+    out.extend(lat.to_be_bytes());
+    out.extend(long.to_be_bytes());
+    out.extend(alt.to_be_bytes());
+
+    Ok(NULL::with(out))
+}
+
+fn enc_size(size: f64) -> u8 {
+    let size_exp = if size != 0.0 {
+        size.log10().floor()
+    } else {
+        0.0
+    };
+    let size_man = size / 10f64.powf(size_exp);
+    (((size_man as u8) << 4) & 0xF0) + (size_exp as u8 & 0x0F)
 }
