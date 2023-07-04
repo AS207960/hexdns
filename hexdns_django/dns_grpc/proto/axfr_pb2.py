@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\naxfr.proto\x12\x11\x61s207960.dns.axfr\"\x1f\n\x0bTSIGRequest\x12\x10\n\x08key_name\x18\x01 \x01(\t\"\x1c\n\nTSIGSecret\x12\x0e\n\x06secret\x18\x01 \x01(\x0c\"H\n\x0cIPACLRequest\x12\x11\n\tzone_name\x18\x01 \x01(\t\x12\x0c\n\x02v4\x18\x02 \x01(\x07H\x00\x12\x0c\n\x02v6\x18\x03 \x01(\x0cH\x00\x42\t\n\x07ip_addr\" \n\rIPACLResponse\x12\x0f\n\x07\x61llowed\x18\x01 \x01(\x08\x32\xae\x01\n\x0b\x41XFRService\x12N\n\rGetTSIGSecret\x12\x1e.as207960.dns.axfr.TSIGRequest\x1a\x1d.as207960.dns.axfr.TSIGSecret\x12O\n\nCheckIPACL\x12\x1f.as207960.dns.axfr.IPACLRequest\x1a .as207960.dns.axfr.IPACLResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\naxfr.proto\x12\x11\x61s207960.dns.axfr\"\x1f\n\x0bTSIGRequest\x12\x10\n\x08key_name\x18\x01 \x01(\t\"\x1c\n\nTSIGSecret\x12\x0e\n\x06secret\x18\x01 \x01(\x0c\"H\n\x0cIPACLRequest\x12\x11\n\tzone_name\x18\x01 \x01(\t\x12\x0c\n\x02v4\x18\x02 \x01(\x07H\x00\x12\x0c\n\x02v6\x18\x03 \x01(\x0cH\x00\x42\t\n\x07ip_addr\" \n\rIPACLResponse\x12\x0f\n\x07\x61llowed\x18\x01 \x01(\x08\"4\n\x06Notify\x12\x0e\n\x06server\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\r\x12\x0c\n\x04zone\x18\x03 \x01(\t2\xae\x01\n\x0b\x41XFRService\x12N\n\rGetTSIGSecret\x12\x1e.as207960.dns.axfr.TSIGRequest\x1a\x1d.as207960.dns.axfr.TSIGSecret\x12O\n\nCheckIPACL\x12\x1f.as207960.dns.axfr.IPACLRequest\x1a .as207960.dns.axfr.IPACLResponseb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axfr_pb2', globals())
@@ -28,6 +28,8 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _IPACLREQUEST._serialized_end=168
   _IPACLRESPONSE._serialized_start=170
   _IPACLRESPONSE._serialized_end=202
-  _AXFRSERVICE._serialized_start=205
-  _AXFRSERVICE._serialized_end=379
+  _NOTIFY._serialized_start=204
+  _NOTIFY._serialized_end=256
+  _AXFRSERVICE._serialized_start=259
+  _AXFRSERVICE._serialized_end=433
 # @@protoc_insertion_point(module_scope)

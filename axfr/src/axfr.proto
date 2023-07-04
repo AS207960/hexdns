@@ -26,3 +26,9 @@ message IPACLRequest {
 message IPACLResponse {
   bool allowed = 1;
 }
+
+message Notify {
+  string server = 1;
+  uint32 port = 2;
+  string zone = 3;
+}

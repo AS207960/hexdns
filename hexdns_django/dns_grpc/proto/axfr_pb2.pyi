@@ -81,3 +81,24 @@ class IPACLResponse(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["allowed", b"allowed"]) -> None: ...
 
 global___IPACLResponse = IPACLResponse
+
+@typing_extensions.final
+class Notify(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SERVER_FIELD_NUMBER: builtins.int
+    PORT_FIELD_NUMBER: builtins.int
+    ZONE_FIELD_NUMBER: builtins.int
+    server: builtins.str
+    port: builtins.int
+    zone: builtins.str
+    def __init__(
+        self,
+        *,
+        server: builtins.str = ...,
+        port: builtins.int = ...,
+        zone: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["port", b"port", "server", b"server", "zone", b"zone"]) -> None: ...
+
+global___Notify = Notify

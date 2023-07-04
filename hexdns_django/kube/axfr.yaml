@@ -25,6 +25,8 @@ data:
       - id: primary
         address: (primary-address)
         key: secondary-xfr
+      - id: notify-sidecar
+        address: 127.0.0.1@5353
 
     acl:
       - id: notify
@@ -36,6 +38,7 @@ data:
         journal-content: none
         master: primary
         acl: notify
+        notify: notify-sidecar
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
@@ -73,6 +76,18 @@ spec:
             name: hexdns-knot-axfr
         - name: rundir
           emptyDir: {}
+        - name: static
+          persistentVolumeClaim:
+            claimName: hexdns-django-static
+        - name: media
+          persistentVolumeClaim:
+            claimName: hexdns-django-media
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: domains-pubkey
+          configMap:
+            name: domains-jwt-pub
       containers:
         - name: knot
           image: as207960/knotd:7
@@ -130,6 +145,46 @@ spec:
               value: "/storage"
             - name: DNS_UPSTREAM
               value: "http://hexdns-grpc:50051"
+        - name: notify
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: [ "sh", "-c", "python3 manage.py run-axfr-notify" ]
+          readinessProbe:
+            tcpSocket:
+              port: 5353
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/app/static/"
+              name: static
+            - mountPath: "/app/media/"
+              name: media
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/domains-pubkey/"
+              name: domains-pubkey
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-rpc
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
