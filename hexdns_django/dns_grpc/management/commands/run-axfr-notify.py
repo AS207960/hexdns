@@ -61,10 +61,15 @@ class Command(BaseCommand):
                 if not zone:
                     continue
 
+                targets = list(zone.dnszoneaxfrnotify_set.all())
+
+                if len(targets) == 0:
+                    continue
+
                 connection = pika.BlockingConnection(parameters=self.parameters)
                 channel = connection.channel()
 
-                for target in zone.dnszoneaxfrnotify_set.all():
+                for target in targets:
                     msg = dns_grpc.proto.axfr_pb2.Notify(
                         server=target.server,
                         port=target.port,

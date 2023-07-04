@@ -149,11 +149,6 @@ spec:
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
           command: [ "sh", "-c", "python3 manage.py run-axfr-notify" ]
-          readinessProbe:
-            tcpSocket:
-              port: 5353
-            initialDelaySeconds: 15
-            periodSeconds: 10
           volumeMounts:
             - mountPath: "/app/static/"
               name: static
