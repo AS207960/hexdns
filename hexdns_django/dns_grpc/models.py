@@ -607,7 +607,8 @@ class DNSZoneRecord(models.Model):
         try:
             return idna.encode(self.record_name, uts46=True).decode()
         except idna.IDNAError:
-            if all(ord(c) < 127 and c in string.printable for c in self.record_name):
+            allowed_chars = string.ascii_letters + string.digits + "-_ "
+            if all(c in allowed_chars for c in self.record_name):
                 return self.record_name.replace(" ", "\\040")
 
             return None
