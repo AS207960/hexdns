@@ -98,7 +98,13 @@ def check_dmarc(zone: models.DNSZone) -> DMARCStatus:
         return DMARCStatus.MultiplePresent
 
     dmarc_record = records[0].data.strip()
-    tags = list(map(lambda t: t.split("=", 1), dmarc_record.split(";")))
+    tags = list(map(
+        lambda t, v: (t.strip(), v.strip()),
+        map(
+            lambda t: t.split("=", 1),
+            dmarc_record.split(";")
+        )
+    ))
 
     if len(tags) == 0:
         return DMARCStatus.Invalid
