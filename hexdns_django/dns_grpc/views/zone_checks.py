@@ -99,7 +99,7 @@ def check_dmarc(zone: models.DNSZone) -> DMARCStatus:
 
     dmarc_record = records[0].data.strip()
     tags = list(map(
-        lambda t, v: (t.strip(), v.strip()),
+        lambda t: (t[0].strip(), t[1].strip()),
         map(
             lambda t: t.split("=", 1),
             dmarc_record.split(";")
