@@ -40,6 +40,96 @@
                 </p>
             </div>
         {% endif %}
+
+        {% if spf_status == spf_status.NotPresent %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">No SPF record</h4>
+                <p>Your zone doesn't have an SPF record. You should create one to ensure deliverability of your emails.</p>
+                <hr>
+                <p>Not going to be sending emails from this domain? Create a blank SPF record to protect against spoofing.</p>
+                <a href="{% url 'create_blank_spf' zone.id %}" class="btn btn-primary">Create blank SPF</a>
+            </div>
+        {% elif spf_status == spf_status.MultiplePresent %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Multiple SFP records</h4>
+                <p class="mb-0">Your zone has multiple SPF records, emails won't be accepted from this domain.</p>
+            </div>
+        {% elif spf_status == spf_status.PassAll %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">SPF allows all mail servers</h4>
+                <p class="mb-0">
+                    Your zone's SPF record allows any mail server to send on your behalf,
+                    this makes you vulnerable to email spoofing.
+                </p>
+            </div>
+        {% elif spf_status == spf_status.InvalidNet %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Invalid SFP record</h4>
+                <p class="mb-0">Your zone's SPF record contains an invalid IP address.</p>
+            </div>
+        {% elif spf_status == spf_status.LargeV4Net %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">SPF allows a large network</h4>
+                <p class="mb-0">
+                    Your zone's SPF record allows a large number of IP addresses to send on your behalf.
+                    The prefix length for IPv4 networks should not be less than 14.
+                </p>
+            </div>
+        {% elif spf_status == spf_status.LargeV6Net %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">SPF allows a large network</h4>
+                <p class="mb-0">
+                    Your zone's SPF record allows a large number of IP addresses to send on your behalf.
+                    The prefix length for IPv4 networks should not be less than 32.
+                </p>
+            </div>
+        {% elif spf_status == spf_status.AllNotLast %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">SPF does not have <code>all</code> as its final directive</h4>
+                <p class="mb-0">
+                    Your zone's SPF record has additional directives after the <code>all</code> directive,
+                    these will be ignored when checking SPF.
+                </p>
+            </div>
+        {% endif %}
+
+        {% if dmarc_status == dmarc_status.NotPresent %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">No DMARC record</h4>
+                <p>Your zone doesn't have a DMARC record. You should create one to ensure deliverability of your emails.</p>
+                <hr>
+                <p>Not going to be sending emails from this domain? Create a blank DMARC record to protect against spoofing.</p>
+                <a href="{% url 'create_blank_dmarc' zone.id %}" class="btn btn-primary">Create blank DMARC</a>
+            </div>
+        {% elif dmarc_status == dmarc_status.MultiplePresent %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Multiple DMARC records</h4>
+                <p class="mb-0">Your zone has multiple DMARC records, emails won't be accepted from this domain.</p>
+            </div>
+        {% elif dmarc_status == dmarc_status.Invalid %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Invalid DMARC record</h4>
+                <p class="mb-0">Your zone's DMARC record is invalid, emails won't be accepted from this domain.</p>
+            </div>
+        {% elif dmarc_status == dmarc_status.NoneRequest %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Permissive DMARC record</h4>
+                <p class="mb-0">
+                    Your zone's DMARC record requests no action on alignment failure,
+                    this makes you vulnerable to email spoofing.
+                </p>
+            </div>
+        {% elif dmarc_status == dmarc_status.PartialPercentage %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Partially applied DMARC record</h4>
+                <p class="mb-0">
+                    Your zone's DMARC record does not apply to all emails,
+                    only a percentage of them,
+                    this makes you vulnerable to email spoofing.
+                </p>
+            </div>
+        {% endif %}
+
         {% if notice %}
             <div class="alert alert-info" role="alert">
                 <p class="mb-0 lead">{{ notice }}</p>

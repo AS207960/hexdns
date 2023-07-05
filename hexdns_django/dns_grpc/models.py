@@ -106,6 +106,32 @@ class DNSZone(models.Model):
     def __str__(self):
         return self.zone_root
 
+    def setup_initial_records(self):
+        self.create_blank_spf()
+        self.create_blank_dmarc()
+        TXTRecord(
+            zone=self,
+            record_name="*._domainkey",
+            ttl=86400,
+            data="v=DKIM1; p=",
+        ).save()
+
+    def create_blank_spf(self):
+        TXTRecord(
+            zone=self,
+            record_name="@",
+            ttl=86400,
+            data="v=spf1 -all",
+        ).save()
+
+    def create_blank_dmarc(self):
+        TXTRecord(
+            zone=self,
+            record_name="_dmarc",
+            ttl=86400,
+            data="v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s",
+        ).save()
+
     def import_zone_file(self, zone_data, overwrite=False):
         suffix = dnslib.DNSLabel(self.zone_root)
         p = dnslib.ZoneParser(zone_data, origin=suffix)
@@ -607,7 +633,7 @@ class DNSZoneRecord(models.Model):
         try:
             return idna.encode(self.record_name, uts46=True).decode()
         except idna.IDNAError:
-            allowed_chars = string.ascii_letters + string.digits + "-_ "
+            allowed_chars = string.ascii_letters + string.digits + "-_ *"
             if all(c in allowed_chars for c in self.record_name):
                 return self.record_name.replace(" ", "\\040")
 

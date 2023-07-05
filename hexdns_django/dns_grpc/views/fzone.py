@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
 from .. import forms, models, tasks, utils
+from . import zone_checks
 
 
 @login_required
@@ -78,6 +79,8 @@ def create_zone(request):
                         zsk_private=utils.get_priv_key_bytes()
                     )
                     zone_obj.save()
+                    zone_obj.setup_initial_records()
+
                     tasks.add_fzone.delay(zone_obj.id)
                     if status == "redirect":
                         return redirect(extra)
@@ -223,7 +226,9 @@ def edit_zone(request, zone_id):
             "sharing_uri": sharing_uri,
             "notice": request.session.pop("zone_notice", None),
             "dnskey": dnskey,
-            "dnskey_key": base64.b64encode(dnskey.key).decode()
+            "dnskey_key": base64.b64encode(dnskey.key).decode(),
+            "spf_status": zone_checks.check_spf(user_zone),
+            "dmarc_status": zone_checks.check_dmarc(user_zone),
         },
     )
 
@@ -2169,6 +2174,32 @@ def generate_dmarc(request, zone_id):
         "dns_grpc/fzone/edit_record.html",
         {"title": "DMARC Generate", "form": gen_form},
     )
+
+
+@login_required
+def create_blank_spf(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not zone_obj.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    zone_obj.create_blank_spf()
+
+    return redirect('edit_zone', zone_id)
+
+
+@login_required
+def create_blank_dmarc(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    zone_obj = get_object_or_404(models.DNSZone, id=zone_id)
+
+    if not zone_obj.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    zone_obj.create_blank_dmarc()
+
+    return redirect('edit_zone', zone_id)
 
 
 @login_required
