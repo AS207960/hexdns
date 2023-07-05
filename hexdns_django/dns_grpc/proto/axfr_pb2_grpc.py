@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import axfr_pb2 as axfr__pb2
+from . import axfr_pb2 as axfr__pb2
 
 
 class AXFRServiceStub(object):
