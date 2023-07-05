@@ -43,7 +43,7 @@ def check_spf(zone: models.DNSZone) -> SPFStatus:
         if t == "":
             continue
         if "=" in t:
-            modifiers.append(t)
+            modifiers.append(t.split("=", 1))
         else:
             qualifier = "+"
             if t[0] == "+":
@@ -60,7 +60,8 @@ def check_spf(zone: models.DNSZone) -> SPFStatus:
             directives.append((qualifier, t))
 
     if len(directives) == 0:
-        return SPFStatus.AllNotLast
+        if not any(m[0] == "redirect" for m in modifiers):
+            return SPFStatus.AllNotLast
 
     for i, (q, d) in enumerate(directives):
         if d == "all":
