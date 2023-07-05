@@ -582,7 +582,7 @@ fn rabbitmq_listener(flusher_cache: Arc<Mutex<lru::LruCache<CacheKey, CacheData>
                 }
                 amiquip::ConsumerMessage::ServerClosedChannel(err)
                 | amiquip::ConsumerMessage::ServerClosedConnection(err) => {
-                    error!("Error or RabbitMQ, restarting: {}", err);
+                    error!("Error or RabbitMQ restarting: {}", err);
                 }
                 amiquip::ConsumerMessage::ClientCancelled
                 | amiquip::ConsumerMessage::ServerCancelled

@@ -16,8 +16,10 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/axfr/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/dns-cache/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/axfr-notify/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/dns-cache/target" />
       <excludeFolder url="file://$MODULE_DIR$/axfr/target" />
+      <excludeFolder url="file://$MODULE_DIR$/axfr-notify/target" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.8 (hexdns)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

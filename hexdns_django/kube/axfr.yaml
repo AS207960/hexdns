@@ -1,3 +1,13 @@
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: hexdns-notify-ip6-ippool
+spec:
+  blockSize: 127
+  cidr: 2001:678:fc8:2::10/125
+  disabled: false
+  nodeSelector: ""
+---
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -234,3 +244,44 @@ spec:
     - port: 53
       targetPort: 5053
       protocol: UDP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-axfr-notify
+  labels:
+    app: hexdns
+    part: axfr-notify
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: axfr-notify
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"hexdns-notify-ip6-ippool\"]"
+      labels:
+        app: hexdns
+        part: axfr-notify
+    spec:
+      containers:
+        - name: notify
+          image: as207960/hexdns-axfr-notify:(version)
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: hexdns-rpc
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-axfr-notify
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: axfr-notify
+  policyTypes:
+    - Ingress

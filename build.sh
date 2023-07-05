@@ -4,5 +4,7 @@ cd hexdns_django || exit
 ./build.sh || exit
 cd ../axfr || exit
 ./build.sh || exit
+cd ../axfr-notify || exit
+./build.sh || exit
 cd ../knot || exit
 ./build.sh || exit
