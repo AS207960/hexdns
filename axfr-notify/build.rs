@@ -3,8 +3,8 @@ fn main() {
         .build_client(false)
         .build_server(false)
         .compile(
-            &["../axfr/src/axfr.proto"],
-            &["../axfr/src/"]
+            &["src/axfr.proto"],
+            &["src/"]
         )
         .unwrap();
 }
