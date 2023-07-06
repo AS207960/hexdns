@@ -633,7 +633,7 @@ class DNSZoneRecord(models.Model):
         try:
             return idna.encode(self.record_name, uts46=True).decode()
         except idna.IDNAError:
-            allowed_chars = string.ascii_letters + string.digits + "-_ *"
+            allowed_chars = string.ascii_letters + string.digits + "-_ *."
             if all(c in allowed_chars for c in self.record_name):
                 return self.record_name.replace(" ", "\\040")
 

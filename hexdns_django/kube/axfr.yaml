@@ -270,6 +270,9 @@ spec:
         - name: notify
           image: as207960/hexdns-axfr-notify:(version)
           imagePullPolicy: Always
+          env:
+            - name: "RUST_LOG"
+              value: "info"
           envFrom:
             - secretRef:
                 name: hexdns-rpc
