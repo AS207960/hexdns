@@ -6,7 +6,7 @@ import threading
 import dnslib
 import struct
 
-libknot.Knot(os.getenv("LIBKNOT_PATH", "/usr/lib/x86_64-linux-gnu/libknot.so.11"))
+libknot.Knot(os.getenv("LIBKNOT_PATH", "/usr/lib/x86_64-linux-gnu/libknot.so.13"))
 DNS_IP = "127.0.0.1"
 DNS_PORT = 5353
 

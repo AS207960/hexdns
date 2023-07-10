@@ -33,11 +33,17 @@ data:
       - id: secondary-xfr
         algorithm: hmac-sha256
         secret: (xfr-secret)
+      - id: netnod-cyfyngedig-1.
+        algorithm: hmac-sha512
+        secret: (netnod-xfr-secret)
     
     acl:
       - id: secondary-xfr
         action: transfer
         key: secondary-xfr
+      - id: netnod-xfr
+        action: transfer
+        key: netnod-cyfyngedig-1.
     
     remote:
       - id: unbound-no-dns64
@@ -81,7 +87,7 @@ data:
         file: %s.zone
         dnssec-signing: on
         dnssec-policy: zone
-        acl: secondary-xfr
+        acl: [secondary-xfr, netnod-xfr]
         notify: notify-sidecar
         zonefile-sync: -1
         zonefile-load: difference-no-serial
@@ -92,7 +98,7 @@ data:
         file: %s.zone
         dnssec-signing: on
         dnssec-policy: zone-cds-disable
-        acl: secondary-xfr
+        acl: [secondary-xfr, netnod-xfr]
         notify: notify-sidecar
         zonefile-sync: -1
         zonefile-load: difference-no-serial
@@ -102,7 +108,7 @@ data:
         storage: /zones
         file: %s.zone
         dnssec-signing: off
-        acl: secondary-xfr
+        acl: [secondary-xfr, netnod-xfr]
         notify: notify-sidecar
         zonefile-sync: -1
         zonefile-load: difference-no-serial
@@ -170,6 +176,7 @@ spec:
             "sh", "-c",
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
+             sed -i \"s/(netnod-xfr-secret)/$NETNOD_XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
              sleep 15;
              while true; do rm /rundir/knot.pid; knotd; done"
@@ -239,6 +246,42 @@ spec:
       targetPort: 53
       protocol: TCP
       name: dns-tcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-knot-primary-ext-udp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-knot-primary-ext"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: primary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-knot-primary-ext-tcp
+  annotations:
+    metallb.universe.tf/allow-shared-ip: "hexdns-knot-primary-ext"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: hexdns
+    part: knot
+    role: primary
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
 ---
 kind: ConfigMap
 apiVersion: v1
