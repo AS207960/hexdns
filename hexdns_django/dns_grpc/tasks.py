@@ -170,7 +170,9 @@ def generate_fzone(zone: "models.DNSZone"):
             if record.auto_reverse:
                 for rzone in models.ReverseDNSZone.objects.raw(
                     "SELECT * FROM dns_grpc_reversednszone WHERE ("
-                    "inet %s << CAST((zone_root_address || '/' || zone_root_prefix) AS inet))",
+                    "inet %s << CAST("
+                    "(string_to_array(zone_root_address::string, '/')[1] || '/'"
+                    " || zone_root_prefix) AS inet))",
                     [str(address)]
                 ):
                     rzones.add(rzone.id)
