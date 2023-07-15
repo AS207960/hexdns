@@ -193,7 +193,26 @@ spec:
             name: hexdns-knot
         - name: rundir
           emptyDir: {}
+        - name: devfuse
+          hostPath:
+            path: /dev/fuse
+        - name: zones-s3
+          emptyDir: {}
       containers:
+        - name: s3
+          image: as207960/goofys
+          args: ["goofys" "-f", "--endpoint", "$ENDPOINT", "--region", "$REGION",
+            "$BUCKET", "/mnt/s3"]
+          securityContext:
+            privileged: true
+          envFrom:
+            - secretRef:
+                name: hexdns-zone-s3
+          volumeMounts:
+            - name: devfuse
+              mountPath: /dev/fuse
+            - name: zones-s3
+              mountPath: /mnt/s3
         - name: knot
           image: as207960/knotd:6
           imagePullPolicy: Always

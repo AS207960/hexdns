@@ -419,7 +419,9 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
 
 def write_zone_file(zone_contents: str, zone_name: str):
     zone_storage = ZoneStorage()
-    zone_storage.save(f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents))
+    zone_storage.save(
+        f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents.encode())
+    )
 
     with tempfile.NamedTemporaryFile("w", encoding="utf8", newline='\n', dir=settings.ZONE_FILE_LOCATION, delete=False) as f:
         f.write(zone_contents)
