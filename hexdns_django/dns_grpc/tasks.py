@@ -423,12 +423,7 @@ def write_zone_file(zone_contents: str, zone_name: str):
     zone_storage.save(
         f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents.encode())
     )
-
-    with tempfile.NamedTemporaryFile("w", encoding="utf8", newline='\n', dir=settings.ZONE_FILE_LOCATION, delete=False) as f:
-        f.write(zone_contents)
-
-    os.rename(f.name, f"{settings.ZONE_FILE_LOCATION}/{zone_name}zone")
-
+    
 
 def send_reload_message(label: dnslib.DNSLabel):
     global pika_client
@@ -450,9 +445,12 @@ def add_fzone(zone_id: str):
     except models.DNSZone.DoesNotExist:
         return
 
-    zone_file = generate_fzone(zone)
-    write_zone_file(zone_file, str(dnslib.DNSLabel(zone.zone_root)))
-    update_catalog.delay()
+    pattern = re.compile("^[a-zA-Z0-9-.]+$")
+    if pattern.match(zone.zone_root):
+        zone_root = dnslib.DNSLabel(zone.zone_root)
+        zone_file = generate_fzone(zone)
+        write_zone_file(zone_file, str(zone_root))
+        update_catalog.delay()
 
 
 @shared_task(
