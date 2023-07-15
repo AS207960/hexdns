@@ -1,3 +1,13 @@
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: hexdns-primary-ip6-ippool
+spec:
+  blockSize: 127
+  cidr: 2001:678:fc8:2::18/126
+  disabled: false
+  nodeSelector: "!all()"
+---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -21,6 +31,7 @@ data:
         listen: 0.0.0.0@53
         listen: ::@53
         background-workers: 1
+        rundir: /rundir/
 
     database:
         journal-db-mode: robust
@@ -50,6 +61,12 @@ data:
         address: (unbound-no-dns64)@5053
       - id: notify-sidecar
         address: 127.0.0.1@5353
+      - id: netnod-dist-1
+        address: 2a01:3f0:0:27::24
+        key: netnod-cyfyngedig-1.
+      - id: netnod-dist-2
+        address: 2a01:3f0:0:28::25
+        key: netnod-cyfyngedig-1.
     
     submission:
       - id: zone
@@ -88,10 +105,12 @@ data:
         dnssec-signing: on
         dnssec-policy: zone
         acl: [secondary-xfr, netnod-xfr]
-        notify: notify-sidecar
+        notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
         zonefile-sync: -1
         zonefile-load: difference-no-serial
         journal-content: all
+        semantic-checks: on
+        serial-policy: dateserial
 
       - id: zone-cds-disable
         storage: /zones
@@ -99,20 +118,24 @@ data:
         dnssec-signing: on
         dnssec-policy: zone-cds-disable
         acl: [secondary-xfr, netnod-xfr]
-        notify: notify-sidecar
+        notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
         zonefile-sync: -1
         zonefile-load: difference-no-serial
         journal-content: all
+        semantic-checks: on
+        serial-policy: dateserial
 
       - id: zone-secondary
         storage: /zones
         file: %s.zone
         dnssec-signing: off
         acl: [secondary-xfr, netnod-xfr]
-        notify: notify-sidecar
+        notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
         zonefile-sync: -1
         zonefile-load: difference-no-serial
         journal-content: all
+        semantic-checks: on
+        serial-policy: dateserial
 
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
@@ -121,6 +144,8 @@ data:
         catalog-template: [ zone, zone-cds-disable, zone-secondary ]
         acl: secondary-xfr
         notify: notify-sidecar
+        semantic-checks: on
+        serial-policy: dateserial
     
       - domain: cds-always.dns.as207960.ltd.uk.
         template: zone
@@ -150,7 +175,7 @@ spec:
   template:
     metadata:
       annotations:
-        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+        cni.projectcalico.org/ipv6pools: "[\"hexdns-primary-ip6-ippool\"]"
       labels:
         app: hexdns
         part: knot
@@ -296,6 +321,7 @@ data:
         nsid: (nsid)
         key-file: /quic/tls.key
         cert-file: /quic/tls.crt
+        rundir: /rundir/
     
     xdp:
         listen: eth0
@@ -338,7 +364,15 @@ data:
         reply-size: on
         edns-presence: on
         query-type: on
-
+        request-edns-option: on
+        response-edns-option: on
+        reply-nodata: on
+    
+    mod-rrl:
+      - id: default
+        rate-limit: 200
+        slip: 2
+      
     acl:
       - id: notify
         address: 127.0.0.1
@@ -346,12 +380,12 @@ data:
 
     template:
       - id: default
-        global-module: mod-stats/custom
+        global-module: [ mod-rrl/default, mod-stats/custom ]
 
       - id: zone
         journal-content: none
         master: primary
-        module: [ mod-updateproxy/default, mod-queryignoretsig/default ]
+        module: [ mod-updateproxy/default, mod-queryignoretsig/default, mod-stats/custom ]
         acl: notify
 
     zone:

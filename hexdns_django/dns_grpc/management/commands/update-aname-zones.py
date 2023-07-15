@@ -16,7 +16,6 @@ class Command(BaseCommand):
             updated = False
 
             for record in zone.anamerecord_set.all():
-                updated = True
                 alias_label = dnslib.DNSLabel(record.alias)
 
                 if not alias_label.matchSuffix(zone_root):
@@ -46,6 +45,8 @@ class Command(BaseCommand):
                             models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
                         for rr in res_aaaa.rr:
                             models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
+
+                    updated = True
 
             if updated:
                 tasks.update_fzone.delay(zone.id)

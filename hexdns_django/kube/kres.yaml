@@ -103,8 +103,6 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-#  - from:
-#    - podSelector: {}
   - ports:
     - protocol: TCP
       port: 5053

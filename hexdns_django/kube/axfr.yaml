@@ -6,7 +6,7 @@ spec:
   blockSize: 127
   cidr: 2001:678:fc8:2::10/125
   disabled: false
-  nodeSelector: ""
+  nodeSelector: "!all()"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -86,12 +86,6 @@ spec:
             name: hexdns-knot-axfr
         - name: rundir
           emptyDir: {}
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: pubkey
           configMap:
             name: hexdns-key-pub
@@ -160,10 +154,6 @@ spec:
           imagePullPolicy: Always
           command: [ "sh", "-c", "python3 manage.py run-axfr-notify" ]
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -190,6 +180,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -1,30 +1,6 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: hexdns-django-static
-spec:
-  storageClassName: standard
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: hexdns-django-media
-spec:
-  storageClassName: standard
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
   name: hexdns-zones
 spec:
   storageClassName: standard
@@ -72,6 +48,13 @@ data:
   KUBE_IN_CLUSTER: "true"
   KUBE_NAMESPACE: "hexdns"
   ZONE_FILE_LOCATION: "/zones/"
+  S3_ENDPOINT: "https://s3.as207960.net"
+  S3_REGION: "garage"
+  S3_BUCKET: "hexdns-django"
+  S3_ACCESS_KEY_ID: "GK145fe00f82e7b03c00d3f153"
+  S3_CUSTOM_DOMAIN: "hexdns-django.content.as207960.net"
+  STATIC_URL: "https://hexdns-django.content.as207960.net/"
+  MEDIA_URL: "https://hexdns-django.content.as207960.net/"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -154,12 +137,6 @@ spec:
     spec:
       serviceAccountName: hexdns
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: pubkey
           configMap:
             name: hexdns-key-pub
@@ -173,10 +150,6 @@ spec:
           command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate"]
           #command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -203,6 +176,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
       containers:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
@@ -211,10 +186,6 @@ spec:
           ports:
             - containerPort: 8000
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -241,6 +212,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -255,10 +228,12 @@ spec:
   - Ingress
   ingress:
   - from:
-    - podSelector:
+    - namespaceSelector:
         matchLabels:
-          app: hexdns
-          part: nginx
+          app.kubernetes.io/name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
     ports:
     - protocol: TCP
       port: 8000
@@ -285,12 +260,6 @@ spec:
         part: redirect
     spec:
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: pubkey
           configMap:
             name: hexdns-key-pub
@@ -305,10 +274,6 @@ spec:
           ports:
             - containerPort: 8000
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -335,6 +300,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -381,12 +348,6 @@ spec:
         part: celery
     spec:
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: zones
           persistentVolumeClaim:
             claimName: hexdns-zones
@@ -402,10 +363,6 @@ spec:
           imagePullPolicy: Always
           command: ["celery",  "-A", "hexdns_django", "worker", "--loglevel=INFO", "-c", "4"]
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/zones/"
@@ -434,6 +391,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -469,12 +428,6 @@ spec:
         part: console
     spec:
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: zones
           persistentVolumeClaim:
             claimName: hexdns-zones
@@ -495,10 +448,6 @@ spec:
           tty: true
           stdin: true
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/zones/"
@@ -529,6 +478,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -562,12 +513,6 @@ spec:
             part-type: cronjob
         spec:
           volumes:
-            - name: static
-              persistentVolumeClaim:
-                claimName: hexdns-django-static
-            - name: media
-              persistentVolumeClaim:
-                claimName: hexdns-django-media
             - name: pubkey
               configMap:
                 name: hexdns-key-pub
@@ -580,10 +525,6 @@ spec:
               imagePullPolicy: Always
               command: ["sh", "-c", "python3 manage.py validate-ns"]
               volumeMounts:
-                - mountPath: "/app/static/"
-                  name: static
-                - mountPath: "/app/media/"
-                  name: media
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -610,6 +551,8 @@ spec:
                   prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
+                - secretRef:
+                    name: hexdns-s3
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1
@@ -632,12 +575,6 @@ spec:
             part-type: cronjob
         spec:
           volumes:
-            - name: static
-              persistentVolumeClaim:
-                claimName: hexdns-django-static
-            - name: media
-              persistentVolumeClaim:
-                claimName: hexdns-django-media
             - name: pubkey
               configMap:
                 name: hexdns-key-pub
@@ -650,10 +587,6 @@ spec:
               imagePullPolicy: Always
               command: ["sh", "-c", "python3 manage.py validate-charged"]
               volumeMounts:
-                - mountPath: "/app/static/"
-                  name: static
-                - mountPath: "/app/media/"
-                  name: media
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -680,6 +613,8 @@ spec:
                   prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
+                - secretRef:
+                    name: hexdns-s3
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1
@@ -703,12 +638,6 @@ spec:
         spec:
           shareProcessNamespace: true
           volumes:
-            - name: static
-              persistentVolumeClaim:
-                claimName: hexdns-django-static
-            - name: media
-              persistentVolumeClaim:
-                claimName: hexdns-django-media
             - name: pubkey
               configMap:
                 name: hexdns-key-pub
@@ -728,11 +657,7 @@ spec:
                   python3 manage.py transfer-secondary
               volumeMounts:
                 - mountPath: /tmp/pod
-                  name: tmp-pod              
-                - mountPath: "/app/static/"
-                  name: static
-                - mountPath: "/app/media/"
-                  name: media
+                  name: tmp-pod
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -759,6 +684,8 @@ spec:
                   prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
+                - secretRef:
+                    name: hexdns-s3
             - name: clatd
               image: as207960/clatd
               command: ["/bin/bash", "-c"]
@@ -798,12 +725,6 @@ spec:
         spec:
           shareProcessNamespace: true
           volumes:
-            - name: static
-              persistentVolumeClaim:
-                claimName: hexdns-django-static
-            - name: media
-              persistentVolumeClaim:
-                claimName: hexdns-django-media
             - name: pubkey
               configMap:
                 name: hexdns-key-pub
@@ -816,10 +737,6 @@ spec:
               imagePullPolicy: Always
               command: ["sh", "-c", "python3 manage.py update-aname-zones"]
               volumeMounts:
-                - mountPath: "/app/static/"
-                  name: static
-                - mountPath: "/app/media/"
-                  name: media
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -846,6 +763,8 @@ spec:
                   prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
+                - secretRef:
+                    name: hexdns-s3
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1
@@ -869,12 +788,6 @@ spec:
         spec:
           shareProcessNamespace: true
           volumes:
-            - name: static
-              persistentVolumeClaim:
-                claimName: hexdns-django-static
-            - name: media
-              persistentVolumeClaim:
-                claimName: hexdns-django-media
             - name: pubkey
               configMap:
                 name: hexdns-key-pub
@@ -887,10 +800,6 @@ spec:
               imagePullPolicy: Always
               command: ["sh", "-c", "python3 manage.py resign-zones"]
               volumeMounts:
-                - mountPath: "/app/static/"
-                  name: static
-                - mountPath: "/app/media/"
-                  name: media
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -917,6 +826,8 @@ spec:
                   prefix: "GOOGLE_"
                 - secretRef:
                     name: hexdns-rpc
+                - secretRef:
+                    name: hexdns-s3
           restartPolicy: OnFailure
 ---
 apiVersion: networking.k8s.io/v1
@@ -952,12 +863,6 @@ spec:
         part: grpc
     spec:
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: pubkey
           configMap:
             name: hexdns-key-pub
@@ -975,10 +880,6 @@ spec:
           ports:
             - containerPort: 50051
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -1007,6 +908,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1058,12 +961,6 @@ spec:
         part: rpc
     spec:
       volumes:
-        - name: static
-          persistentVolumeClaim:
-            claimName: hexdns-django-static
-        - name: media
-          persistentVolumeClaim:
-            claimName: hexdns-django-media
         - name: pubkey
           configMap:
             name: hexdns-key-pub
@@ -1079,10 +976,6 @@ spec:
           imagePullPolicy: Always
           command: ["sh", "-c", "python3 manage.py run-rpc"]
           volumeMounts:
-            - mountPath: "/app/static/"
-              name: static
-            - mountPath: "/app/media/"
-              name: media
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
@@ -1111,6 +1004,8 @@ spec:
               prefix: "GOOGLE_"
             - secretRef:
                 name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1166,3 +1061,28 @@ spec:
   ports:
     - port: 50051
       targetPort: 50051
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hexdns-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "gts"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  tls:
+    - hosts:
+        - dns.glauca.digital
+      secretName: dns-tls
+  rules:
+    - host: dns.glauca.digital
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hexdns-django
+                port:
+                  number: 8000
