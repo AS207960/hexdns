@@ -935,8 +935,8 @@ class CNAMERecord(DNSZoneRecord):
                 })
 
         if exclude is None:
-            exclude = []
-        exclude.append("record_name")
+            exclude = set()
+        exclude.add("record_name")
         super().validate_unique(exclude=exclude)
 
     class Meta(DNSZoneRecord.Meta):

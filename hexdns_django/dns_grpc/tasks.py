@@ -256,6 +256,7 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record_name} {record.ttl} IN A 45.129.95.254\n"
             zone_file += f"{record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
             zone_file += f"{record_name} {record.ttl} IN CAA 0 iodef \"mailto:noc@as207960.net\"\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA 0 issue \"pki.goog\"\n"
             zone_file += f"{record_name} {record.ttl} IN CAA 0 issue \"letsencrypt.org\"\n"
 
     for record in zone.mxrecord_set.all():
