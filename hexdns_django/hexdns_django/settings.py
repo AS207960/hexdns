@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "crispy_forms",
     "dns_grpc",
     "django_grpc",
+    'crispy_bootstrap4',
     'rest_framework',
 ]
 
@@ -210,7 +211,7 @@ DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
 if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
     raise Exception("Only EC public keys supported")
 
-XFF_TRUSTED_PROXY_DEPTH = 2
+XFF_TRUSTED_PROXY_DEPTH = 1
 XFF_STRICT = True
 
 DOMAINS_URL = os.getenv("DOMAINS_URL")

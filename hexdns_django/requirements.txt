@@ -8,6 +8,7 @@ gunicorn
 grpcio
 protobuf
 django-crispy-forms
+crispy-bootstrap4
 sshpubkeys
 cryptography
 django-xff
