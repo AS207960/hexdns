@@ -51,6 +51,7 @@ data:
   S3_ENDPOINT: "https://s3.as207960.net"
   S3_REGION: "garage"
   S3_BUCKET: "hexdns-django"
+  S3_ZONE_BUCKET: "hexdns-zones"
   S3_ACCESS_KEY_ID: "GK145fe00f82e7b03c00d3f153"
   S3_CUSTOM_DOMAIN: "hexdns-django.content.as207960.net"
   STATIC_URL: "https://hexdns-django.content.as207960.net/"

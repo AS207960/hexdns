@@ -14,6 +14,8 @@ import requests.exceptions
 import keycloak.exceptions
 import os
 import tempfile
+import storages.backends.s3boto3
+import django.core.files.base
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
@@ -23,6 +25,10 @@ IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
 pika_client = apps.PikaClient()
+
+
+class ZoneStorage(storages.backends.s3boto3.S3Boto3Storage):
+    bucket_name = settings.ZONE_STORAGE_BUCKET
 
 
 def network_to_apra(network: IP_NETWORK) -> dnslib.DNSLabel:
@@ -412,6 +418,9 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
 
 
 def write_zone_file(zone_contents: str, zone_name: str):
+    zone_storage = ZoneStorage()
+    zone_storage.save(f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents))
+
     with tempfile.NamedTemporaryFile("w", encoding="utf8", newline='\n', dir=settings.ZONE_FILE_LOCATION, delete=False) as f:
         f.write(zone_contents)
 
