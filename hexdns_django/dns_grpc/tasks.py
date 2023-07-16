@@ -436,6 +436,7 @@ def send_reload_message(label: dnslib.DNSLabel):
     global pika_client
 
     def pub(channel):
+        time.sleep(5)
         channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
         channel.basic_publish(exchange='hexdns_primary_reload', routing_key='', body=str(label).encode())
 
