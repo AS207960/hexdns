@@ -380,9 +380,13 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
     account = zone.get_user().account.id
 
     for record in zone.ptrrecord_set.all():
+        if record.pointer == "@":
+            pointer = zone_root
+        else:
+            pointer = dnslib.DNSLabel(record.pointer)
         zone_file += f"; PTR record {record.id}\n"
         zone_file += f"{address_to_apra(ipaddress.ip_address(record.record_address))} {record.ttl} IN PTR " \
-                     f"{dnslib.DNSLabel(record.pointer)}\n"
+                     f"{pointer}\n"
 
     for record in zone.reversensrecord_set.all():
         zone_file += f"; NS record {record.id}\n"
@@ -400,7 +404,10 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
             account2 = record.zone.get_user().account.id
             zones[record.zone.id] = account2
         if account2 == account:
-            zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
+            if record.record_name == "@":
+                zone_ptr = dnslib.DNSLabel(f"{record.zone.zone_root}")
+            else:
+                zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
             zone_file += f"; Address record {record.id}\n"
             zone_file += f"{address_to_apra(ipaddress.ip_address(record.address))} {record.ttl} IN PTR {zone_ptr}\n"
 
@@ -423,7 +430,7 @@ def write_zone_file(zone_contents: str, zone_name: str):
     zone_storage.save(
         f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents.encode())
     )
-    
+
 
 def send_reload_message(label: dnslib.DNSLabel):
     global pika_client

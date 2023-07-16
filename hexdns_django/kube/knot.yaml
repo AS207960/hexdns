@@ -176,6 +176,9 @@ spec:
     metadata:
       annotations:
         cni.projectcalico.org/ipv6pools: "[\"hexdns-primary-ip6-ippool\"]"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9433"
+        prometheus.io/path: "/metrics"
       labels:
         app: hexdns
         part: knot
@@ -269,6 +272,22 @@ spec:
 #            - name: zones
 #              mountPath: /mnt/s3
 #              mountPropagation: Bidirectional
+        - name: exporter
+          image: as207960/knot-exporter:2
+          imagePullPolicy: Always
+          command: [
+            "sh", "-c",
+            "sleep 20 && 
+            python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
+          ]
+          readinessProbe:
+            tcpSocket:
+              port: 9433
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/rundir/"
+              name: rundir
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -288,6 +307,13 @@ spec:
       port: 53
     - protocol: UDP
       port: 53
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            role: metrics
+    ports:
+      - protocol: TCP
+        port: 9433
 ---
 apiVersion: v1
 kind: Service
@@ -450,6 +476,9 @@ spec:
     metadata:
       annotations:
         cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9433"
+        prometheus.io/path: "/metrics"
       labels:
         app: hexdns
         part: knot
@@ -540,15 +569,36 @@ spec:
       part: knot
       role: secondary
   policyTypes:
-  - Ingress
+    - Ingress
   ingress:
-  - ports:
-    - protocol: TCP
-      port: 53
-    - protocol: UDP
-      port: 53
-    - protocol: UDP
-      port: 853
+    - ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: UDP
+          port: 853
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-knot-secondary-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: knot
+      role: secondary
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              role: metrics
+      ports:
+        - protocol: TCP
+          port: 9433
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
