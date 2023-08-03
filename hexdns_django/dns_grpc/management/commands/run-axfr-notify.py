@@ -55,6 +55,14 @@ class Command(BaseCommand):
             if packet.header.opcode == dnslib.OPCODE.NOTIFY and len(packet.questions) > 0:
                 dns_name = packet.questions[0].qname
 
+                response = dnslib.DNSRecord(
+                    header=dnslib.DNSHeader(id=packet.header.id, opcode=dnslib.OPCODE.NOTIFY, qr=True, aa=True, rd=False),
+                    q=dnslib.DNSQuestion(dns_name, dnslib.QTYPE.SOA)
+                )
+                response_data = response.pack()
+                conn.send(struct.pack("!H", len(response_data)))
+                conn.send(response_data)
+
                 zone = dns_grpc.models.DNSZone.objects.filter(
                     zone_root=str(dns_name).rstrip(".")
                 ).first()
@@ -85,14 +93,6 @@ class Command(BaseCommand):
 
                 channel.close()
                 connection.close()
-
-                response = dnslib.DNSRecord(
-                    header=dnslib.DNSHeader(id=packet.header.id, opcode=dnslib.OPCODE.NOTIFY, qr=True, aa=True, rd=False),
-                    q=dnslib.DNSQuestion(dns_name, dnslib.QTYPE.SOA)
-                )
-                response_data = response.pack()
-                conn.send(struct.pack("!H", len(response_data)))
-                conn.send(response_data)
 
             break
         conn.close()

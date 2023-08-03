@@ -16,6 +16,7 @@ data:
   knot.conf: |
     server:
         identity: "HexDNS"
+        listen: 0.0.0.0@53
         listen: ::@53
         nsid: (nsid)
 

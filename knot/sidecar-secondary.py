@@ -64,7 +64,8 @@ def callback(channel, method, properties, body: bytes):
 
         print(f"Notified {zone}", flush=True)
         channel.basic_ack(delivery_tag=method.delivery_tag)
-    except OSError:
+    except OSError as e:
+        print(f"Failed to notify {zone}: {e}", flush=True)
         channel.basic_reject(delivery_tag=method.delivery_tag)
 
 
