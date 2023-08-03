@@ -269,6 +269,14 @@ spec:
           envFrom:
             - secretRef:
                 name: hexdns-rpc
+        - name: clatd
+          image: as207960/clatd
+          command: [
+            "/bin/bash", "-c",
+            "/clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'"
+          ]
+          securityContext:
+            privileged: true
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
