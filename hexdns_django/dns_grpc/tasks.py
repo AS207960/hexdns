@@ -10,6 +10,7 @@ import time
 import re
 import idna
 import string
+import logging
 import requests.exceptions
 import keycloak.exceptions
 import storages.backends.s3boto3
@@ -689,8 +690,16 @@ def sync_netnod_zones(
 ):
     for zone_root, owner in active_zones:
         if not netnod.check_zone_registered(zone_root):
-            netnod.register_zone(zone_root, owner)
+            try:
+                netnod.register_zone(zone_root, owner)
+            except Exception as e:
+                logging.error(f"Failed to register zone {zone_root}: {e}")
+                continue
 
     for zone_root in inactive_zones:
         if netnod.check_zone_registered(zone_root):
-            netnod.deregister_zone(zone_root)
+            try:
+                netnod.deregister_zone(zone_root)
+            except Exception as e:
+                logging.error(f"Failed to de-register zone {zone_root}: {e}")
+                continue
