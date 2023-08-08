@@ -8,7 +8,12 @@ import random
 import retry
 import dnslib
 
-WANTED_NS = [dnslib.DNSLabel('ns1.as207960.net'), dnslib.DNSLabel('ns2.as207960.net')]
+WANTED_NS = [
+    dnslib.DNSLabel('ns1.as207960.net'),
+    dnslib.DNSLabel('ns2.as207960.net'),
+    dnslib.DNSLabel('ns3.as207960.net'),
+    dnslib.DNSLabel('ns4.as207960.net'),
+]
 
 
 def mail_valid(user, zone):
@@ -130,7 +135,7 @@ class Command(BaseCommand):
             else:
                 wanted_ns = WANTED_NS
 
-            is_valid = all(any(rr.rdata.label == wns for rr in ns) for wns in wanted_ns)
+            is_valid = any(any(rr.rdata.label == wns for rr in ns) for wns in wanted_ns)
 
             if is_valid:
                 print(f"{zone} is valid")

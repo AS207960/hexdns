@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
 
-NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net."]
+NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net.", "ns3.as207960.net.", "ns4.as207960.net."]
 IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
 IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 

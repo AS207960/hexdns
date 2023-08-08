@@ -22,7 +22,7 @@ from dnslib.label import DNSLabel
 from . import models
 from .proto import dns_pb2, dns_pb2_grpc
 
-NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net"]
+NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net", "ns3.as207960.net", "ns4.as207960.net"]
 IP4_APRA = DNSLabel("in-addr.arpa.")
 IP6_APRA = DNSLabel("ip6.arpa.")
 IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
