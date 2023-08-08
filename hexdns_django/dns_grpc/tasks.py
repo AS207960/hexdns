@@ -560,7 +560,7 @@ def get_user(zone):
 def is_active(user):
     if not user:
         return False
-    
+
     try:
         return user.account.subscription_active
     except models.Account.DoesNotExist:
@@ -676,6 +676,7 @@ def update_catalog():
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
 
     update_signal_zones.delay()
+    sync_netnod_zones.delay(active_zones, inactive_zones)
 
 
 @shared_task(
