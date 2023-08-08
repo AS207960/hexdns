@@ -23,7 +23,7 @@ PRIMARY_SERVERS = [{
 
 
 def check_zone_registered(zone_name: str) -> bool:
-    r = requests.get(f"{URL_ROOT}/zones/{zone_name}", headers={
+    r = requests.get(f"{URL_ROOT}/zone/{zone_name}", headers={
         "Authorization": f"Token {settings.NETNOD_API_KEY}"
     })
     if r.status_code == 404:
@@ -33,7 +33,7 @@ def check_zone_registered(zone_name: str) -> bool:
 
 
 def register_zone(zone_name: str, end_user: str):
-    requests.post(f"{URL_ROOT}/zones/", headers={
+    requests.post(f"{URL_ROOT}/zone/", headers={
         "Authorization": f"Token {settings.NETNOD_API_KEY}"
     }, json={
         "name": zone_name,
@@ -44,7 +44,7 @@ def register_zone(zone_name: str, end_user: str):
 
 
 def deregister_zone(zone_name: str):
-    requests.delete(f"{URL_ROOT}/zones/{zone_name}", headers={
+    requests.delete(f"{URL_ROOT}/zone/{zone_name}", headers={
         "Authorization": f"Token {settings.NETNOD_API_KEY}"
     }).raise_for_status()
 
