@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.conf import settings
-from . import models, apps, utils
+from . import models, apps, utils, netnod
 import dnslib
 import base64
 import ipaddress
@@ -12,8 +12,6 @@ import idna
 import string
 import requests.exceptions
 import keycloak.exceptions
-import os
-import tempfile
 import storages.backends.s3boto3
 import django.core.files.base
 from cryptography.hazmat.primitives.asymmetric.ec import (
@@ -433,10 +431,10 @@ def write_zone_file(zone_contents: str, zone_name: str):
 
 
 def send_reload_message(label: dnslib.DNSLabel):
+    time.sleep(15)
     global pika_client
 
     def pub(channel):
-        time.sleep(5)
         channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
         channel.basic_publish(exchange='hexdns_primary_reload', routing_key='', body=str(label).encode())
 
@@ -622,16 +620,22 @@ def update_catalog():
         zone_file += f"group.signal{i}.zones 0 IN TXT \"zone\"\n"
 
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
+    active_zones = []
+    inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
             if is_active(zone):
+                owner = zone.get_user()
+                active_zones.append((str(zone_root), owner.username))
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                 if zone.cds_disable:
                     zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
                 else:
                     zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+            else:
+                inactive_zones.append(str(zone_root))
 
     for zone in models.ReverseDNSZone.objects.all():
         zone_network = ipaddress.ip_network(
@@ -639,20 +643,45 @@ def update_catalog():
         )
         zone_root = network_to_apra(zone_network)
         if is_active(zone):
+            owner = zone.get_user()
+            active_zones.append((str(zone_root), owner.username))
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
             if zone.cds_disable:
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
             else:
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+        else:
+            inactive_zones.append(str(zone_root))
 
     for zone in models.SecondaryDNSZone.objects.all():
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
             if is_active(zone):
+                owner = zone.get_user()
+                active_zones.append((str(zone_root), owner.username))
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
+            else:
+                inactive_zones.append(str(zone_root))
 
     write_zone_file(zone_file, "catalog.")
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
 
     update_signal_zones.delay()
+
+
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
+def sync_netnod_zones(
+    active_zones: typing.List[typing.Tuple[str, str]],
+    inactive_zones: typing.List[str],
+):
+    for zone_root, owner in active_zones:
+        if not netnod.check_zone_registered(zone_root):
+            netnod.register_zone(zone_root, owner)
+
+    for zone_root in inactive_zones:
+        if netnod.check_zone_registered(zone_root):
+            netnod.deregister_zone(zone_root)

@@ -149,7 +149,6 @@ spec:
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
           command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate"]
-          #command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate && python3 manage.py sync-keycloak"]
           volumeMounts:
             - mountPath: "/pubkey/"
               name: pubkey
@@ -175,6 +174,9 @@ spec:
             - secretRef:
                 name: hexdns-google
               prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
             - secretRef:
                 name: hexdns-rpc
             - secretRef:
@@ -211,6 +213,9 @@ spec:
             - secretRef:
                 name: hexdns-google
               prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
             - secretRef:
                 name: hexdns-rpc
             - secretRef:
@@ -300,6 +305,9 @@ spec:
                 name: hexdns-google
               prefix: "GOOGLE_"
             - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
+            - secretRef:
                 name: hexdns-rpc
             - secretRef:
                 name: hexdns-s3
@@ -386,6 +394,9 @@ spec:
                 name: hexdns-google
               prefix: "GOOGLE_"
             - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
+            - secretRef:
                 name: hexdns-rpc
             - secretRef:
                 name: hexdns-s3
@@ -468,6 +479,9 @@ spec:
                 name: hexdns-google
               prefix: "GOOGLE_"
             - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
+            - secretRef:
                 name: hexdns-rpc
             - secretRef:
                 name: hexdns-s3
@@ -541,6 +555,9 @@ spec:
                     name: hexdns-google
                   prefix: "GOOGLE_"
                 - secretRef:
+                    name: hexdns-netnod
+                  prefix: "NETNOD_"
+                - secretRef:
                     name: hexdns-rpc
                 - secretRef:
                     name: hexdns-s3
@@ -602,6 +619,9 @@ spec:
                 - secretRef:
                     name: hexdns-google
                   prefix: "GOOGLE_"
+                - secretRef:
+                    name: hexdns-netnod
+                  prefix: "NETNOD_"
                 - secretRef:
                     name: hexdns-rpc
                 - secretRef:
@@ -673,6 +693,9 @@ spec:
                 - secretRef:
                     name: hexdns-google
                   prefix: "GOOGLE_"
+                - secretRef:
+                    name: hexdns-netnod
+                  prefix: "NETNOD_"
                 - secretRef:
                     name: hexdns-rpc
                 - secretRef:
@@ -753,6 +776,9 @@ spec:
                     name: hexdns-google
                   prefix: "GOOGLE_"
                 - secretRef:
+                    name: hexdns-netnod
+                  prefix: "NETNOD_"
+                - secretRef:
                     name: hexdns-rpc
                 - secretRef:
                     name: hexdns-s3
@@ -815,6 +841,9 @@ spec:
                 - secretRef:
                     name: hexdns-google
                   prefix: "GOOGLE_"
+                - secretRef:
+                    name: hexdns-netnod
+                  prefix: "NETNOD_"
                 - secretRef:
                     name: hexdns-rpc
                 - secretRef:
@@ -897,6 +926,9 @@ spec:
             - secretRef:
                 name: hexdns-google
               prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
             - secretRef:
                 name: hexdns-rpc
             - secretRef:
@@ -993,6 +1025,9 @@ spec:
             - secretRef:
                 name: hexdns-google
               prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
             - secretRef:
                 name: hexdns-rpc
             - secretRef:

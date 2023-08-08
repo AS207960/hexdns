@@ -145,6 +145,8 @@ with open(os.path.join(BASE_DIR, "secrets/github.json")) as f:
     github_conf = json.load(f)
 with open(os.path.join(BASE_DIR, "secrets/google.json")) as f:
     google_conf = json.load(f)
+with open(os.path.join(BASE_DIR, "secrets/netnod.json")) as f:
+    netnod_conf = json.load(f)
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "Glauca HexDNS <dns@glauca.digital>"
@@ -164,6 +166,8 @@ GITHUB_WEBHOOK_SECRET = github_conf["webhook_secret"]
 
 GOOGLE_CLIENT_ID = google_conf["client_id"]
 GOOGLE_CLIENT_SECRET = google_conf["client_secret"]
+
+NETNOD_API_KEY = netnod_conf["api_key"]
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
 

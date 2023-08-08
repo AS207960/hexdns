@@ -180,6 +180,9 @@ spec:
                 name: hexdns-google
               prefix: "GOOGLE_"
             - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
+            - secretRef:
                 name: hexdns-rpc
             - secretRef:
                 name: hexdns-s3
