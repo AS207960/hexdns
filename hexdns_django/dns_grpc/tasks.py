@@ -547,16 +547,24 @@ def update_szone(zone_id: str):
     send_reload_message(zone_root)
 
 
-def is_active(zone):
+def get_user(zone):
     try:
         user = zone.get_user()
         if not user:
-           return True
+            return None
+        return user
+    except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
+        return None
+
+
+def is_active(user):
+    if not user:
+        return False
+    
+    try:
         return user.account.subscription_active
     except models.Account.DoesNotExist:
         return False
-    except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException):
-        return True
 
 
 @shared_task(
@@ -626,8 +634,8 @@ def update_catalog():
     for zone in models.DNSZone.objects.all():
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
-            if is_active(zone):
-                owner = zone.get_user()
+            owner = get_user(zone)
+            if is_active(owner):
                 active_zones.append((str(zone_root), owner.username))
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                 if zone.cds_disable:
@@ -642,8 +650,8 @@ def update_catalog():
             (zone.zone_root_address, zone.zone_root_prefix)
         )
         zone_root = network_to_apra(zone_network)
-        if is_active(zone):
-            owner = zone.get_user()
+        owner = get_user(zone)
+        if is_active(owner):
             active_zones.append((str(zone_root), owner.username))
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
             if zone.cds_disable:
@@ -656,8 +664,8 @@ def update_catalog():
     for zone in models.SecondaryDNSZone.objects.all():
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
-            if is_active(zone):
-                owner = zone.get_user()
+            owner = get_user(zone)
+            if is_active(owner):
                 active_zones.append((str(zone_root), owner.username))
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                 zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
