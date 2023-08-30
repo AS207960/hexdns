@@ -628,6 +628,13 @@ def update_catalog():
         zone_file += f"signal{i}.zones 0 IN PTR _signal.{ns}\n"
         zone_file += f"group.signal{i}.zones 0 IN TXT \"zone\"\n"
 
+    zone_file += f"kube-cluster-fwd.zones 0 IN PTR kube-cluster.as207960.net.\n"
+    zone_file += f"group.kube-cluster-fwd1.zones 0 IN TXT \"zone\"\n"
+    zone_file += f"kube-cluster-rvs1.zones 0 IN PTR 0.0.0.8.c.f.0.8.7.6.0.1.0.0.2.ip6.arpa.\n"
+    zone_file += f"group.kube-cluster-rvs1.zones 0 IN TXT \"zone\"\n"
+    zone_file += f"kube-cluster-rvs2.zones 0 IN PTR 0.0.0.0.1.0.0.0.1.c.c.1.e.0.a.2.ip6.arpa.\n"
+    zone_file += f"group.kube-cluster-rvs2.zones 0 IN TXT \"zone\"\n"
+
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
     active_zones = []
     inactive_zones = []

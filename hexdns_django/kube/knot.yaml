@@ -47,6 +47,9 @@ data:
       - id: netnod-cyfyngedig-1.
         algorithm: hmac-sha512
         secret: (netnod-xfr-secret)
+      - id: tsig.kube-cluster.as207960.net.
+        algorithm: hmac-sha256
+        secret: (coredns-xfr-secret)
     
     acl:
       - id: secondary-xfr
@@ -55,6 +58,9 @@ data:
       - id: netnod-xfr
         action: transfer
         key: netnod-cyfyngedig-1.
+      - id: coredns-notify
+        address: 2a0e:1cc1:1:0:8000::/65
+        action: notify
     
     remote:
       - id: unbound-no-dns64
@@ -67,6 +73,9 @@ data:
       - id: netnod-dist-2
         address: 2a01:3f0:0:28::25
         key: netnod-cyfyngedig-1.
+      - id: coredns
+        address: 2a0d:1a40:7901::2
+        key: tsig.kube-cluster.as207960.net.
     
     submission:
       - id: zone
@@ -137,6 +146,20 @@ data:
         semantic-checks: on
         serial-policy: dateserial
 
+      - id: zone-k8s
+        storage: /zones
+        file: %s.zone
+        dnssec-signing: on
+        dnssec-policy: zone
+        master: coredns
+        acl: [secondary-xfr, netnod-xfr, coredns-notify]
+        notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
+        zonefile-sync: 0
+        zonefile-load: whole
+        journal-content: changes
+        semantic-checks: on
+        serial-policy: dateserial
+    
     zone:
       - domain: catalog.dns.as207960.ltd.uk.
         file: /zones/catalog.zone
@@ -154,6 +177,15 @@ data:
       - domain: cds-delete.dns.as207960.ltd.uk.
         template: zone-cds-disable
         file: /zones/cds-delete.dns.as207960.ltd.uk.zone
+    
+      - domain: kube-cluster.as207960.net
+        template: zone-k8s
+    
+      - domain: 0.0.0.8.c.f.0.8.7.6.0.1.0.0.2.ip6.arpa
+        template: zone-k8s
+    
+      - domain: 0.0.0.0.1.0.0.0.1.c.c.1.e.0.a.2.ip6.arpa
+        template: zone-k8s
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -207,6 +239,7 @@ spec:
             "cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(netnod-xfr-secret)/$NETNOD_XFR_SECRET/g\" /config/knot.conf &&
+             sed -i \"s/(coredns-xfr-secret)/$COREDNS_XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
              sleep 15;
              while true; do rm /rundir/knot.pid; knotd; done"
@@ -248,6 +281,10 @@ spec:
         - name: s3-zones
           image: as207960/goofys
           args: ["-c", "goofys -f --endpoint $ENDPOINT --region $REGION $BUCKET /mnt/s3"]
+          lifecycle:
+            preStop:
+              exec:
+                command: ["umount", "/mnt/s3"]
           securityContext:
             privileged: true
           envFrom:
