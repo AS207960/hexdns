@@ -1226,7 +1226,7 @@ def create_dnskey_record(request, zone_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        record_form = forms.DNSKEYRecordForm(request.POST, instance=models.DSRecord(zone=user_zone))
+        record_form = forms.DNSKEYRecordForm(request.POST, instance=models.DNSKEYRecord(zone=user_zone))
         if record_form.is_valid():
             instance = record_form.save(commit=False)
             user_zone.last_modified = timezone.now()
