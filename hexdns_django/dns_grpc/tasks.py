@@ -327,6 +327,13 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record_name} {record.ttl} IN DS {record.key_tag} {record.algorithm} " \
                          f"{record.digest_type} {record.digest}\n"
 
+    for record in zone.dnskeyrecord_set.all():
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; DNSKEY record {record.id}\n"
+            zone_file += f"{record_name} {record.ttl} IN DNSKEY {record.flags} {record.protocol} " \
+                         f"{record.algorithm} {record.public_key}\n"
+
     for record in zone.locrecord_set.all():
         record_name = record.idna_label
         if record_name:

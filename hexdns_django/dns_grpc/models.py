@@ -150,13 +150,11 @@ class DNSZone(models.Model):
                     self.srvrecord_set.all().delete()
                     self.caarecord_set.all().delete()
                     self.naptrrecord_set.all().delete()
+                    self.dnskeyrecord_set.all().delete()
 
                 for record in records:
                     if record.rclass != dnslib.CLASS.IN:
                         continue
-                    record_name = record.rname.stripSuffix(suffix)
-                    if len(record_name.label) == 0:
-                        record_name = dnslib.DNSLabel("@")
                     if record.rtype == dnslib.QTYPE.A:
                         r = AddressRecord.from_rr(record, self)
                         if r.ttl <= 1:
@@ -178,7 +176,7 @@ class DNSZone(models.Model):
                         if r.ttl <= 1:
                             r.ttl = 3600
                         r.save()
-                    elif record.rtype == dnslib.QTYPE.NS and record_name != "@":
+                    elif record.rtype == dnslib.QTYPE.NS:
                         r = NSRecord.from_rr(record, self)
                         if r.ttl <= 1:
                             r.ttl = 3600
@@ -200,6 +198,11 @@ class DNSZone(models.Model):
                         r.save()
                     elif record.rtype == dnslib.QTYPE.NAPTR:
                         r = NAPTRRecord.from_rr(record, self)
+                        if r.ttl <= 1:
+                            r.ttl = 3600
+                        r.save()
+                    elif record.rtype == dnslib.QTYPE.DNSKEY:
+                        r = DNSKEYRecord.from_rr(record, self)
                         if r.ttl <= 1:
                             r.ttl = 3600
                         r.save()
@@ -1444,18 +1447,19 @@ class DS(dnslib.RD):
         return f"{self.key_tag} {self.algorithm} {self.digest_type} {binascii.hexlify(self.digest).decode()}"
 
 
+DNSSEC_ALGORITHMS = (
+    (5, "RSA/SHA-1 (5) INSECURE"),
+    (7, "RSASHA1-NSEC3-SHA1 (7) INSECURE"),
+    (8, "RSA/SHA-256 (8)"),
+    (10, "RSA/SHA-512 (10)"),
+    (13, "ECDSA Curve P-256 with SHA-256 (13)"),
+    (14, "ECDSA Curve P-384 with SHA-384 (14)"),
+    (15, "Ed25519 (15)"),
+    (16, "Ed448 (16)"),
+)
+
 class DSRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonedsrecord", primary_key=True)
-    ALGORITHMS = (
-        (5, "RSA/SHA-1 (5) INSECURE"),
-        (7, "RSASHA1-NSEC3-SHA1 (7) INSECURE"),
-        (8, "RSA/SHA-256 (8)"),
-        (10, "RSA/SHA-512 (10)"),
-        (13, "ECDSA Curve P-256 with SHA-256 (13)"),
-        (14, "ECDSA Curve P-384 with SHA-384 (14)"),
-        (15, "Ed25519 (15)"),
-        (16, "Ed448 (16)"),
-    )
 
     DIGEST_TYPES = (
         (1, "SHA-1 (1) INSECURE"),
@@ -1465,7 +1469,7 @@ class DSRecord(DNSZoneRecord):
     )
 
     key_tag = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
-    algorithm = models.PositiveSmallIntegerField(choices=ALGORITHMS)
+    algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
     digest_type = models.PositiveSmallIntegerField(choices=DIGEST_TYPES)
     digest = models.TextField(validators=[hex_validator])
 
@@ -1540,6 +1544,70 @@ class DSRecord(DNSZoneRecord):
         super().clean_fields(exclude=exclude)
 
 
+class DNSKEYRecord(DNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_zonednskeyrecord", primary_key=True)
+
+    DIGEST_TYPES = (
+        (1, "SHA-1 (1) INSECURE"),
+        (2, "SHA-256 (2)"),
+        (3, "GOST R 34.11-94 (3)"),
+        (4, "SHA-384 (4)"),
+    )
+
+    flags = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(65535)])
+    protocol = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)], default=3)
+    algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
+    public_key = models.TextField(validators=[b64_validator])
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            flags=rr.rdata.flags,
+            protocol=rr.rdata.protocol,
+            algorithm=rr.rdata.algorithm,
+            public_key=base64.b64encode(rr.rdata.key)
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.flags = rr.rdata.flags
+        self.protocol = rr.rdata.protocol
+        self.algorithm = rr.rdata.algorithm
+        self.public_key = base64.b64encode(rr.rdata.key)
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.DS,
+            rdata=dnslib.DNSKEY(
+                algorithm=self.algorithm,
+                flags=self.flags,
+                protocol=self.protocol,
+                key=base64.b64decode(self.public_key)
+            ),
+            ttl=self.ttl,
+        )
+
+    class Meta(DNSZoneRecord.Meta):
+        verbose_name = "DNSKEY record"
+        verbose_name_plural = "DNSKEY records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
+
+
 class LOC(dnslib.RD):
     attrs = ('lat', 'long', 'altitude', 'size', 'hp', 'vp')
 
@@ -1550,6 +1618,7 @@ class LOC(dnslib.RD):
         self.size = size
         self.hp = hp
         self.vp = vp
+        super().__init__()
 
     def pack(self, buffer):
         def enc_size(value):
