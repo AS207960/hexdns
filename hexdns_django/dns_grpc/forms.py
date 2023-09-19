@@ -354,6 +354,26 @@ class DSRecordForm(forms.ModelForm):
         exclude = ("id", "zone")
 
 
+class DNSKEYRecordForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "flags", "protocol", "algorithm", "public_key", "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+    class Meta:
+        model = models.DNSKEYRecord
+        fields = "__all__"
+        exclude = ("id", "zone")
+
+
 class LOCRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

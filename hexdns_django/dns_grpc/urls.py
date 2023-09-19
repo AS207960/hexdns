@@ -87,6 +87,7 @@ urlpatterns = [
     path("zone/<str:zone_id>/new_naptr/", views.fzone.create_naptr_record, name="create_naptr_record"),
     path("zone/<str:zone_id>/new_sshfp/", views.fzone.create_sshfp_record, name="create_sshfp_record"),
     path("zone/<str:zone_id>/new_ds/", views.fzone.create_ds_record, name="create_ds_record"),
+    path("zone/<str:zone_id>/new_dnskey/", views.fzone.create_dnskey_record, name="create_dnskey_record"),
     path("zone/<str:zone_id>/new_loc/", views.fzone.create_loc_record, name="create_loc_record"),
     path("zone/<str:zone_id>/new_hinfo/", views.fzone.create_hinfo_record, name="create_hinfo_record"),
     path("zone/<str:zone_id>/new_rp/", views.fzone.create_rp_record, name="create_rp_record"),
@@ -186,6 +187,12 @@ urlpatterns = [
         "records/ds/<str:record_id>/delete/",
         views.fzone.delete_ds_record,
         name="delete_ds_record",
+    ),
+    path("records/dnskey/<str:record_id>/", views.fzone.edit_dnskey_record, name="edit_dnskey_record"),
+    path(
+        "records/dnskey/<str:record_id>/delete/",
+        views.fzone.delete_dnskey_record,
+        name="delete_dnskey_record",
     ),
     path("records/loc/<str:record_id>/", views.fzone.edit_loc_record, name="edit_loc_record"),
     path(
