@@ -58,7 +58,7 @@ def callback_reload(channel, method, properties, body: bytes):
         channel.basic_ack(delivery_tag=method.delivery_tag)
     except libknot.control.KnotCtlError as e:
         if e.data and e.data[libknot.control.KnotCtlDataIdx.ERROR] == "no such zone found":
-            pass
+            channel.basic_ack(delivery_tag=method.delivery_tag)
         else:
             channel.basic_reject(delivery_tag=method.delivery_tag)
     finally:
