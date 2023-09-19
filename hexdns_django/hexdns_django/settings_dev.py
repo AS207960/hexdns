@@ -202,6 +202,18 @@ KUBE_NAMESPACE = "hexdns-dev"
 
 ZONE_FILE_LOCATION = "zones"
 
+AWS_S3_CUSTOM_DOMAIN = os.getenv("S3_CUSTOM_DOMAIN", "")
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_REGION_NAME = os.getenv("S3_REGION", "")
+AWS_S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT", "")
+AWS_STORAGE_BUCKET_NAME = os.getenv("S3_BUCKET", "")
+AWS_S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "")
+AWS_S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "")
+AWS_S3_ADDRESSING_STYLE = "virtual"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+
+ZONE_STORAGE_BUCKET = "hexdns-zones-dev"
+
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

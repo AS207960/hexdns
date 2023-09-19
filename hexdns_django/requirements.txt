@@ -14,7 +14,7 @@ cryptography
 django-xff
 publicsuffixlist
 retry
-django-rest-framework
+djangorestframework
 drf-nested-routers
 pyjwt
 cryptography
