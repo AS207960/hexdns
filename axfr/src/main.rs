@@ -166,11 +166,6 @@ async fn handle_request(
     soa_response.add_query(query.original().clone());
     soa_response.add_answers(soa.records_without_rrsigs().cloned());
 
-    if query.query_type() == trust_dns_proto::rr::record_type::RecordType::SOA {
-        send_response(soa_response, addr, context.clone()).await;
-        return;
-    }
-
     let mut tsig_context = None;
 
     if !msg.signature().is_empty() {
@@ -268,7 +263,26 @@ async fn handle_request(
             hash: data.mac().to_vec(),
             first: true
         })
-    } else {
+    }
+
+    if query.query_type() == trust_dns_proto::rr::record_type::RecordType::SOA {
+        match sign_message(&mut soa_response, &mut tsig_context) {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("failed to sign message: {}", e);
+                let response_msg = trust_dns_proto::op::Message::error_msg(
+                    msg.id(), msg.op_code(),
+                    trust_dns_client::op::ResponseCode::ServFail,
+                );
+                send_response(response_msg, addr, context).await;
+                return;
+            }
+        }
+        send_response(soa_response, addr, context.clone()).await;
+        return;
+    }
+
+    if tsig_context.is_none() {
         let resp = match client.check_ipacl(axfr_proto::IpaclRequest {
             zone_name: query.name().to_string(),
             ip_addr: Some(match addr.ip() {

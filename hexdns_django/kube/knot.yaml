@@ -94,6 +94,8 @@ data:
         zsk-lifetime: 30d
         ksk-submission: zone
         nsec3-iterations: 10
+        dnskey-management: incremental
+        delete-delay: 30d
     
       - id: zone-cds-disable
         signing-threads: 4
@@ -106,6 +108,8 @@ data:
         zsk-lifetime: 30d
         ksk-submission: zone
         nsec3-iterations: 10
+        dnskey-management: incremental
+        delete-delay: 30d
 
     template:
       - id: zone
