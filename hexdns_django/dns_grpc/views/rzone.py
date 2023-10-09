@@ -46,8 +46,8 @@ def edit_rzone(request, zone_id):
             "referrer_uri": request.build_absolute_uri()
         }
         sharing_data_uri = urllib.parse.urlencode(sharing_data)
-        sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/resource/" \
-                      f"{user_zone.resource_id}?{sharing_data_uri}"
+        sharing_uri = f"{settings.KEYCLOAK_SERVER_URL}/auth/realms/{settings.KEYCLOAK_REALM}/account/?{sharing_data_uri}" \
+                      f"#/resource/{user_zone.resource_id}"
     else:
         sharing_uri = None
 
