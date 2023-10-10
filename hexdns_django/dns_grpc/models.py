@@ -27,6 +27,8 @@ if settings.KUBE_IN_CLUSTER:
 else:
     kubernetes.config.load_kube_config()
 
+DNS_ALPHABET = string.ascii_lowercase + string.digits + "-"
+
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -1853,6 +1855,20 @@ class RPRecord(DNSZoneRecord):
             rdata=RP(dnslib.DNSLabel(self.mailbox), dnslib.DNSLabel(self.txt)),
             ttl=self.ttl
         )
+
+    def clean_fields(self, exclude=None):
+        if "mailbox" not in exclude:
+            if not all((c in DNS_ALPHABET) for c in self.mailbox):
+                raise ValidationError({
+                    "mailbox": "Invalid mailbox label"
+                })
+        if "txt" not in exclude:
+            if not all((c in DNS_ALPHABET) for c in self.txt):
+                raise ValidationError({
+                    "txt": "Invalid txt label"
+                })
+
+        super().clean_fields(exclude=exclude)
 
     class Meta(DNSZoneRecord.Meta):
         verbose_name = "RP record"
