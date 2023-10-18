@@ -604,7 +604,7 @@ def update_signal_zones():
                     digest, tag = utils.make_zone_digest(zone.zone_root)
                     dnskey_bytes = utils.get_dnskey().key
 
-                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS {tag} 13 2 {digest}\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
 
                     for cds in zone.additional_cds.all():
                         zone_file += f"; Additional CDS {cds.id}\n"
