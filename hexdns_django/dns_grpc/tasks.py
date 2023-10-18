@@ -174,11 +174,11 @@ def generate_fzone(zone: "models.DNSZone"):
 
             if record.auto_reverse:
                 for rzone in models.ReverseDNSZone.objects.raw(
-                    "SELECT * FROM dns_grpc_reversednszone WHERE ("
-                    "inet %s << CAST("
-                    "(string_to_array(zone_root_address::string, '/')[1] || '/'"
-                    " || zone_root_prefix) AS inet))",
-                    [str(address)]
+                        "SELECT * FROM dns_grpc_reversednszone WHERE ("
+                        "inet %s << CAST("
+                        "(string_to_array(zone_root_address::string, '/')[1] || '/'"
+                        " || zone_root_prefix) AS inet))",
+                        [str(address)]
                 ):
                     rzones.add(rzone.id)
 
@@ -581,41 +581,47 @@ def is_active(user):
 )
 def update_signal_zones():
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
+    now = int(time.time())
+
+    zone_file_base = ""
+
+    for zone in models.DNSZone.objects.all():
+        if pattern.match(zone.zone_root):
+            cds_zone_root = dnslib.DNSLabel(zone.zone_root)
+            zone_file_base += f"; Zone {zone.id}\n"
+
+            if zone.cds_disable:
+                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS 0 0 0 00\n"
+                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
+            else:
+                digest, tag = utils.make_zone_digest(zone.zone_root)
+                dnskey_bytes = utils.get_dnskey().key
+
+                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
+
+                for cds in zone.additional_cds.all():
+                    zone_file_base += f"; Additional CDS {cds.id}\n"
+                    zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} "
+                                       f"{cds.digest_type} {cds.digest}\n")
+
+                zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 257 3 13 "
+                                   f"{base64.b64encode(dnskey_bytes).decode()}\n")
+
+                for cdnskey in zone.additional_cdnskey.all():
+                    zone_file_base += f"; Additional CDNSKEY {cdnskey.id}\n"
+                    zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY {cdnskey.flags} "
+                                       f"{cdnskey.protocol} {cdnskey.algorithm} {cdnskey.public_key}\n")
 
     for ns in NAMESERVERS:
         zone_root = dnslib.DNSLabel(f"_signal.{ns}")
 
         zone_file = f"$ORIGIN {zone_root}\n"
-        zone_file += f"@ 86400 IN SOA {NAMESERVERS[0]} noc.as207960.net. {int(time.time())} " \
-                     f"86400 3600 3600000 3600\n"
+        zone_file += f"@ 86400 IN SOA {NAMESERVERS[0]} noc.as207960.net. {now} 86400 3600 3600000 3600\n"
 
         for ns2 in NAMESERVERS:
             zone_file += f"@ 86400 IN NS {ns2}\n"
 
-        for zone in models.DNSZone.objects.all():
-            if pattern.match(zone.zone_root):
-                cds_zone_root = dnslib.DNSLabel(zone.zone_root)
-                zone_file += f"; Zone {zone.id}\n"
-
-                if zone.cds_disable:
-                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS 0 0 0 00\n"
-                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
-                else:
-                    digest, tag = utils.make_zone_digest(zone.zone_root)
-                    dnskey_bytes = utils.get_dnskey().key
-
-                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
-
-                    for cds in zone.additional_cds.all():
-                        zone_file += f"; Additional CDS {cds.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
-
-                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
-
-                    for cdnskey in zone.additional_cdnskey.all():
-                        zone_file += f"; Additional CDNSKEY {cdnskey.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
-                                     f"{cdnskey.public_key}\n"
+        zone_file += zone_file_base
 
         write_zone_file(zone_file, str(zone_root))
         send_reload_message(zone_root)
@@ -699,8 +705,8 @@ def update_catalog():
     ignore_result=True
 )
 def sync_netnod_zones(
-    active_zones: typing.List[typing.Tuple[str, str]],
-    inactive_zones: typing.List[str],
+        active_zones: typing.List[typing.Tuple[str, str]],
+        inactive_zones: typing.List[str],
 ):
     for zone_root, owner in active_zones:
         if not netnod.check_zone_registered(zone_root):
