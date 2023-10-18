@@ -107,7 +107,7 @@ def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
 
 
 def encode_str(data):
-    return "".join(c if ord(c) < 128 else "".join(f'\\{b}' for b in c.encode()) for c in data.replace("\"", "\\\""))
+    return "".join((c if ord(c) < 128 else "".join(f'\\{b}' for b in c.encode())) for c in data.replace("\"", "\\\""))
 
 
 def dd_to_dms(dd: float) -> typing.Tuple[int, int, float]:
@@ -240,7 +240,7 @@ def generate_fzone(zone: "models.DNSZone"):
                 try:
                     alias = dnslib.DNSLabel(idna.encode(record.alias, uts46=True))
                 except idna.IDNAError:
-                    if all(ord(c) < 127 and c in string.printable for c in record.alias):
+                    if all((ord(c) < 127 and c in string.printable) for c in record.alias):
                         alias = dnslib.DNSLabel(record.alias)
                     else:
                         continue
@@ -598,8 +598,8 @@ def update_signal_zones():
                 zone_file += f"; Zone {zone.id}\n"
 
                 if zone.cds_disable:
-                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS 0 0 0 00\n"
-                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY 0 3 0 AA==\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS 0 0 0 00\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
                 else:
                     digest, tag = utils.make_zone_digest(zone.zone_root)
                     dnskey_bytes = utils.get_dnskey().key
@@ -608,13 +608,13 @@ def update_signal_zones():
 
                     for cds in zone.additional_cds.all():
                         zone_file += f"; Additional CDS {cds.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
+                        zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
 
-                    zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
+                    zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
 
                     for cdnskey in zone.additional_cdnskey.all():
                         zone_file += f"; Additional CDNSKEY {cdnskey.id}\n"
-                        zone_file += f"_dsboot.{str(cds_zone_root)}_signal 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
+                        zone_file += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
                                      f"{cdnskey.public_key}\n"
 
         write_zone_file(zone_file, str(zone_root))

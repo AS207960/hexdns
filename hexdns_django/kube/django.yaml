@@ -1045,6 +1045,88 @@ spec:
   policyTypes:
   - Ingress
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-keycloak-events
+  labels:
+    app: hexdns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: keycloak-events
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: keycloak-events
+    spec:
+      volumes:
+        - name: pubkey
+          configMap:
+            name: hexdns-key-pub
+        - name: privkey
+          secret:
+            secretName: hexdns-key-priv
+        - name: domains-pubkey
+          configMap:
+            name: domains-jwt-pub
+      containers:
+        - name: rpc
+          image: as207960/hexdns-django:(version)
+          imagePullPolicy: Always
+          command: ["sh", "-c", "python3 manage.py keycloak-events"]
+          volumeMounts:
+            - mountPath: "/pubkey/"
+              name: pubkey
+            - mountPath: "/domains-pubkey/"
+              name: domains-pubkey
+            - mountPath: "/privkey/"
+              name: privkey
+          envFrom:
+            - configMapRef:
+                name: hexdns-django-conf
+            - secretRef:
+                name: hexdns-db-creds
+              prefix: "DB_"
+            - secretRef:
+                name: hexdns-django-secret
+            - secretRef:
+                name: hexdns-keycloak
+              prefix: "KEYCLOAK_"
+            - secretRef:
+                name: hexdns-email
+              prefix: "EMAIL_"
+            - secretRef:
+                name: hexdns-github
+              prefix: "GITHUB_"
+            - secretRef:
+                name: hexdns-google
+              prefix: "GOOGLE_"
+            - secretRef:
+                name: hexdns-netnod
+              prefix: "NETNOD_"
+            - secretRef:
+                name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-keycloak-events
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: keycloak-events
+  policyTypes:
+  - Ingress
+---
 apiVersion: v1
 kind: Service
 metadata:
