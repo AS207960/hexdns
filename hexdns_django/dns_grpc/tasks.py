@@ -589,27 +589,28 @@ def update_signal_zones():
         if pattern.match(zone.zone_root):
             cds_zone_root = dnslib.DNSLabel(zone.zone_root)
             zone_file_base += f"; Zone {zone.id}\n"
+            dsboot_label = f"_dsboot.{str(cds_zone_root)[:-1]}"
 
             if zone.cds_disable:
-                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS 0 0 0 00\n"
-                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 0 3 0 AA==\n"
+                zone_file_base += f"{dsboot_label} 86400 IN CDS 0 0 0 00\n"
+                zone_file_base += f"{dsboot_label} 86400 IN CDNSKEY 0 3 0 AA==\n"
             else:
                 digest, tag = utils.make_zone_digest(zone.zone_root)
                 dnskey_bytes = utils.get_dnskey().key
 
-                zone_file_base += f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {tag} 13 2 {digest}\n"
+                zone_file_base += f"{dsboot_label} 86400 IN CDS {tag} 13 2 {digest}\n"
 
                 for cds in zone.additional_cds.all():
                     zone_file_base += f"; Additional CDS {cds.id}\n"
-                    zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDS {cds.key_tag} {cds.algorithm} "
+                    zone_file_base += (f"{dsboot_label} 86400 IN CDS {cds.key_tag} {cds.algorithm} "
                                        f"{cds.digest_type} {cds.digest}\n")
 
-                zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY 257 3 13 "
+                zone_file_base += (f"{dsboot_label} 86400 IN CDNSKEY 257 3 13 "
                                    f"{base64.b64encode(dnskey_bytes).decode()}\n")
 
                 for cdnskey in zone.additional_cdnskey.all():
                     zone_file_base += f"; Additional CDNSKEY {cdnskey.id}\n"
-                    zone_file_base += (f"_dsboot.{str(cds_zone_root)} 86400 IN CDNSKEY {cdnskey.flags} "
+                    zone_file_base += (f"{dsboot_label} 86400 IN CDNSKEY {cdnskey.flags} "
                                        f"{cdnskey.protocol} {cdnskey.algorithm} {cdnskey.public_key}\n")
 
     for ns in NAMESERVERS:
