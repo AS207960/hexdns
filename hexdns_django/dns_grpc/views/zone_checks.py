@@ -92,6 +92,9 @@ def check_spf(zone: models.DNSZone) -> SPFStatus:
 
 
 def check_dmarc(zone: models.DNSZone) -> DMARCStatus:
+    if zone.cnamerecord_set.filter(record_name="_dmarc").count() > 0:
+        return DMARCStatus.OK
+
     records = list(zone.txtrecord_set.filter(record_name="_dmarc"))
     if len(records) == 0:
         return DMARCStatus.NotPresent
