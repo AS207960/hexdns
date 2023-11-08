@@ -254,9 +254,8 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"; Redirect record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN A 45.129.95.254\n"
             zone_file += f"{record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
-            zone_file += f"{record_name} {record.ttl} IN CAA 0 iodef \"mailto:noc@as207960.net\"\n"
-            zone_file += f"{record_name} {record.ttl} IN CAA 0 issue \"pki.goog\"\n"
-            zone_file += f"{record_name} {record.ttl} IN CAA 0 issue \"letsencrypt.org\"\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA 128 issue \"pki.goog; accounturi=https://dv.acme-v02.api.pki.goog/account/s0zLRLXgH0KIRQC6RcVXcg\"\n"
+            zone_file += f"{record_name} {record.ttl} IN CAA 128 issue \"letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/85247630\"\n"
 
     for record in zone.mxrecord_set.all():
         record_name = record.idna_label
