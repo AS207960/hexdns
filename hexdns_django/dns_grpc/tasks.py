@@ -273,7 +273,12 @@ def generate_fzone(zone: "models.DNSZone"):
         record_name = record.idna_label
         if record_name:
             zone_file += f"; TXT record {record.id}\n"
-            zone_file += f"{record_name} {record.ttl} IN TXT \"{encode_str(record.data)}\"\n"
+            zone_file += f"{record_name} {record.ttl} IN TXT"
+            data = record.data.encode('utf-8')
+            chunks = [data[i:i+255] for i in range(0, len(data), 255)]
+            for chunk in chunks:
+                zone_file += f" \"{encode_str(chunk.decode('utf-8'))}\""
+            zone_file += "\n"
 
     for record in zone.srvrecord_set.all():
         record_name = record.idna_label

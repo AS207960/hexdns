@@ -594,7 +594,7 @@ class SecondaryDNSZone(models.Model):
 
 class SecondaryDNSZoneRecord(models.Model):
     id = as207960_utils.models.TypedUUIDField("hexdns_szonerecord", primary_key=True)
-    zone = models.ForeignKey(SecondaryDNSZone, on_delete=models.CASCADE)
+    zone = models.ForeignKey(SecondaryDNSZone, on_delete=models.CASCADE, db_index=True)
     record_text = models.TextField()
 
     class Meta:
@@ -606,9 +606,10 @@ class SecondaryDNSZoneRecord(models.Model):
 
 
 class DNSZoneRecord(models.Model):
-    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE)
+    zone = models.ForeignKey(DNSZone, on_delete=models.CASCADE, db_index=True)
     record_name = models.CharField(
-        max_length=255, default="@", verbose_name="Record name (@ for zone root)"
+        max_length=255, default="@", verbose_name="Record name (@ for zone root)",
+        db_index=True
     )
     ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
 
@@ -671,8 +672,8 @@ class DNSZoneRecord(models.Model):
 
 
 class ReverseDNSZoneRecord(models.Model):
-    zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE)
-    record_address = models.GenericIPAddressField()
+    zone = models.ForeignKey(ReverseDNSZone, on_delete=models.CASCADE, db_index=True)
+    record_address = models.GenericIPAddressField(db_index=True)
     ttl = models.PositiveIntegerField(verbose_name="Time to Live (seconds)", default=3600)
 
     class Meta:
