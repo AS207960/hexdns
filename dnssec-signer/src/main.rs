@@ -117,7 +117,6 @@ async fn main() {
     }, lapin::types::FieldTable::default()).await.expect("Unable to declare RabbitMQ queue");
 
     let mut consumer = amqp_channel.basic_consume("hexdns_resign", "", lapin::options::BasicConsumeOptions {
-        no_ack: true,
         ..lapin::options::BasicConsumeOptions::default()
     }, lapin::types::FieldTable::default()).await.expect("Unable to start consuming on RabbitMQ queue");
 
