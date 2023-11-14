@@ -6,5 +6,7 @@ cd ../axfr || exit
 ./build.sh || exit
 cd ../axfr-notify || exit
 ./build.sh || exit
+cd ../dnssec-signer || exit
+./build.sh || exit
 cd ../knot || exit
 ./build.sh || exit
