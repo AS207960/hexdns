@@ -1,0 +1,57 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: hexdns-dnssec-conf
+data:
+  S3_ENDPOINT: "https://s3.as207960.net"
+  S3_REGION: "garage"
+  S3_BUCKET: "hexdns-zones"
+  S3_ACCESS_KEY_ID: "GK145fe00f82e7b03c00d3f153"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-dnssec
+  labels:
+    app: hexdns
+    part: dnssec
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: dnssec
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ip6-ippool\"]"
+      labels:
+        app: hexdns
+        part: dnssec
+    spec:
+      containers:
+        - name: notify
+          image: as207960/hexdns-dnssec-signer:(version)
+          imagePullPolicy: Always
+          env:
+            - name: "RUST_LOG"
+              value: "info"
+          envFrom:
+            - configMapRef:
+                name: hexdns-dnssec-conf
+            - secretRef:
+                name: hexdns-rpc
+            - secretRef:
+                name: hexdns-s3
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-dnssec
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: dnssec
+  policyTypes:
+    - Ingress
