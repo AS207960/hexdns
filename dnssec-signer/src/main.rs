@@ -143,7 +143,7 @@ async fn main() {
                 let mut body = r.body.into_async_read();
                 let mut contents = vec![];
                 if let Err(err) = body.read_to_end(&mut contents).await {
-                    warn!("Unable to read zone contents: {}", err);
+                    warn!("Unable to read zone contents zone={}: {}", zone_name, err);
                     delivery
                         .nack(lapin::options::BasicNackOptions::default())
                         .await
@@ -153,7 +153,7 @@ async fn main() {
                 match String::from_utf8(contents) {
                     Ok(c) => c,
                     Err(err) => {
-                        warn!("Unable to parse zone contents as UTF-8: {}", err);
+                        warn!("Unable to parse zone contents as UTF-8 zone={}: {}", zone_name, err);
                         delivery
                             .nack(lapin::options::BasicNackOptions::default())
                             .await
@@ -163,7 +163,7 @@ async fn main() {
                 }
             },
             Err(e) => {
-                warn!("Unable to fetch zone contents: {}", e);
+                warn!("Unable to fetch zone contents zone={}: {}", zone_name, e);
                 delivery
                     .nack(lapin::options::BasicNackOptions::default())
                     .await
@@ -179,7 +179,7 @@ async fn main() {
                 let mut body = r.body.into_async_read();
                 let mut contents = vec![];
                 if let Err(err) = body.read_to_end(&mut contents).await {
-                    warn!("Unable to read ZSK: {}", err);
+                    warn!("Unable to read ZSK zone={}: {}", zone_name, err);
                     delivery
                         .nack(lapin::options::BasicNackOptions::default())
                         .await
@@ -189,7 +189,7 @@ async fn main() {
                 contents
             },
             Err(e) => {
-                warn!("Unable to fetch ZSK: {}", e);
+                warn!("Unable to fetch ZSK zone={}: {}", zone_name, e);
                 delivery
                     .nack(lapin::options::BasicNackOptions::default())
                     .await
@@ -201,7 +201,7 @@ async fn main() {
         let zsk = match openssl::ec::EcKey::private_key_from_pem(&zsk_pem) {
             Ok(k) => k,
             Err(e) => {
-                warn!("Unable to parse ZSK: {}", e);
+                warn!("Unable to parse ZSK zone={}: {}", zone_name, e);
                 delivery
                     .nack(lapin::options::BasicNackOptions::default())
                     .await
@@ -213,7 +213,7 @@ async fn main() {
         let zone_signed = match dnssec::sign_zone(&zone_contents, &ksk, &zsk) {
             Ok(z) => z,
             Err(e) => {
-                warn!("Unable to sign zone: {}", e);
+                warn!("Unable to sign zone zone={}: {}", zone_name, e);
                 delivery
                     .nack(lapin::options::BasicNackOptions::default())
                     .await
@@ -228,7 +228,7 @@ async fn main() {
             .key(format!("{}zone.signed", zone_name))
             .body(byte_stream)
             .send().await {
-            warn!("Unable to upload signed zone: {}", err);
+            warn!("Unable to upload signed zone zone={}: {}", zone_name, err);
             delivery
                 .nack(lapin::options::BasicNackOptions::default())
                 .await
