@@ -24,18 +24,27 @@ spec:
   template:
     metadata:
       annotations:
-        cni.projectcalico.org/ipv6pools: "[\"default-ip6-ippool\"]"
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
       labels:
         app: hexdns
         part: dnssec
     spec:
+      volumes:
+        - name: ksk
+          secret:
+              secretName: hexdns-key-priv
       containers:
         - name: notify
           image: as207960/hexdns-dnssec-signer:(version)
           imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /ksk
+              name: ksk
           env:
             - name: "RUST_LOG"
               value: "info"
+            - name: "KSK_PATH"
+              value: "/ksk/privkey.pem"
           envFrom:
             - configMapRef:
                 name: hexdns-dnssec-conf
