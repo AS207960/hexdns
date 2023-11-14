@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.conf import settings
+from django.utils import timezone
 from . import models, apps, utils, netnod
 import dnslib
 import base64
@@ -435,15 +436,28 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
     return zone_file
 
 
-def write_zone_file(zone_contents: str, zone_name: str):
+def write_zone_file(zone_contents: str, priv_key: str, zone_name: str):
     zone_storage = ZoneStorage()
     zone_storage.save(
         f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents.encode())
     )
+    if priv_key:
+        zone_storage.save(
+            f"{zone_name}key", django.core.files.base.ContentFile(priv_key.encode())
+        )
+
+
+def send_resign_message(label: dnslib.DNSLabel):
+    global pika_client
+
+    def pub(channel):
+        channel.queue_declare(queue='hexdns_resign', durable=True)
+        channel.basic_publish(exchange='', routing_key='hexdns_resign', body=str(label).encode())
+
+    pika_client.get_channel(pub)
 
 
 def send_reload_message(label: dnslib.DNSLabel):
-    time.sleep(15)
     global pika_client
 
     def pub(channel):
@@ -459,7 +473,7 @@ def send_reload_message(label: dnslib.DNSLabel):
 )
 def add_fzone(zone_id: str):
     try:
-        zone = models.DNSZone.objects.get(id=zone_id)
+        zone: models.DNSZone = models.DNSZone.objects.get(id=zone_id)
     except models.DNSZone.DoesNotExist:
         return
 
@@ -467,7 +481,10 @@ def add_fzone(zone_id: str):
     if pattern.match(zone.zone_root):
         zone_root = dnslib.DNSLabel(zone.zone_root)
         zone_file = generate_fzone(zone)
-        write_zone_file(zone_file, str(zone_root))
+        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        send_resign_message(zone_root)
+        zone.last_resign = timezone.now()
+        zone.save()
         update_catalog.delay()
 
 
@@ -477,7 +494,7 @@ def add_fzone(zone_id: str):
 )
 def update_fzone(zone_id: str):
     try:
-        zone = models.DNSZone.objects.get(id=zone_id)
+        zone: models.DNSZone = models.DNSZone.objects.get(id=zone_id)
     except models.DNSZone.DoesNotExist:
         return
 
@@ -485,8 +502,11 @@ def update_fzone(zone_id: str):
     if pattern.match(zone.zone_root):
         zone_root = dnslib.DNSLabel(zone.zone_root)
         zone_file = generate_fzone(zone)
-        write_zone_file(zone_file, str(zone_root))
+        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
         send_reload_message(zone_root)
+        send_resign_message(zone_root)
+        zone.last_resign = timezone.now()
+        zone.save()
 
 
 @shared_task(
@@ -495,7 +515,7 @@ def update_fzone(zone_id: str):
 )
 def add_rzone(zone_id: str):
     try:
-        zone = models.ReverseDNSZone.objects.get(id=zone_id)
+        zone: models.ReverseDNSZone = models.ReverseDNSZone.objects.get(id=zone_id)
     except models.ReverseDNSZone.DoesNotExist:
         return
 
@@ -504,7 +524,10 @@ def add_rzone(zone_id: str):
         (zone.zone_root_address, zone.zone_root_prefix)
     )
     zone_root = network_to_apra(zone_network)
-    write_zone_file(zone_file, str(zone_root))
+    write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+    send_resign_message(zone_root)
+    zone.last_resign = timezone.now()
+    zone.save()
     update_catalog.delay()
 
 
@@ -514,7 +537,7 @@ def add_rzone(zone_id: str):
 )
 def update_rzone(zone_id: str):
     try:
-        zone = models.ReverseDNSZone.objects.get(id=zone_id)
+        zone: models.ReverseDNSZone = models.ReverseDNSZone.objects.get(id=zone_id)
     except models.ReverseDNSZone.DoesNotExist:
         return
 
@@ -523,8 +546,11 @@ def update_rzone(zone_id: str):
         (zone.zone_root_address, zone.zone_root_prefix)
     )
     zone_root = network_to_apra(zone_network)
-    write_zone_file(zone_file, str(zone_root))
+    write_zone_file(zone_file, zone.zsk_private, str(zone_root))
     send_reload_message(zone_root)
+    send_resign_message(zone_root)
+    zone.last_resign = timezone.now()
+    zone.save()
 
 
 @shared_task(
@@ -533,13 +559,14 @@ def update_rzone(zone_id: str):
 )
 def add_szone(zone_id: str):
     try:
-        zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+        zone: models.SecondaryDNSZone = models.SecondaryDNSZone.objects.get(id=zone_id)
     except models.SecondaryDNSZone.DoesNotExist:
         return
 
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
-    write_zone_file(zone_file, str(zone_root))
+    write_zone_file(zone_file, "", str(zone_root))
+    send_resign_message(zone_root)
     update_catalog.delay()
 
 
@@ -555,7 +582,7 @@ def update_szone(zone_id: str):
 
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
-    write_zone_file(zone_file, str(zone_root))
+    write_zone_file(zone_file, "", str(zone_root))
     send_reload_message(zone_root)
 
 
@@ -628,7 +655,7 @@ def update_signal_zones():
 
         zone_file += zone_file_base
 
-        write_zone_file(zone_file, str(zone_root))
+        write_zone_file(zone_file, "", str(zone_root))
         send_reload_message(zone_root)
 
 
@@ -698,7 +725,7 @@ def update_catalog():
             else:
                 inactive_zones.append(str(zone_root))
 
-    write_zone_file(zone_file, "catalog.")
+    write_zone_file(zone_file, "", "catalog.")
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
 
     update_signal_zones.delay()
