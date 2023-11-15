@@ -110,7 +110,7 @@ spec:
           emptyDir: {}
         - name: config
           configMap:
-            name: hexdns-knot
+            name: hexdns-knot-pre-signed
         - name: rundir
           emptyDir: {}
         - name: devfuse
@@ -121,7 +121,7 @@ spec:
       containers:
         - name: knot
           image: as207960/knotd:6
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "cp /config-template/knot.conf /config/knot.conf &&
@@ -153,7 +153,7 @@ spec:
                 name: hexdns-knot-xfr
         - name: reloader
           image: as207960/hexdns-knot-sidecar:(version)
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "sleep 30; python3 /app/sidecar.py"
@@ -166,6 +166,7 @@ spec:
                 name: hexdns-rpc
         - name: s3-zones
           image: as207960/goofys
+          imagePullPolicy: IfNotPresent
           args: ["-c", "goofys -f --endpoint $ENDPOINT --region $REGION $BUCKET /mnt/s3"]
           lifecycle:
             preStop:
@@ -184,7 +185,7 @@ spec:
               mountPropagation: Bidirectional
         - name: exporter
           image: as207960/knot-exporter:2
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "sleep 20 && 

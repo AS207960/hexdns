@@ -131,7 +131,7 @@ spec:
       containers:
         - name: knot
           image: as207960/knotd:7
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "cp /config-template/knot.conf /config/knot.conf &&
@@ -164,14 +164,14 @@ spec:
               add: [ "NET_RAW", "NET_ADMIN", "SYS_ADMIN", "IPC_LOCK", "SYS_RESOURCE" ]
         - name: reloader
           image: as207960/hexdns-knot-sidecar-secondary:(version)
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["python3", "/app/sidecar-secondary.py"]
           envFrom:
             - secretRef:
                 name: hexdns-rpc
         - name: exporter
           image: as207960/knot-exporter:2
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "sleep 20 && 
