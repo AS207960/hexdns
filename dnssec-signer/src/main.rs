@@ -226,8 +226,6 @@ async fn main() {
             }
         };
 
-        println!("{}", zone_signed);
-
         let byte_stream = aws_sdk_s3::primitives::ByteStream::from(zone_signed.as_bytes().to_vec());
         if let Err(err) = s3_client.put_object()
             .bucket(s3_bucket)

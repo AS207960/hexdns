@@ -209,8 +209,6 @@ pub fn sign_zone(
                 .map_err(|e| format!("Unable to emit record: {}", e))?;
         }
 
-        println!("{:?} {}", rr_key, hex::encode(&tbs));
-
         let mut hasher = openssl::hash::Hasher::new(
             openssl::hash::MessageDigest::sha256()
         ).unwrap();
