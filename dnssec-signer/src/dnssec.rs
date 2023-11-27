@@ -50,7 +50,7 @@ pub fn sign_zone(
         .map_err(|e| format!("Unable to calculate ZSK key tag: {}", e))?;
     let ksk_key_tag = ksk_rr.calculate_key_tag()
         .map_err(|e| format!("Unable to calculate KSK key tag: {}", e))?;
-    let now = chrono::Utc::now();
+    let now = chrono::Utc::now() - chrono::Duration::minutes(5);
     let expiry = now + chrono::Duration::days(14);
 
     let mut dnskey_rset = trust_dns_proto::rr::RecordSet::new(
