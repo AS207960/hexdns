@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use trust_dns_proto::serialize::binary::BinEncodable;
 use base64::Engine;
 use itertools::Itertools;
@@ -208,6 +209,8 @@ pub fn sign_zone(
                 .map_err(|e| format!("Unable to emit record: {}", e))?;
         }
 
+        println!("{:?} {}", rr_key, hex::encode(&tbs));
+
         let mut hasher = openssl::hash::Hasher::new(
             openssl::hash::MessageDigest::sha256()
         ).unwrap();
@@ -293,6 +296,31 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                     let txt = String::from_utf8_lossy(txt).replace("\"", "\\\"");
                     format!("\"{}\"", txt)
                 }).join(" ")
+            }
+            trust_dns_proto::rr::record_data::RData::CAA(caa) => {
+                let txt = match caa.value() {
+                    trust_dns_proto::rr::rdata::caa::Value::Issuer(name, values) => {
+                        let mut out = String::new();
+                        if let Some(name) = name {
+                            write!(out, "{name}").unwrap();
+                        }
+                        for value in values.iter() {
+                            write!(out, "; {value}").unwrap();
+                        }
+                        out
+                    },
+                    trust_dns_proto::rr::rdata::caa::Value::Url(issue) => {
+                        issue.to_string()
+                    },
+                    trust_dns_proto::rr::rdata::caa::Value::Unknown(v) => {
+                        String::from_utf8_lossy(v).replace("\"", "\\\"")
+                    }
+                };
+                format!("{} {} \"{}\"", if caa.issuer_critical() {
+                    "128"
+                } else {
+                    "0"
+                }, caa.tag(), txt)
             }
             trust_dns_proto::rr::record_data::RData::Unknown {
                 rdata, ..

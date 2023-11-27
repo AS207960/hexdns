@@ -115,6 +115,10 @@ async fn main() {
         durable: true,
         ..lapin::options::QueueDeclareOptions::default()
     }, lapin::types::FieldTable::default()).await.expect("Unable to declare RabbitMQ queue");
+    amqp_channel.exchange_declare("hexdns_primary_reload", lapin::ExchangeKind::Fanout, lapin::options::ExchangeDeclareOptions {
+        durable: true,
+        ..lapin::options::ExchangeDeclareOptions::default()
+    }, lapin::types::FieldTable::default()).await.expect("Unable to declare RabbitMQ exchange");
 
     let mut consumer = amqp_channel.basic_consume("hexdns_resign", "", lapin::options::BasicConsumeOptions {
         ..lapin::options::BasicConsumeOptions::default()
@@ -222,6 +226,8 @@ async fn main() {
             }
         };
 
+        println!("{}", zone_signed);
+
         let byte_stream = aws_sdk_s3::primitives::ByteStream::from(zone_signed.as_bytes().to_vec());
         if let Err(err) = s3_client.put_object()
             .bucket(s3_bucket)
@@ -235,6 +241,14 @@ async fn main() {
                 .expect("unable to nack");
             continue;
         }
+
+        info!("Signed zone zone={}", zone_name);
+
+        amqp_channel.basic_publish(
+            "hexdns_primary_reload", "",
+            lapin::options::BasicPublishOptions::default(), zone_name.as_bytes(),
+            lapin::BasicProperties::default()
+        ).await.expect("Unable to publish to RabbitMQ exchange");
 
         delivery
             .ack(lapin::options::BasicAckOptions::default())
