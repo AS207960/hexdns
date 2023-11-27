@@ -152,7 +152,7 @@ data:
         file: /zones/cds-always.dns.as207960.ltd.uk.zone
     
       - domain: cds-delete.dns.as207960.ltd.uk.
-        template: zone-cds-disable
+        template: zone
         file: /zones/cds-delete.dns.as207960.ltd.uk.zone
     
       - domain: kube-cluster.as207960.net
