@@ -503,7 +503,6 @@ def update_fzone(zone_id: str):
         zone_root = dnslib.DNSLabel(zone.zone_root)
         zone_file = generate_fzone(zone)
         write_zone_file(zone_file, zone.zsk_private, str(zone_root))
-        send_reload_message(zone_root)
         send_resign_message(zone_root)
         zone.last_resign = timezone.now()
         zone.save()
@@ -547,7 +546,6 @@ def update_rzone(zone_id: str):
     )
     zone_root = network_to_apra(zone_network)
     write_zone_file(zone_file, zone.zsk_private, str(zone_root))
-    send_reload_message(zone_root)
     send_resign_message(zone_root)
     zone.last_resign = timezone.now()
     zone.save()
@@ -656,7 +654,7 @@ def update_signal_zones():
         zone_file += zone_file_base
 
         write_zone_file(zone_file, "", str(zone_root))
-        send_reload_message(zone_root)
+        send_resign_message(zone_root)
 
 
 @shared_task(
@@ -691,10 +689,7 @@ def update_catalog():
             if is_active(owner):
                 active_zones.append((str(zone_root), owner.username))
                 zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
-                if zone.cds_disable:
-                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
-                else:
-                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
             else:
                 inactive_zones.append(str(zone_root))
 
@@ -707,10 +702,7 @@ def update_catalog():
         if is_active(owner):
             active_zones.append((str(zone_root), owner.username))
             zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
-            if zone.cds_disable:
-                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-cds-disable\"\n"
-            else:
-                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+            zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
         else:
             inactive_zones.append(str(zone_root))
 

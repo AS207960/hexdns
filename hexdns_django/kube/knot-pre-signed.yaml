@@ -231,6 +231,8 @@ kind: Service
 metadata:
   name: hexdns-knot-pre-signed
 spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
   selector:
     app: hexdns
     part: knot

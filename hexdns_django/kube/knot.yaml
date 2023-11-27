@@ -96,59 +96,29 @@ data:
         nsec3-iterations: 10
         dnskey-management: incremental
         delete-delay: 30d
-    
-      - id: zone-cds-disable
-        signing-threads: 4
-        algorithm: ecdsap256sha256
-        ksk-shared: on
-        dnskey-ttl: 86400
-        reproducible-signing: on
-        nsec3: on
-        cds-cdnskey-publish: delete-dnssec
-        zsk-lifetime: 30d
-        ksk-submission: zone
-        nsec3-iterations: 10
-        dnskey-management: incremental
-        delete-delay: 30d
 
     template:
       - id: zone
         storage: /zones
-        file: %s.zone
-        dnssec-signing: on
-        dnssec-policy: zone
+        file: %s.zone.signed
+        dnssec-signing: off
+        zonefile-sync: -1
+        zonefile-load: whole
+        journal-content: none
+        semantic-checks: on
         acl: [secondary-xfr, netnod-xfr]
         notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
-        zonefile-sync: -1
-        zonefile-load: difference-no-serial
-        journal-content: all
-        semantic-checks: on
-        serial-policy: dateserial
-
-      - id: zone-cds-disable
-        storage: /zones
-        file: %s.zone
-        dnssec-signing: on
-        dnssec-policy: zone-cds-disable
-        acl: [secondary-xfr, netnod-xfr]
-        notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
-        zonefile-sync: -1
-        zonefile-load: difference-no-serial
-        journal-content: all
-        semantic-checks: on
-        serial-policy: dateserial
 
       - id: zone-secondary
         storage: /zones
         file: %s.zone
         dnssec-signing: off
+        zonefile-sync: -1
+        zonefile-load: whole
+        journal-content: none
+        semantic-checks: on
         acl: [secondary-xfr, netnod-xfr]
         notify: [notify-sidecar, netnod-dist-1, netnod-dist-2]
-        zonefile-sync: -1
-        zonefile-load: difference-no-serial
-        journal-content: all
-        semantic-checks: on
-        serial-policy: dateserial
 
       - id: zone-k8s
         storage: /zones
@@ -168,11 +138,14 @@ data:
       - domain: catalog.dns.as207960.ltd.uk.
         file: /zones/catalog.zone
         catalog-role: interpret
-        catalog-template: [ zone, zone-cds-disable, zone-secondary ]
+        catalog-template: [ zone, zone-secondary ]
         acl: secondary-xfr
         notify: notify-sidecar
         semantic-checks: on
-        serial-policy: dateserial
+        zonefile-sync: -1
+        zonefile-load: whole
+        journal-content: none
+        dnssec-signing: off
     
       - domain: cds-always.dns.as207960.ltd.uk.
         template: zone
