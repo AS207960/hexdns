@@ -800,7 +800,7 @@ spec:
             cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
           labels:
             app: hexdns
-            part: update-aname
+            part: resign
             part-type: cronjob
         spec:
           shareProcessNamespace: true
@@ -815,7 +815,7 @@ spec:
             - name: django
               image: as207960/hexdns-django:(version)
               imagePullPolicy: Always
-              command: ["sh", "-c", "python3 manage.py resign-zones"]
+              command: ["sh", "-c", "python3 manage.py update-all-zones"]
               volumeMounts:
                 - mountPath: "/pubkey/"
                   name: pubkey
