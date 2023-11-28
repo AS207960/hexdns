@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.utils import timezone
 import pika
 from dns_grpc import models, tasks
 import dns_grpc.proto.billing_pb2
@@ -14,10 +15,17 @@ class Command(BaseCommand):
         channel = connection.channel()
 
         channel.queue_declare(queue='hexdns_sub_billing_notif', durable=True)
+        channel.queue_declare(queue='hexdns_disable_dnssec', durable=True)
+        channel.queue_declare(queue='hexdns_enable_dnssec', durable=True)
 
         channel.basic_qos(prefetch_count=1)
+        channel.basic_consume(queue='hexdns_sub_billing_notif', on_message_callback=self.sub_callback, auto_ack=False)
         channel.basic_consume(
-            queue='hexdns_sub_billing_notif', on_message_callback=self.sub_callback, auto_ack=False)
+            queue='hexdns_disable_dnssec', on_message_callback=self.dnssec_disable_callback, auto_ack=False
+        )
+        channel.basic_consume(
+            queue='hexdns_enable_dnssec', on_message_callback=self.dnssec_enable_callback, auto_ack=False
+        )
 
         print("RPC handler now running")
         try:
@@ -26,7 +34,8 @@ class Command(BaseCommand):
             print("Exiting...")
             return
 
-    def sub_callback(self, channel, method, properties, body):
+    @staticmethod
+    def sub_callback(channel, method, properties, body):
         msg = dns_grpc.proto.billing_pb2.SubscriptionNotification()
         msg.ParseFromString(body)
 
@@ -51,5 +60,37 @@ class Command(BaseCommand):
             account.save()
 
         tasks.update_catalog.delay()
+
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+    @staticmethod
+    def dnssec_disable_callback(channel, method, properties, body):
+        domain_name = body.decode("utf-8")
+
+        zone = models.DNSZone.objects.filter(zone_root__iexact=domain_name).first()
+        if not zone:
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        zone.cds_disable = True
+        zone.last_modified = timezone.now()
+        zone.save()
+        tasks.update_fzone.delay(zone.id)
+
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+    @staticmethod
+    def dnssec_enable_callback(channel, method, properties, body):
+        domain_name = body.decode("utf-8")
+
+        zone = models.DNSZone.objects.filter(zone_root__iexact=domain_name).first()
+        if not zone:
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        zone.cds_disable = False
+        zone.last_modified = timezone.now()
+        zone.save()
+        tasks.update_fzone.delay(zone.id)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)

@@ -590,7 +590,7 @@ def edit_redirect_record(request, record_id):
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit redirect record", "form": record_form, },
     ))
-    
+
 
 @login_required
 def copy_redirect_record(request, record_id):
@@ -1799,10 +1799,10 @@ def delete_rp_record(request, record_id):
         raise PermissionDenied
 
     if request.method == "POST" and request.POST.get("delete") == "true":
-            user_record.zone.last_modified = timezone.now()
-            user_record.zone.save()
-            user_record.delete()
-            return redirect("edit_zone", user_record.zone.id)
+        user_record.zone.last_modified = timezone.now()
+        user_record.zone.save()
+        user_record.delete()
+        return redirect("edit_zone", user_record.zone.id)
 
     return render(
         request,
@@ -1935,6 +1935,7 @@ def disable_zone_cds(request, zone_id):
         user_zone.cds_disable = True
         user_zone.last_modified = timezone.now()
         user_zone.save()
+        tasks.update_fzone.delay(user_zone.id)
         return redirect('edit_zone_cds', user_zone.id)
 
     return render(
@@ -1957,6 +1958,7 @@ def enable_zone_cds(request, zone_id):
     user_zone.cds_disable = False
     user_zone.last_modified = timezone.now()
     user_zone.save()
+    tasks.update_fzone.delay(user_zone.id)
     return redirect('edit_zone_cds', user_zone.id)
 
 
