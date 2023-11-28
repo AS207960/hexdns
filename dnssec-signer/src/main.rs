@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use tokio::io::AsyncReadExt;
 
 mod parser;
+mod lexer;
 mod dnssec;
 
 #[derive(Debug)]

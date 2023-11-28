@@ -13,7 +13,7 @@ pub fn sign_zone(
     openssl::rand::rand_bytes(&mut salt).map_err(|e| format!("Unable to generate salt: {}", e))?;
     let iterations = 10;
 
-    let zone_file_lexer = trust_dns_client::serialize::txt::Lexer::new(zone);
+    let zone_file_lexer = crate::lexer::Lexer::new(zone);
     let (origin, zone_file) = crate::parser::Parser::new()
         .parse(zone_file_lexer, trust_dns_proto::rr::Name::default(), trust_dns_proto::rr::DNSClass::IN)
         .map_err(|e| format!("Unable to parse zone file: {}", e))?;
@@ -289,7 +289,7 @@ fn encode_type(rr_type: trust_dns_proto::rr::RecordType) -> String {
 fn encode_byte_string(data: &[u8]) -> String {
     let mut out = String::new();
     for b in data {
-        if *b < 128 {
+        if b.is_ascii() {
             write!(out, "{}", (*b) as char).unwrap();
         } else {
             write!(out, "\\{}", *b).unwrap();

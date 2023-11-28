@@ -8,7 +8,8 @@ use trust_dns_client::rr::{DNSClass, LowerName, Name, RData, Record, RecordSet, 
 use trust_dns_client::rr::rdata::{NULL};
 use trust_dns_client::rr::RecordType as TrustRecordType;
 use trust_dns_client::serialize::txt::RDataParser;
-use trust_dns_client::serialize::txt::{Lexer, Token};
+use trust_dns_client::serialize::txt::Token;
+use crate::lexer::Lexer;
 use trust_dns_proto::serialize::binary::BinEncoder;
 
 #[derive(Clone, Copy, Default)]
@@ -395,9 +396,11 @@ impl Parser {
                     code: 17,
                     rdata: parse_rp(tokens)?
                 },
-                _ => RData::parse(
-                    rtype.to_trust(), tokens, Some(&origin),
-                )?
+                _ => {
+                    RData::parse(
+                        rtype.to_trust(), tokens, Some(&origin),
+                    )?
+                }
             }
         };
 
