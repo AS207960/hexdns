@@ -286,12 +286,24 @@ fn encode_type(rr_type: trust_dns_proto::rr::RecordType) -> String {
     }
 }
 
+fn encode_byte_string(data: &[u8]) -> String {
+    let mut out = String::new();
+    for b in data {
+        if *b < 128 {
+            write!(out, "{}", b as char).unwrap();
+        } else {
+            write!(out, "\\{}", b).unwrap();
+        }
+    }
+    out
+}
+
 fn output_record(record: &trust_dns_proto::rr::Record) -> String {
     let rdata = if let Some(data) = record.data() {
         match data {
             trust_dns_proto::rr::record_data::RData::TXT(txt) => {
                 txt.iter().map(|txt| {
-                    let txt = String::from_utf8_lossy(txt).replace("\"", "\\\"");
+                    let txt = encode_byte_string(txt).replace("\"", "\\\"");
                     format!("\"{}\"", txt)
                 }).join(" ")
             }
@@ -311,7 +323,7 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                         issue.to_string()
                     },
                     trust_dns_proto::rr::rdata::caa::Value::Unknown(v) => {
-                        String::from_utf8_lossy(v).replace("\"", "\\\"")
+                        encode_byte_string(v).replace("\"", "\\\"")
                     }
                 };
                 format!("{} {} \"{}\"", if caa.issuer_critical() {
