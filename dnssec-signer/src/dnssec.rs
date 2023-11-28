@@ -290,9 +290,9 @@ fn encode_byte_string(data: &[u8]) -> String {
     let mut out = String::new();
     for b in data {
         if *b < 128 {
-            write!(out, "{}", b as char).unwrap();
+            write!(out, "{}", (*b) as char).unwrap();
         } else {
-            write!(out, "\\{}", b).unwrap();
+            write!(out, "\\{}", *b).unwrap();
         }
     }
     out
