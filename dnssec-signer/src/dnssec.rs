@@ -23,8 +23,33 @@ pub fn sign_zone(
     }).ok_or_else(|| format!("Zone file does not contain SOA record"))?;
     let soa = soa_rrset.records_without_rrsigs().next().unwrap().data().unwrap().as_soa().unwrap();
 
+    let now = chrono::Utc::now() - chrono::Duration::minutes(5);
+    let expiry = now + chrono::Duration::days(14);
+
     let default_ttl = std::cmp::min(soa_rrset.ttl(), soa.minimum());
     let mut out_zone = zone_file.clone();
+
+    out_zone.remove(&trust_dns_client::rr::RrKey {
+        name: origin.clone().into(),
+        record_type: trust_dns_client::rr::RecordType::SOA,
+    }).unwrap();
+    let new_serial = (now.timestamp() & 0xFFFFFFFF) as u32;
+    let out_soa = trust_dns_proto::rr::rdata::soa::SOA::new(
+        soa.mname().to_owned(), soa.rname().to_owned(),
+        new_serial, soa.refresh(), soa.retry(),
+        soa.expire(), soa.minimum()
+    );
+    let mut out_soa_rrset = trust_dns_proto::rr::RecordSet::new(
+        &origin, trust_dns_client::rr::RecordType::SOA, new_serial,
+    );
+    out_soa_rrset.set_ttl(default_ttl);
+    out_soa_rrset.add_rdata(trust_dns_proto::rr::record_data::RData::SOA(
+       out_soa
+    ));
+    out_zone.insert(trust_dns_client::rr::RrKey {
+        name: origin.clone().into(),
+        record_type: trust_dns_client::rr::RecordType::SOA,
+    }, out_soa_rrset);
 
     let mut ctx = openssl::bn::BigNumContext::new()
         .map_err(|e| format!("Unable to create BigNum context: {}", e))?;
@@ -50,11 +75,9 @@ pub fn sign_zone(
         .map_err(|e| format!("Unable to calculate ZSK key tag: {}", e))?;
     let ksk_key_tag = ksk_rr.calculate_key_tag()
         .map_err(|e| format!("Unable to calculate KSK key tag: {}", e))?;
-    let now = chrono::Utc::now() - chrono::Duration::minutes(5);
-    let expiry = now + chrono::Duration::days(14);
 
     let mut dnskey_rset = trust_dns_proto::rr::RecordSet::new(
-        &origin, trust_dns_client::rr::RecordType::DNSKEY, soa.serial(),
+        &origin, trust_dns_client::rr::RecordType::DNSKEY, new_serial,
     );
     dnskey_rset.set_ttl(default_ttl);
     dnskey_rset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
@@ -69,7 +92,7 @@ pub fn sign_zone(
     }, dnskey_rset);
 
     let mut nsec3_param_rrset = trust_dns_proto::rr::RecordSet::new(
-        &origin, trust_dns_client::rr::RecordType::NSEC3PARAM, soa.serial(),
+        &origin, trust_dns_client::rr::RecordType::NSEC3PARAM, new_serial,
     );
     nsec3_param_rrset.set_ttl(default_ttl);
     nsec3_param_rrset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
@@ -137,7 +160,7 @@ pub fn sign_zone(
             .append_name(&origin)
             .map_err(|e| format!("Unable to append name: {}", e))?;
         let mut nsec_rrset = trust_dns_proto::rr::RecordSet::new(
-            &owner_name, trust_dns_client::rr::RecordType::NSEC3, soa.serial(),
+            &owner_name, trust_dns_client::rr::RecordType::NSEC3, new_serial,
         );
         nsec_rrset.set_ttl(default_ttl);
         nsec_rrset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
