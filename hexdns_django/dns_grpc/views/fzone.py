@@ -310,7 +310,25 @@ def edit_address_record(request, record_id):
     return render(
         request,
         "dns_grpc/fzone/edit_record.html",
-        {"title": "Edit address record", "form": record_form, },
+        {"title": "Edit address record", "form": record_form},
+    )
+
+
+@login_required
+def copy_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.AddressRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.AddressRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_address_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create address record", "form": record_form},
     )
 
 
@@ -393,6 +411,24 @@ def edit_dynamic_address_record(request, record_id):
 
 
 @login_required
+def copy_dynamic_address_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DynamicAddressRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.MXRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_dynamic_address_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create dynamic address record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_dynamic_address_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DynamicAddressRecord, id=record_id)
@@ -466,6 +502,24 @@ def edit_aname_record(request, record_id):
 
 
 @login_required
+def copy_aname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.ANAMERecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.ANAMERecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_aname_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create ANAME record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_aname_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ANAMERecord, id=record_id)
@@ -509,7 +563,7 @@ def create_redirect_record(request, zone_id):
     return render(
         request,
         "dns_grpc/fzone/edit_record.html",
-        {"title": "Create redirect record", "form": record_form, },
+        {"title": "Create redirect record", "form": record_form},
     )
 
 
@@ -531,10 +585,28 @@ def edit_redirect_record(request, record_id):
     else:
         record_form = forms.RedirectRecordForm(instance=user_record)
 
-    return render(
+    return (render(
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit redirect record", "form": record_form, },
+    ))
+    
+
+@login_required
+def copy_redirect_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.RedirectRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.RedirectRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_redirect_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create redirect record", "form": record_form, },
     )
 
 
@@ -612,6 +684,23 @@ def edit_cname_record(request, record_id):
 
 
 @login_required
+def copy_cname_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.CNAMERecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.CNAMERecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_cname_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create CNAME record", "form": record_form, },
+    )
+
+@login_required
 def delete_cname_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CNAMERecord, id=record_id)
@@ -681,6 +770,24 @@ def edit_mx_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit MX record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_mx_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.MXRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.MXRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_mx_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create MX record", "form": record_form, },
     )
 
 
@@ -758,6 +865,23 @@ def edit_ns_record(request, record_id):
 
 
 @login_required
+def copy_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.NSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.NSRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_ns_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create NS record", "form": record_form, },
+    )
+
+@login_required
 def delete_ns_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.NSRecord, id=record_id)
@@ -827,6 +951,24 @@ def edit_txt_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit TXT record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_txt_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.TXTRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.TXTRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_txt_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create TXT record", "form": record_form, },
     )
 
 
@@ -904,6 +1046,24 @@ def edit_srv_record(request, record_id):
 
 
 @login_required
+def copy_srv_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.SRVRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.SRVRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_srv_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create SRV record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_srv_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SRVRecord, id=record_id)
@@ -977,6 +1137,23 @@ def edit_caa_record(request, record_id):
 
 
 @login_required
+def copy_caa_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.CAARecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.CAARecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_caa_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create CAA record", "form": record_form, },
+    )
+
+@login_required
 def delete_caa_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.CAARecord, id=record_id)
@@ -1046,6 +1223,24 @@ def edit_naptr_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit NAPTR record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_naptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.NAPTRRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.ANAMERecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_naptr_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create NAPTR record", "form": record_form, },
     )
 
 
@@ -1123,6 +1318,24 @@ def edit_sshfp_record(request, record_id):
 
 
 @login_required
+def copy_sshfp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.SSHFPRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.SSHFPRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_sshfp_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create SSHFP record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_sshfp_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.SSHFPRecord, id=record_id)
@@ -1192,6 +1405,24 @@ def edit_ds_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit DS record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_ds_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.DSRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_ds_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create DS record", "form": record_form, },
     )
 
 
@@ -1269,6 +1500,24 @@ def edit_dnskey_record(request, record_id):
 
 
 @login_required
+def copy_dnskey_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.DNSKEYRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.DNSKEYRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_dnskey_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create DNSKEY record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_dnskey_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.DNSKEYRecord, id=record_id)
@@ -1338,6 +1587,24 @@ def edit_loc_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit LOC record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_loc_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.LOCRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.LOCRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_loc_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create LOC record", "form": record_form, },
     )
 
 
@@ -1415,6 +1682,24 @@ def edit_hinfo_record(request, record_id):
 
 
 @login_required
+def copy_hinfo_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.HINFORecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.HINFORecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_hinfo_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create HINFO record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_hinfo_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.HINFORecord, id=record_id)
@@ -1488,6 +1773,24 @@ def edit_rp_record(request, record_id):
 
 
 @login_required
+def copy_rp_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.RPRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.RPRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_rp_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create RP record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_rp_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.RPRecord, id=record_id)
@@ -1556,6 +1859,24 @@ def edit_https_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit HTTPS record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_https_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.HTTPSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.HTTPSRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_https_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create HTTPS record", "form": record_form, },
     )
 
 

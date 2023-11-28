@@ -5,7 +5,7 @@ import django_keycloak_auth.clients
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
 from .. import forms, models, tasks, utils
@@ -116,6 +116,24 @@ def edit_r_ptr_record(request, record_id):
 
 
 @login_required
+def copy_r_ptr_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.PTRRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.ReversePTRRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_r_ptr_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create PTR record", "form": record_form, },
+    )
+
+
+@login_required
 def delete_r_ptr_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.PTRRecord, id=record_id)
@@ -186,6 +204,24 @@ def edit_r_ns_record(request, record_id):
         request,
         "dns_grpc/fzone/edit_record.html",
         {"title": "Edit NS record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_r_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.NSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.ReverseNSRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_r_ns_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create NS record", "form": record_form, },
     )
 
 

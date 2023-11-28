@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "crispy_forms",
     "dns_grpc",
     "django_grpc",
+    'crispy_bootstrap4',
     'rest_framework',
 ]
 
