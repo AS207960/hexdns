@@ -9,6 +9,7 @@ use trust_dns_client::rr::rdata::{NULL};
 use trust_dns_client::rr::RecordType as TrustRecordType;
 use trust_dns_client::serialize::txt::RDataParser;
 use trust_dns_client::serialize::txt::Token;
+use trust_dns_proto::rr::domain::Label;
 use crate::lexer::Lexer;
 use trust_dns_proto::serialize::binary::BinEncoder;
 
@@ -219,7 +220,7 @@ impl Parser {
 
                         // if CharData, then Name then ttl_class_type
                         Token::CharData(data) => {
-                            current_name = Some(Name::parse(&data, Some(&origin))?);
+                            current_name = Some(name_from_encoded_str(&data, Some(&origin))?);
                             State::TtlClassType
                         }
 
@@ -924,4 +925,87 @@ fn enc_size(size: f64) -> u8 {
     };
     let size_man = size / 10f64.powf(size_exp);
     (((size_man as u8) << 4) & 0xF0) + (size_exp as u8 & 0x0F)
+}
+
+enum ParseState {
+    Label,
+    Escape1,
+    Escape2(u32),
+    Escape3(u32, u32),
+}
+
+fn name_from_encoded_str(local: &str, origin: Option<&Name>) -> ProtoResult<Name> {
+    let mut name = Name::new();
+    let mut label = String::new();
+
+    let mut state = ParseState::Label;
+
+    if local == "." {
+        name.set_fqdn(true);
+        return Ok(name);
+    }
+
+    for ch in local.chars() {
+        match state {
+            ParseState::Label => match ch {
+                '.' => {
+                    name = name.append_label(Label::from_ascii(&label)?)?;
+                    label.clear();
+                }
+                '\\' => state = ParseState::Escape1,
+                ch if !ch.is_control() && !ch.is_whitespace() => label.push(ch),
+                _ => return Err(format!("unrecognized char: {ch}").into()),
+            },
+            ParseState::Escape1 => {
+                if ch.is_numeric() {
+                    state = ParseState::Escape2(
+                        ch.to_digit(8)
+                            .ok_or_else(|| ProtoError::from(format!("illegal char: {ch}")))?,
+                    );
+                } else {
+                    // it's a single escaped char
+                    label.push(ch);
+                    state = ParseState::Label;
+                }
+            }
+            ParseState::Escape2(i) => {
+                if ch.is_numeric() {
+                    state = ParseState::Escape3(
+                        i,
+                        ch.to_digit(8)
+                            .ok_or_else(|| ProtoError::from(format!("illegal char: {ch}")))?,
+                    );
+                } else {
+                    return Err(ProtoError::from(format!("unrecognized char: {ch}")));
+                }
+            }
+            ParseState::Escape3(i, ii) => {
+                if ch.is_numeric() {
+                    // octal conversion
+                    let val: u32 = (i * 8 * 8)
+                        + (ii * 8)
+                        + ch.to_digit(8)
+                        .ok_or_else(|| ProtoError::from(format!("illegal char: {ch}")))?;
+                    let new: char = char::from_u32(val)
+                        .ok_or_else(|| ProtoError::from(format!("illegal char: {ch}")))?;
+                    label.push(new);
+                    state = ParseState::Label;
+                } else {
+                    return Err(format!("unrecognized char: {ch}").into());
+                }
+            }
+        }
+    }
+
+    if !label.is_empty() {
+        name = name.append_label(Label::from_ascii(&label)?)?;
+    }
+
+    if local.ends_with('.') {
+        name.set_fqdn(true);
+    } else if let Some(other) = origin {
+        return name.append_domain(other);
+    }
+
+    Ok(name)
 }
