@@ -335,7 +335,7 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                     trust_dns_proto::rr::rdata::caa::Value::Issuer(name, values) => {
                         let mut out = String::new();
                         if let Some(name) = name {
-                            write!(out, "{name}").unwrap();
+                            write!(out, "{}", name.to_ascii()).unwrap();
                         }
                         for value in values.iter() {
                             write!(out, "; {value}").unwrap();
@@ -369,7 +369,7 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                         sig.sig_expiration(),
                         sig.sig_inception(),
                         sig.key_tag(),
-                        sig.signer_name(),
+                        sig.signer_name().to_ascii(),
                         base64::engine::general_purpose::STANDARD.encode(sig.sig())
                 )
             }
@@ -390,5 +390,5 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
     } else {
         String::default()
     };
-    format!("{} {} {} {} {}", record.name(), record.ttl(), record.dns_class(), encode_type(record.rr_type()), rdata)
+    format!("{} {} {} {} {}", record.name().to_ascii(), record.ttl(), record.dns_class(), encode_type(record.rr_type()), rdata)
 }
