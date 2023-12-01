@@ -27,7 +27,7 @@ if settings.KUBE_IN_CLUSTER:
 else:
     kubernetes.config.load_kube_config()
 
-DNS_ALPHABET = string.ascii_lowercase + string.digits + "-"
+DNS_ALPHABET = string.ascii_lowercase + string.digits + "-."
 
 
 class DNSError(Exception):
