@@ -3,7 +3,7 @@ use std::str::FromStr;
 use base64::Engine;
 use trust_dns_proto::error::*;
 use trust_dns_client::error::*;
-use trust_dns_proto::rr::dnssec::rdata::{DNSSECRData, DNSKEY, NSEC3PARAM, NSEC3, DS, SIG};
+use trust_dns_proto::rr::dnssec::rdata::{DNSSECRData, DNSKEY, NSEC3PARAM, NSEC3, SIG};
 use trust_dns_client::rr::{DNSClass, LowerName, Name, RData, Record, RecordSet, RrKey};
 use trust_dns_client::rr::rdata::{NULL};
 use trust_dns_client::rr::RecordType as TrustRecordType;
@@ -11,7 +11,7 @@ use trust_dns_client::serialize::txt::RDataParser;
 use trust_dns_client::serialize::txt::Token;
 use trust_dns_proto::rr::domain::Label;
 use crate::lexer::Lexer;
-use trust_dns_proto::serialize::binary::BinEncoder;
+use trust_dns_proto::serialize::binary::{BinEncodable, BinEncoder};
 
 #[derive(Clone, Copy, Default)]
 pub struct Parser;
@@ -377,8 +377,14 @@ impl Parser {
                 RecordType::CDNSKEY => RData::DNSSEC(DNSSECRData::CDNSKEY(parse_dnskey(tokens)?)),
                 RecordType::NSEC3PARAM => RData::DNSSEC(DNSSECRData::NSEC3PARAM(parse_nsec3param(tokens)?)),
                 RecordType::NSEC3 => RData::DNSSEC(DNSSECRData::NSEC3(parse_nsec3(tokens)?)),
-                RecordType::DS => RData::DNSSEC(DNSSECRData::DS(parse_ds(tokens)?)),
-                RecordType::CDS => RData::DNSSEC(DNSSECRData::CDS(parse_ds(tokens)?)),
+                RecordType::DS => RData::DNSSEC(DNSSECRData::Unknown {
+                    code: 43,
+                    rdata: parse_ds(tokens)?
+                }),
+                RecordType::CDS => RData::DNSSEC(DNSSECRData::Unknown {
+                    code: 59,
+                    rdata: parse_ds(tokens)?
+                }),
                 RecordType::RRSIG => RData::DNSSEC(DNSSECRData::SIG(parse_sig(tokens)?)),
                 RecordType::KEY => unimplemented!(),
                 RecordType::NSEC => unimplemented!(),
@@ -586,7 +592,7 @@ fn parse_nsec3<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NS
 }
 
 #[allow(deprecated)]
-pub fn parse_ds<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<DS> {
+pub fn parse_ds<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NULL> {
     let tag_str: &str = tokens
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::Message("key tag not present")))?;
@@ -599,9 +605,9 @@ pub fn parse_ds<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<D
     let tag: u16 = tag_str.parse()?;
     let algorithm = match algorithm_str {
         // Mnemonics from Appendix A.1.
-        "RSAMD5" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(1),
+        "RSAMD5" => trust_dns_proto::rr::dnssec::Algorithm::RSAMD5,
         "DH" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(2),
-        "DSA" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(3),
+        "DSA" => trust_dns_proto::rr::dnssec::Algorithm::DSA,
         "ECC" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(4),
         "RSASHA1" => trust_dns_proto::rr::dnssec::Algorithm::RSASHA1,
         "INDIRECT" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(252),
@@ -609,7 +615,7 @@ pub fn parse_ds<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<D
         "PRIVATEOID" => trust_dns_proto::rr::dnssec::Algorithm::Unknown(254),
         _ => trust_dns_proto::rr::dnssec::Algorithm::from_u8(algorithm_str.parse()?),
     };
-    let digest_type = trust_dns_proto::rr::dnssec::DigestType::from_u8(digest_type_str.parse()?)?;
+    let digest_type: u8 = digest_type_str.parse()?;
     let digest_str: String = tokens.collect();
     if digest_str.is_empty() {
         return Err(ParseError::from(ParseErrorKind::Message(
@@ -629,7 +635,16 @@ pub fn parse_ds<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<D
         let byte = u8::from_str_radix(byte_str, 16)?;
         digest.push(byte);
     }
-    Ok(DS::new(tag, algorithm, digest_type, digest))
+
+    let mut out = vec![];
+    let mut enc = BinEncoder::new(&mut out);
+
+    tag.emit(&mut enc)?;
+    algorithm.emit(&mut enc)?;
+    enc.emit(digest_type)?;
+    digest.emit(&mut enc)?;
+
+    Ok(NULL::with(out))
 }
 
 fn parse_sig<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<SIG> {
