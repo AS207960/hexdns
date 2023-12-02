@@ -380,11 +380,11 @@ impl Parser {
                 RecordType::DS => RData::Unknown {
                     code: 43,
                     rdata: parse_ds(tokens)?
-                }),
+                },
                 RecordType::CDS => RData::Unknown {
                     code: 59,
                     rdata: parse_ds(tokens)?
-                }),
+                },
                 RecordType::RRSIG => RData::DNSSEC(DNSSECRData::SIG(parse_sig(tokens)?)),
                 RecordType::KEY => unimplemented!(),
                 RecordType::NSEC => unimplemented!(),
