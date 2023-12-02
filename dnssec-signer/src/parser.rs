@@ -377,11 +377,11 @@ impl Parser {
                 RecordType::CDNSKEY => RData::DNSSEC(DNSSECRData::CDNSKEY(parse_dnskey(tokens)?)),
                 RecordType::NSEC3PARAM => RData::DNSSEC(DNSSECRData::NSEC3PARAM(parse_nsec3param(tokens)?)),
                 RecordType::NSEC3 => RData::DNSSEC(DNSSECRData::NSEC3(parse_nsec3(tokens)?)),
-                RecordType::DS => RData::DNSSEC(DNSSECRData::Unknown {
+                RecordType::DS => RData::Unknown {
                     code: 43,
                     rdata: parse_ds(tokens)?
                 }),
-                RecordType::CDS => RData::DNSSEC(DNSSECRData::Unknown {
+                RecordType::CDS => RData::Unknown {
                     code: 59,
                     rdata: parse_ds(tokens)?
                 }),
