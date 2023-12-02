@@ -33,7 +33,7 @@ impl<'a> Lexer<'a> {
             let ch: Option<u8> = self.peek();
 
             // handy line for debugging
-            // debug!("ch = {:?}; state = {:?}(c: {:?}, v: {:?})", ch, self.state, char_data, char_data_vec);
+            //debug!("ch = {:?}; state = {:?}(c: {:?}, v: {:?})", ch, self.state, char_data, char_data_vec);
 
             // continuing states should pass back the state as the last statement,
             //  terminal states should set the state internally and return the proper Token::*.

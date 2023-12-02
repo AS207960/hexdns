@@ -295,6 +295,7 @@ impl Parser {
                 State::Record(record_parts) => {
                     // b/c of ownership rules, perhaps, just collect all the RData components as a list of
                     //  tokens to pass into the processor
+
                     match t {
                         Token::EOL => {
                             Self::flush_record(
@@ -389,6 +390,8 @@ impl Parser {
                     code: 39,
                     rdata: parse_dname(tokens)?
                 },
+                RecordType::CNAME => RData::CNAME(parse_name(tokens)?),
+                RecordType::ANAME => RData::ANAME(parse_name(tokens)?),
                 RecordType::LOC => RData::Unknown {
                     code: 29,
                     rdata: parse_loc(tokens)?
@@ -659,7 +662,7 @@ fn parse_sig<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<SIG>
     let signer_name = tokens
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("signer name".to_string())))
-        .and_then(|s| Name::from_str(s).map_err(Into::into))?;
+        .and_then(|s| name_from_encoded_str(s, None).map_err(Into::into))?;
     let sig = tokens
         .next()
         .filter(|fp| !fp.is_empty())
@@ -725,11 +728,20 @@ fn parse_dhcid<'i, I: Iterator<Item = &'i str>>(tokens: I) -> ParseResult<NULL> 
     Ok(NULL::with(data))
 }
 
+fn parse_name<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<Name> {
+    let target = tokens
+        .next()
+        .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("target".to_string())))
+        .and_then(|s| name_from_encoded_str(s, None).map_err(Into::into))?;
+
+    Ok(target)
+}
+
 fn parse_dname<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NULL> {
     let target = tokens
         .next()
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("target".to_string())))
-        .and_then(|s| Name::from_str(s).map_err(Into::into))?;
+        .and_then(|s| name_from_encoded_str(s, None).map_err(Into::into))?;
 
     let mut out = vec![];
     let mut enc = BinEncoder::new(&mut out);
