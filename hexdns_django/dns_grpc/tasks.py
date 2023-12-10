@@ -671,6 +671,9 @@ def update_catalog():
         zone_file += f"signal{i}.zones 0 IN PTR _signal.{ns}\n"
         zone_file += f"group.signal{i}.zones 0 IN TXT \"zone\"\n"
 
+    zone_file += f"as207960.zones 0 IN PTR as207960.net.\n"
+    zone_file += f"group.as207960.zones 0 IN TXT \"zone\"\n"
+
     zone_file += f"kube-cluster-fwd.zones 0 IN PTR kube-cluster.as207960.net.\n"
     zone_file += f"group.kube-cluster-fwd1.zones 0 IN TXT \"zone\"\n"
     zone_file += f"kube-cluster-rvs1.zones 0 IN PTR 0.0.0.8.c.f.0.8.7.6.0.1.0.0.2.ip6.arpa.\n"
@@ -683,6 +686,8 @@ def update_catalog():
     inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
+        if zone.zone_root == "as207960.net":
+            continue
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
             owner = get_user(zone)
