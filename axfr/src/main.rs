@@ -285,7 +285,7 @@ async fn handle_request(
     if tsig_context.is_none() {
         let resp = match client.check_ipacl(axfr_proto::IpaclRequest {
             zone_name: query.name().to_string(),
-            ip_addr: Some(match addr.ip() {
+            ip_addr: Some(match map_nat64(addr.ip()) {
                 std::net::IpAddr::V4(ip) => axfr_proto::ipacl_request::IpAddr::V4(u32::from_be_bytes(ip.octets())),
                 std::net::IpAddr::V6(ip) => match ip.to_ipv4() {
                     Some(ip) => axfr_proto::ipacl_request::IpAddr::V4(u32::from_be_bytes(ip.octets())),
