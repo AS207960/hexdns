@@ -51,7 +51,7 @@
             </div>
         {% elif spf_status == spf_status.MultiplePresent %}
             <div class="alert alert-danger" role="alert">
-                <h4 class="alert-heading">Multiple SFP records</h4>
+                <h4 class="alert-heading">Multiple SPF records</h4>
                 <p class="mb-0">Your zone has multiple SPF records, emails won't be accepted from this domain.</p>
             </div>
         {% elif spf_status == spf_status.PassAll %}
@@ -64,7 +64,7 @@
             </div>
         {% elif spf_status == spf_status.InvalidNet %}
             <div class="alert alert-danger" role="alert">
-                <h4 class="alert-heading">Invalid SFP record</h4>
+                <h4 class="alert-heading">Invalid SPF record</h4>
                 <p class="mb-0">Your zone's SPF record contains an invalid IP address.</p>
             </div>
         {% elif spf_status == spf_status.LargeV4Net %}
