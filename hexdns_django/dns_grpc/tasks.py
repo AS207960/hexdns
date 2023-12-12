@@ -662,6 +662,8 @@ def update_signal_zones():
     ignore_result=True
 )
 def update_catalog():
+    required_zones = ["as207960.net", "as207960.ltd.uk"]
+
     zone_file = "$ORIGIN catalog.dns.as207960.ltd.uk.\n"
     zone_file += f"@ 0 IN SOA invalid. noc.as207960.net {int(time.time())} 3600 600 2147483646 0\n"
     zone_file += "@ 0 IN NS invalid.\n"
@@ -671,8 +673,9 @@ def update_catalog():
         zone_file += f"signal{i}.zones 0 IN PTR _signal.{ns}\n"
         zone_file += f"group.signal{i}.zones 0 IN TXT \"zone\"\n"
 
-    zone_file += f"as207960.zones 0 IN PTR as207960.net.\n"
-    zone_file += f"group.as207960.zones 0 IN TXT \"zone\"\n"
+    for i, z in enumerate(required_zones):
+        zone_file += f"required{i}.zones 0 IN PTR {z}.\n"
+        zone_file += f"group.required{i}.zones 0 IN TXT \"zone\"\n"
 
     zone_file += f"kube-cluster-fwd.zones 0 IN PTR kube-cluster.as207960.net.\n"
     zone_file += f"group.kube-cluster-fwd1.zones 0 IN TXT \"zone\"\n"
@@ -686,7 +689,7 @@ def update_catalog():
     inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
-        if zone.zone_root == "as207960.net":
+        if zone.zone_root in required_zones:
             continue
         if pattern.match(zone.zone_root):
             zone_root = dnslib.DNSLabel(zone.zone_root)
