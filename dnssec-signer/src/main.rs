@@ -133,7 +133,9 @@ async fn main() {
             Err(err) => {
                 warn!("Unable to parse zone name as UTF-8: {:?}", err);
                 delivery
-                    .nack(lapin::options::BasicNackOptions::default())
+                    .reject(lapin::options::BasicRejectOptions {
+                        requeue: true,
+                    })
                     .await
                     .expect("unable to nack");
                 continue;
@@ -150,7 +152,9 @@ async fn main() {
                 if let Err(err) = body.read_to_end(&mut contents).await {
                     warn!("Unable to read zone contents zone={}: {:?}", zone_name, err);
                     delivery
-                        .nack(lapin::options::BasicNackOptions::default())
+                        .reject(lapin::options::BasicRejectOptions {
+                            requeue: true,
+                        })
                         .await
                         .expect("unable to nack");
                     continue;
@@ -160,7 +164,9 @@ async fn main() {
                     Err(err) => {
                         warn!("Unable to parse zone contents as UTF-8 zone={}: {:?}", zone_name, err);
                         delivery
-                            .nack(lapin::options::BasicNackOptions::default())
+                            .reject(lapin::options::BasicRejectOptions {
+                                requeue: true,
+                            })
                             .await
                             .expect("unable to nack");
                         continue;
@@ -170,7 +176,9 @@ async fn main() {
             Err(e) => {
                 warn!("Unable to fetch zone contents zone={}: {:?}", zone_name, e);
                 delivery
-                    .nack(lapin::options::BasicNackOptions::default())
+                    .reject(lapin::options::BasicRejectOptions {
+                        requeue: true,
+                    })
                     .await
                     .expect("unable to nack");
                 continue;
@@ -186,7 +194,9 @@ async fn main() {
                 if let Err(err) = body.read_to_end(&mut contents).await {
                     warn!("Unable to read ZSK zone={}: {:?}", zone_name, err);
                     delivery
-                        .nack(lapin::options::BasicNackOptions::default())
+                        .reject(lapin::options::BasicRejectOptions {
+                            requeue: true,
+                        })
                         .await
                         .expect("unable to nack");
                     continue;
@@ -196,7 +206,9 @@ async fn main() {
             Err(e) => {
                 warn!("Unable to fetch ZSK zone={}: {:?}", zone_name, e);
                 delivery
-                    .nack(lapin::options::BasicNackOptions::default())
+                    .reject(lapin::options::BasicRejectOptions {
+                        requeue: true,
+                    })
                     .await
                     .expect("unable to nack");
                 continue;
@@ -208,7 +220,9 @@ async fn main() {
             Err(e) => {
                 warn!("Unable to parse ZSK zone={}: {:?}", zone_name, e);
                 delivery
-                    .nack(lapin::options::BasicNackOptions::default())
+                    .reject(lapin::options::BasicRejectOptions {
+                        requeue: true,
+                    })
                     .await
                     .expect("unable to nack");
                 continue;
@@ -220,7 +234,9 @@ async fn main() {
             Err(e) => {
                 warn!("Unable to sign zone zone={}: {:?}", zone_name, e);
                 delivery
-                    .nack(lapin::options::BasicNackOptions::default())
+                    .reject(lapin::options::BasicRejectOptions {
+                        requeue: true,
+                    })
                     .await
                     .expect("unable to nack");
                 continue;
@@ -235,7 +251,9 @@ async fn main() {
             .send().await {
             warn!("Unable to upload signed zone zone={}: {:?}", zone_name, err);
             delivery
-                .nack(lapin::options::BasicNackOptions::default())
+                .reject(lapin::options::BasicRejectOptions {
+                    requeue: true,
+                })
                 .await
                 .expect("unable to nack");
             continue;

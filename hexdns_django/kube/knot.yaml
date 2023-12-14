@@ -218,7 +218,6 @@ spec:
              sed -i \"s/(netnod-xfr-secret)/$NETNOD_XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(coredns-xfr-secret)/$COREDNS_XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(unbound-no-dns64)/$HEXDNS_UNBOUND_NO_DNS64_SERVICE_HOST/g\" /config/knot.conf &&
-             sleep 15;
              while true; do rm /rundir/knot.pid; knotd; done"
           ]
           readinessProbe:
@@ -246,8 +245,7 @@ spec:
           image: as207960/hexdns-knot-sidecar:(version)
           imagePullPolicy: IfNotPresent
           command: [
-            "sh", "-c",
-            "sleep 30; python3 /app/sidecar.py"
+            "python3", "/app/sidecar.py"
           ]
           volumeMounts:
             - mountPath: "/rundir/"
@@ -291,9 +289,14 @@ spec:
           image: as207960/knot-exporter:2
           imagePullPolicy: IfNotPresent
           command: [
-            "sh", "-c",
-            "sleep 20 && 
-            python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
+            "python3",
+            "/app/knot_exporter",
+            "--web-listen-addr",
+            "::",
+            "--knot-socket-path",
+            "/rundir/knot.sock",
+            "--knot-library-path",
+            "/usr/lib/x86_64-linux-gnu/libknot.so.11"
           ]
           readinessProbe:
             tcpSocket:
