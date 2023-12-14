@@ -4,6 +4,7 @@ from django.utils import timezone
 from . import models, apps, utils, netnod
 import dnslib
 import base64
+import pika
 import ipaddress
 import hashlib
 import typing
@@ -452,7 +453,14 @@ def send_resign_message(label: dnslib.DNSLabel):
 
     def pub(channel):
         channel.queue_declare(queue='hexdns_resign', durable=True)
-        channel.basic_publish(exchange='', routing_key='hexdns_resign', body=str(label).encode())
+        channel.basic_publish(
+            exchange='', routing_key='hexdns_resign', body=str(label).encode(),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                priority=0,
+                expiration=str(1000 * 60 * 60)
+            )
+        )
 
     pika_client.get_channel(pub)
 
@@ -462,7 +470,14 @@ def send_reload_message(label: dnslib.DNSLabel):
 
     def pub(channel):
         channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
-        channel.basic_publish(exchange='hexdns_primary_reload', routing_key='', body=str(label).encode())
+        channel.basic_publish(
+            exchange='hexdns_primary_reload', routing_key='', body=str(label).encode(),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                priority=0,
+                expiration=str(1000 * 60 * 60)
+            )
+        )
 
     pika_client.get_channel(pub)
 
