@@ -8,7 +8,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        last_resign_cutoff = now - timezone.timedelta(days=7)
+        last_resign_cutoff = now - timezone.timedelta(days=1)
 
         for zone in models.DNSZone.objects.filter(
             last_resign__lt=last_resign_cutoff

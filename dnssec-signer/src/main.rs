@@ -80,7 +80,7 @@ async fn main() {
     let s3_region = aws_sdk_s3::config::Region::new(
         args.get_one::<String>("s3_region").unwrap().clone(),
     );
-    let s3_bucket = args.get_one::<String>("s3_bucket").unwrap();
+    let s3_bucket = args.get_one::<String>("s3_bucket").unwrap().to_string();
     let s3_access_key_id = args.get_one::<String>("s3_access_key_id").unwrap();
     let s3_secret_access_key = args.get_one::<String>("s3_secret_access_key").unwrap();
 
@@ -128,148 +128,156 @@ async fn main() {
     info!("Running...");
     while let Some(delivery) = consumer.next().await {
         let delivery = delivery.expect("error in consumer");
-        let zone_name = match String::from_utf8(delivery.data.clone()) {
-            Ok(z) => z,
-            Err(err) => {
-                warn!("Unable to parse zone name as UTF-8: {:?}", err);
-                delivery
-                    .reject(lapin::options::BasicRejectOptions {
-                        requeue: true,
-                    })
-                    .await
-                    .expect("unable to nack");
-                continue;
-            }
-        };
-
-        let zone_contents = match s3_client.get_object()
-            .bucket(s3_bucket)
-            .key(format!("{}zone", zone_name))
-            .send().await {
-            Ok(r) => {
-                let mut body = r.body.into_async_read();
-                let mut contents = vec![];
-                if let Err(err) = body.read_to_end(&mut contents).await {
-                    warn!("Unable to read zone contents zone={}: {:?}", zone_name, err);
+        let s3_client = s3_client.clone();
+        let ksk = ksk.clone();
+        let amqp_channel = amqp_channel.clone();
+        let s3_bucket = s3_bucket.clone();
+        tokio::task::spawn(async move {
+            let zone_name = match String::from_utf8(delivery.data.clone()) {
+                Ok(z) => z,
+                Err(err) => {
+                    warn!("Unable to parse zone name as UTF-8: {:?}", err);
                     delivery
                         .reject(lapin::options::BasicRejectOptions {
                             requeue: true,
                         })
                         .await
                         .expect("unable to nack");
-                    continue;
+                    return;
                 }
-                match String::from_utf8(contents) {
-                    Ok(c) => c,
-                    Err(err) => {
-                        warn!("Unable to parse zone contents as UTF-8 zone={}: {:?}", zone_name, err);
+            };
+
+            let zone_contents = match s3_client.get_object()
+                .bucket(&s3_bucket)
+                .key(format!("{}zone", zone_name))
+                .send().await {
+                Ok(r) => {
+                    let mut body = r.body.into_async_read();
+                    let mut contents = vec![];
+                    if let Err(err) = body.read_to_end(&mut contents).await {
+                        warn!("Unable to read zone contents zone={}: {:?}", zone_name, err);
                         delivery
                             .reject(lapin::options::BasicRejectOptions {
                                 requeue: true,
                             })
                             .await
                             .expect("unable to nack");
-                        continue;
+                        return;
                     }
-                }
-            },
-            Err(e) => {
-                warn!("Unable to fetch zone contents zone={}: {:?}", zone_name, e);
-                delivery
-                    .reject(lapin::options::BasicRejectOptions {
-                        requeue: true,
-                    })
-                    .await
-                    .expect("unable to nack");
-                continue;
-            }
-        };
-        let zsk_pem = match s3_client.get_object()
-            .bucket(s3_bucket)
-            .key(format!("{}key", zone_name))
-            .send().await {
-            Ok(r) => {
-                let mut body = r.body.into_async_read();
-                let mut contents = vec![];
-                if let Err(err) = body.read_to_end(&mut contents).await {
-                    warn!("Unable to read ZSK zone={}: {:?}", zone_name, err);
+                    match String::from_utf8(contents) {
+                        Ok(c) => c,
+                        Err(err) => {
+                            warn!("Unable to parse zone contents as UTF-8 zone={}: {:?}", zone_name, err);
+                            delivery
+                                .reject(lapin::options::BasicRejectOptions {
+                                    requeue: true,
+                                })
+                                .await
+                                .expect("unable to nack");
+                            return;
+                        }
+                    }
+                },
+                Err(e) => {
+                    warn!("Unable to fetch zone contents zone={}: {:?}", zone_name, e);
                     delivery
                         .reject(lapin::options::BasicRejectOptions {
                             requeue: true,
                         })
                         .await
                         .expect("unable to nack");
-                    continue;
+                    return;
                 }
-                contents
-            },
-            Err(e) => {
-                warn!("Unable to fetch ZSK zone={}: {:?}", zone_name, e);
+            };
+            let zsk_pem = match s3_client.get_object()
+                .bucket(&s3_bucket)
+                .key(format!("{}key", zone_name))
+                .send().await {
+                Ok(r) => {
+                    let mut body = r.body.into_async_read();
+                    let mut contents = vec![];
+                    if let Err(err) = body.read_to_end(&mut contents).await {
+                        warn!("Unable to read ZSK zone={}: {:?}", zone_name, err);
+                        delivery
+                            .reject(lapin::options::BasicRejectOptions {
+                                requeue: true,
+                            })
+                            .await
+                            .expect("unable to nack");
+                        return;
+                    }
+                    contents
+                },
+                Err(e) => {
+                    warn!("Unable to fetch ZSK zone={}: {:?}", zone_name, e);
+                    delivery
+                        .reject(lapin::options::BasicRejectOptions {
+                            requeue: true,
+                        })
+                        .await
+                        .expect("unable to nack");
+                    return;
+                }
+            };
+
+            let zsk = match openssl::ec::EcKey::private_key_from_pem(&zsk_pem) {
+                Ok(k) => k,
+                Err(e) => {
+                    warn!("Unable to parse ZSK zone={}: {:?}", zone_name, e);
+                    delivery
+                        .reject(lapin::options::BasicRejectOptions {
+                            requeue: true,
+                        })
+                        .await
+                        .expect("unable to nack");
+                    return;
+                }
+            };
+
+            let zone_signed = match dnssec::sign_zone(&zone_contents, &ksk, &zsk) {
+                Ok(z) => z,
+                Err(e) => {
+                    warn!("Unable to sign zone zone={}: {:?}", zone_name, e);
+                    delivery
+                        .reject(lapin::options::BasicRejectOptions {
+                            requeue: true,
+                        })
+                        .await
+                        .expect("unable to nack");
+                    return;
+                }
+            };
+
+            let byte_stream = aws_sdk_s3::primitives::ByteStream::from(zone_signed.as_bytes().to_vec());
+            if let Err(err) = s3_client.put_object()
+                .bucket(&s3_bucket)
+                .key(format!("{}zone.signed", zone_name))
+                .body(byte_stream)
+                .send().await {
+                warn!("Unable to upload signed zone zone={}: {:?}", zone_name, err);
                 delivery
                     .reject(lapin::options::BasicRejectOptions {
                         requeue: true,
                     })
                     .await
                     .expect("unable to nack");
-                continue;
+                return;
             }
-        };
 
-        let zsk = match openssl::ec::EcKey::private_key_from_pem(&zsk_pem) {
-            Ok(k) => k,
-            Err(e) => {
-                warn!("Unable to parse ZSK zone={}: {:?}", zone_name, e);
-                delivery
-                    .reject(lapin::options::BasicRejectOptions {
-                        requeue: true,
-                    })
-                    .await
-                    .expect("unable to nack");
-                continue;
-            }
-        };
+            info!("Signed zone zone={}", zone_name);
 
-        let zone_signed = match dnssec::sign_zone(&zone_contents, &ksk, &zsk) {
-            Ok(z) => z,
-            Err(e) => {
-                warn!("Unable to sign zone zone={}: {:?}", zone_name, e);
-                delivery
-                    .reject(lapin::options::BasicRejectOptions {
-                        requeue: true,
-                    })
-                    .await
-                    .expect("unable to nack");
-                continue;
-            }
-        };
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
 
-        let byte_stream = aws_sdk_s3::primitives::ByteStream::from(zone_signed.as_bytes().to_vec());
-        if let Err(err) = s3_client.put_object()
-            .bucket(s3_bucket)
-            .key(format!("{}zone.signed", zone_name))
-            .body(byte_stream)
-            .send().await {
-            warn!("Unable to upload signed zone zone={}: {:?}", zone_name, err);
+            amqp_channel.basic_publish(
+                "hexdns_primary_reload", "",
+                lapin::options::BasicPublishOptions::default(), zone_name.as_bytes(),
+                lapin::BasicProperties::default()
+            ).await.expect("Unable to publish to RabbitMQ exchange");
+
             delivery
-                .reject(lapin::options::BasicRejectOptions {
-                    requeue: true,
-                })
+                .ack(lapin::options::BasicAckOptions::default())
                 .await
-                .expect("unable to nack");
-            continue;
-        }
-
-        info!("Signed zone zone={}", zone_name);
-
-        amqp_channel.basic_publish(
-            "hexdns_primary_reload", "",
-            lapin::options::BasicPublishOptions::default(), zone_name.as_bytes(),
-            lapin::BasicProperties::default()
-        ).await.expect("Unable to publish to RabbitMQ exchange");
-
-        delivery
-            .ack(lapin::options::BasicAckOptions::default())
-            .await
-            .expect("unable to ack");
+                .expect("unable to ack");
+        });
     }
 }

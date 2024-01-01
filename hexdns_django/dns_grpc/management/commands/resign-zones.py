@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from dns_grpc import models, tasks, apps
 import ipaddress
 import dnslib
+import pika
 
 
 class Command(BaseCommand):
@@ -25,6 +26,13 @@ class Command(BaseCommand):
             channel.exchange_declare(exchange='hexdns_primary_resign', exchange_type='fanout', durable=True)
 
             for label in labels:
-                channel.basic_publish(exchange='hexdns_primary_resign', routing_key='', body=str(label).encode())
+                channel.basic_publish(
+                    exchange='hexdns_primary_resign', routing_key='', body=str(label).encode(),
+                    properties=pika.BasicProperties(
+                        delivery_mode=2,
+                        priority=0,
+                        expiration=str(1000 * 60 * 60)
+                    )
+                )
 
         pika_client.get_channel(pub)
