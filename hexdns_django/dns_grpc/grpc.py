@@ -723,6 +723,23 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 dns_res, record_name, zone, query_name, is_dnssec, self.lookup_dhcid
             )
 
+    def lookup_tlsa(
+            self,
+            dns_res: dnslib.DNSRecord,
+            record_name: DNSLabel,
+            zone: models.DNSZone,
+            query_name: DNSLabel,
+            is_dnssec: bool,
+    ):
+        records = self.find_records(models.TLSARecord, record_name, zone)  # type: typing.List[models.TLSARecord]
+        for record in records:
+            dns_res.add_answer(record.to_rr(query_name))
+
+        if not len(records):
+            self.lookup_cname(
+                dns_res, record_name, zone, query_name, is_dnssec, self.lookup_tlsa
+            )
+
     def handle_axfr_query(self, dns_req: dnslib.DNSRecord):
         dns_res = dns_req.reply(ra=False)
 
@@ -1083,6 +1100,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 self.lookup_https(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.DHCID:
                 self.lookup_dhcid(temp_dns_res, record_name, zone, rname, False)
+            elif rtype == QTYPE.TLSA:
+                self.lookup_tlsa(temp_dns_res, record_name, zone, rname, False)
             elif rtype == QTYPE.CNAME:
                 record = self.find_records(
                     models.CNAMERecord, record_name, zone
@@ -1110,7 +1129,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         supported_types = (
             QTYPE.A, QTYPE.AAAA, QTYPE.MX, QTYPE.NS, QTYPE.TXT, QTYPE.SRV, QTYPE.CAA, QTYPE.NAPTR, QTYPE.DS,
-            QTYPE.LOC, QTYPE.HINFO, QTYPE.RP, QTYPE.CNAME, QTYPE.DHCID
+            QTYPE.LOC, QTYPE.HINFO, QTYPE.RP, QTYPE.CNAME, QTYPE.DHCID, QTYPE.TLSA
         )
 
         # RFC 2136 § 3.4.1
@@ -1175,6 +1194,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return self.find_records(models.RPRecord, record_name, zone)
             elif rrtype == QTYPE.DHCID:
                 return self.find_records(models.DHCIDRecord, record_name, zone)
+            elif rrtype == QTYPE.TLSA:
+                return self.find_records(models.TLSARecord, record_name, zone)
             elif rrtype == QTYPE.CNAME:
                 return self.find_records(models.CNAMERecord, record_name, zone)
             else:
@@ -1253,6 +1274,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     new_record = models.RPRecord.from_rr(rr, zone)
                 elif rr.rtype == QTYPE.DHCID:
                     new_record = models.DHCIDRecord.from_rr(rr, zone)
+                elif rr.rtype == QTYPE.TLSA:
+                    new_record = models.TLSARecord.from_rr(rr, zone)
                 elif rr.rtype == QTYPE.CNAME:
                     new_record = models.CNAMERecord.from_rr(rr, zone)
                 else:
@@ -1267,7 +1290,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                     for m in (
                             models.AddressRecord, models.MXRecord, models.NSRecord, models.TXTRecord, models.SRVRecord,
                             models.CAARecord, models.NAPTRRecord, models.DSRecord, models.LOCRecord, models.HINFORecord,
-                            models.RPRecord, models.CNAMERecord, models.DHCIDRecord
+                            models.RPRecord, models.CNAMERecord, models.DHCIDRecord, models.TLSARecord
                     ):
                         for record in self.find_records(m, record_name, zone):
                             record_rr = record.to_rr(rr.rname)

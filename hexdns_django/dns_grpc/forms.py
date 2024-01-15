@@ -5,6 +5,7 @@ from . import models
 import crispy_forms.helper
 import crispy_forms.layout
 import crispy_forms.bootstrap
+import Crypto.IO.PEM
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 
@@ -523,6 +524,66 @@ class HTTPSRecordForm(SVCBBaseRecordForm):
 
     class Meta(SVCBBaseRecordForm.Meta):
         model = models.HTTPSRecord
+
+
+class TLSARecordForm(forms.ModelForm):
+    certificate_data = forms.CharField(
+        widget=forms.Textarea(), required=True,
+        help_text="PEM for full certificate, hex encoded hash otherwise"
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = crispy_forms.helper.FormHelper()
+        self.helper.use_custom_control = False
+        self.helper.form_class = 'form-horizontal'
+        self.helper.label_class = 'col-lg-4'
+        self.helper.field_class = 'col-lg-8 my-1'
+        self.helper.layout = crispy_forms.layout.Layout(
+            crispy_forms.bootstrap.AppendedText("record_name", f".{self.instance.zone.zone_root}"),
+            "certificate_usage",
+            "selector",
+            "matching_type",
+            "certificate_data",
+            "ttl",
+        )
+        self.helper.add_input(crispy_forms.layout.Submit("submit", "Save"))
+
+        if self.instance:
+            self.initial['certificate_data'] = self.instance.certificate_display()
+
+    class Meta:
+        model = models.TLSARecord
+        fields = "__all__"
+        exclude = ("id", "zone", "certificate_data")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        if cleaned_data["matching_type"] == 0:
+            try:
+                Crypto.IO.PEM.decode(cleaned_data["certificate_data"])
+            except ValueError:
+                raise ValidationError({
+                    "certificate_data": "Invalid PEM data"
+                })
+        else:
+            try:
+                bytes.fromhex(cleaned_data["certificate_data"])
+            except ValueError:
+                raise ValidationError({
+                    "certificate_data": "Invalid hex data"
+                })
+
+    def save(self, commit=True):
+        if self.cleaned_data["matching_type"] == 0:
+            (data, _, _) = Crypto.IO.PEM.decode(self.cleaned_data["certificate_data"])
+        else:
+            data = bytes.fromhex(self.cleaned_data["certificate_data"])
+
+        self.instance.certificate_data = data
+
+        return super().save(commit=commit)
 
 
 class UpdateSecretForm(forms.ModelForm):

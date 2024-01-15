@@ -27,3 +27,4 @@ celery
 idna
 django-storages
 boto3
+pycryptodome

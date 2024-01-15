@@ -1,4 +1,6 @@
 import base64
+
+import Crypto.IO.PEM
 import binascii
 import ipaddress
 import struct
@@ -2296,6 +2298,90 @@ class DHCIDRecord(DNSZoneRecord):
     @property
     def data_b64(self):
         return base64.b64encode(self.data).decode()
+
+
+class TLSARecord(DNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_zonetlsarecord", primary_key=True)
+
+    CERTIFICATE_USAGES = (
+        (0, "0 - CA constraint"),
+        (1, "1 - Service certificate constraint"),
+        (2, "2 - Trust anchor assertion"),
+        (3, "3 - Domain-issued certificate"),
+        (255, "255 - Private Use"),
+    )
+
+    SELECTORS = (
+        (0, "0 - Full certificate"),
+        (1, "1 - SubjectPublicKeyInfo"),
+        (255, "255 - Private Use"),
+    )
+
+    MATCHING_TYPES = (
+        (0, "0 - No hash used (full certificate)"),
+        (1, "1 - SHA256"),
+        (2, "2 - SHA512"),
+        (255, "255 - Private Use"),
+    )
+
+    certificate_usage = models.PositiveSmallIntegerField(choices=CERTIFICATE_USAGES)
+    selector = models.PositiveSmallIntegerField(choices=SELECTORS)
+    matching_type = models.PositiveSmallIntegerField(choices=MATCHING_TYPES)
+    certificate_data = models.BinaryField()
+
+    def certificate_display(self):
+        if self.matching_type == 0:
+            return Crypto.IO.PEM.encode(self.certificate_data, "CERTIFICATE")
+        else:
+            return self.certificate_data.hex()
+
+    @classmethod
+    def from_rr(cls, rr, zone):
+        record_name = cls.dns_label_to_record_name(rr.rname, zone)
+        return cls(
+            zone=zone,
+            record_name=record_name,
+            ttl=rr.ttl,
+            certificate_usage=rr.rdata.cert_usage,
+            selector=rr.rdata.selector,
+            matching_type=rr.rdata.matching_type,
+            certificate_data=rr.rdata.cert_data,
+        )
+
+    def update_from_rr(self, rr):
+        record_name = self.dns_label_to_record_name(rr.rname, self.zone)
+        self.record_name = record_name
+        self.ttl = rr.ttl
+        self.certificate_usage = rr.rdata.cert_usage
+        self.selector = rr.rdata.selector
+        self.matching_type = rr.rdata.matching_type
+        self.certificate_data = rr.rdata.cert_data
+
+    def to_rr(self, query_name):
+        return dnslib.RR(
+            query_name,
+            dnslib.QTYPE.TLSA,
+            rdata=dnslib.TLSA(
+                cert_usage=self.certificate_usage,
+                selector=self.selector,
+                matching_type=self.matching_type,
+                cert_data=self.certificate_data,
+            ),
+            ttl=self.ttl,
+        )
+
+    class Meta(DNSZoneRecord.Meta):
+        verbose_name = "TLSA record"
+        verbose_name_plural = "TLSA records"
+        indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class PTRRecord(ReverseDNSZoneRecord):

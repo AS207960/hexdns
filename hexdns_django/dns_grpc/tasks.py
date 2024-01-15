@@ -380,6 +380,13 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"; DHCID record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN DHCID {base64.b64encode(record.data).decode()}\n"
 
+    for record in zone.tlsarecord_set.all():
+        record_name = record.idna_label
+        if record_name:
+            zone_file += f"; TLSA record {record.id}\n"
+            zone_file += (f"{record_name} {record.ttl} IN TLSA {record.certificate_usage} {record.selector} "
+                          f"{record.matching_type} {record.certificate_data.hex()}\n")
+
     return zone_file
 
 

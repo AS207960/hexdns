@@ -71,6 +71,7 @@ urlpatterns = [
     path("zone/<str:zone_id>/new_hinfo/", views.fzone.create_hinfo_record, name="create_hinfo_record"),
     path("zone/<str:zone_id>/new_rp/", views.fzone.create_rp_record, name="create_rp_record"),
     path("zone/<str:zone_id>/new_https/", views.fzone.create_https_record, name="create_https_record"),
+    path("zone/<str:zone_id>/new_tlsa/", views.fzone.create_tlsa_record, name="create_tlsa_record"),
     path("records/address/<str:record_id>/", views.fzone.edit_address_record, name="edit_address_record"),
     path("records/address/<str:record_id>/copy/", views.fzone.copy_address_record, name="copy_address_record"),
     path("records/address/<str:record_id>/delete/", views.fzone.delete_address_record, name="delete_address_record"),
@@ -134,6 +135,9 @@ urlpatterns = [
     path("records/https/<str:record_id>/", views.fzone.edit_https_record, name="edit_https_record"),
     path("records/https/<str:record_id>/copy/", views.fzone.copy_https_record, name="copy_https_record"),
     path("records/https/<str:record_id>/delete/", views.fzone.delete_https_record, name="delete_https_record"),
+    path("records/tlsa/<str:record_id>/", views.fzone.edit_tlsa_record, name="edit_tlsa_record"),
+    path("records/tlsa/<str:record_id>/copy/", views.fzone.copy_tlsa_record, name="copy_tlsa_record"),
+    path("records/tlsa/<str:record_id>/delete/", views.fzone.delete_tlsa_record, name="delete_tlsa_record"),
     path("records/github/<str:record_id>/", views.github.edit_github_pages_record, name="edit_github_record"),
     path(
         "records/github/<str:record_id>/rebuild/",
