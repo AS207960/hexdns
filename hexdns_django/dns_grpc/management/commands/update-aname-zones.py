@@ -42,9 +42,11 @@ class Command(BaseCommand):
                     with transaction.atomic():
                         record.cached.all().delete()
                         for rr in res_a.rr:
-                            models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
+                            if rr.rtype == dnslib.QTYPE.A:
+                                models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
                         for rr in res_aaaa.rr:
-                            models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
+                            if rr.rtype == dnslib.QTYPE.AAAA:
+                                models.ANAMERecordCache(record=record, address=str(rr.rdata)).save()
 
                     updated = True
 
