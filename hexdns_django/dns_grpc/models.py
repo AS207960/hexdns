@@ -2492,6 +2492,7 @@ class GitHubPagesRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_githubpagesrecord", primary_key=True)
     repo_owner = models.CharField(max_length=255, blank=True, null=True)
     repo_name = models.CharField(max_length=255, blank=True, null=True)
+    installation = models.ForeignKey(GitHubInstallation, on_delete=models.SET_NULL, blank=True, null=True)
 
     def to_rrs_v4(self, query_name):
         return [dnslib.RR(
@@ -2507,7 +2508,7 @@ class GitHubPagesRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "GitHub Pages record"
         verbose_name_plural = "GitHub Pages records"
-        indexes = [models.Index(fields=['record_name', 'zone'])]
+        indexes = [models.Index(fields=['record_name', 'zone']), models.Index('installation')]
 
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)

@@ -300,6 +300,7 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
                     record_name=setup_form.cleaned_data['record_name'],
                     repo_owner=owner,
                     repo_name=repo,
+                    installation=installation,
                 ).save()
                 zone_obj.last_modified = timezone.now()
                 zone_obj.save()
@@ -331,7 +332,7 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
                     f"https://api.github.com/repos/{owner}/{repo}/pages",
                     headers={
                         "Authorization": f"token {get_installation_token(installation)}",
-                        "Accept": "application/vnd.github.switcheroo-preview+json"
+                        "Accept": "application/vnd.github+json"
                     }, json={
                         "cname": dns_name,
                         "source": {
@@ -345,6 +346,7 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
                     record_name=record_form.cleaned_data['record_name'],
                     repo_owner=owner,
                     repo_name=repo,
+                    installation=installation,
                 ).save()
                 zone_obj.last_modified = timezone.now()
                 zone_obj.save()
@@ -368,10 +370,14 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
 def edit_github_pages_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.GitHubPagesRecord, id=record_id)
-    installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
 
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
+
+    if user_record.installation:
+        installation = user_record.installation
+    else:
+        installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
 
     if not installation and user_record.repo_name:
         return redirect(reverse("github_oauth_login") + f"?redirect={request.path}")
@@ -410,7 +416,7 @@ def edit_github_pages_record(request, record_id):
                     f"https://api.github.com/repos/{user_record.repo_owner}/{user_record.repo_name}/pages",
                     headers={
                         "Authorization": f"token {get_installation_token(installation)}",
-                        "Accept": "application/vnd.github.v3+json"
+                        "Accept": "application/vnd.github+json"
                     }, json={
                         "cname": f"{record_form.cleaned_data['record_name']}.{user_record.zone.zone_root}",
                         "source": {
@@ -465,10 +471,15 @@ def edit_github_pages_record(request, record_id):
 def delete_github_pages_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.GitHubPagesRecord, id=record_id)
-    installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
+    models.GitHubInstallation.objects.filter()
 
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
+
+    if user_record.installation:
+        installation = user_record.installation
+    else:
+        installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
 
     if not installation and user_record.repo_name:
         return redirect(reverse("github_oauth_login") + f"?redirect={request.path}")
@@ -480,11 +491,11 @@ def delete_github_pages_record(request, record_id):
                     f"https://api.github.com/repos/{user_record.repo_owner}/{user_record.repo_name}/pages",
                     headers={
                         "Authorization": f"token {get_installation_token(installation)}",
-                        "Accept": "application/vnd.github.switcheroo-preview+json"
+                        "Accept": "application/vnd.github+json",
                     }
                 )
 
-                if r.status_code != 204:
+                if r.status_code not in (204, 404):
                     return render(request, "dns_grpc/error.html", {
                         "error": "Failed to disable GitHub Pages on repository",
                         "back_url": reverse("edit_zone", args=(user_record.zone.id,))
@@ -506,10 +517,14 @@ def delete_github_pages_record(request, record_id):
 def github_pages_record_rebuild(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.GitHubPagesRecord, id=record_id)
-    installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
 
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
+
+    if user_record.installation:
+        installation = user_record.installation
+    else:
+        installation = models.GitHubInstallation.objects.filter(user=request.user.account).first()
 
     if not installation and user_record.repo_name:
         return redirect(reverse("github_oauth_login") + f"?redirect={request.path}")
@@ -518,7 +533,7 @@ def github_pages_record_rebuild(request, record_id):
         f"https://api.github.com/repos/{user_record.repo_owner}/{user_record.repo_name}/pages/builds",
         headers={
             "Authorization": f"token {get_installation_token(installation)}",
-            "Accept": "application/vnd.github.switcheroo-preview+json"
+            "Accept": "application/vnd.github+json"
         }
     )
 
