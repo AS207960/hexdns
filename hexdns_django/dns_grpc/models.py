@@ -2508,7 +2508,7 @@ class GitHubPagesRecord(DNSZoneRecord):
     class Meta:
         verbose_name = "GitHub Pages record"
         verbose_name_plural = "GitHub Pages records"
-        indexes = [models.Index(fields=['record_name', 'zone']), models.Index('installation')]
+        indexes = [models.Index(fields=['record_name', 'zone']), models.Index(fields=['installation'])]
 
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
