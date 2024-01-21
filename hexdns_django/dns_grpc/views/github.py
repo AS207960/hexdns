@@ -471,7 +471,6 @@ def edit_github_pages_record(request, record_id):
 def delete_github_pages_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.GitHubPagesRecord, id=record_id)
-    models.GitHubInstallation.objects.filter()
 
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
@@ -495,7 +494,7 @@ def delete_github_pages_record(request, record_id):
                     }
                 )
 
-                if r.status_code not in (204, 404):
+                if r.status_code not in (204, 404, 403):
                     return render(request, "dns_grpc/error.html", {
                         "error": "Failed to disable GitHub Pages on repository",
                         "back_url": reverse("edit_zone", args=(user_record.zone.id,))
