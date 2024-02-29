@@ -152,6 +152,9 @@ with open(os.path.join(BASE_DIR, "secrets/netnod.json")) as f:
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "Glauca HexDNS <dns@glauca.digital>"
 
+LISTMONK_TEMPLATE_ID = 3
+LISTMONK_URL = "https://listmonk.as207960.net"
+
 KEYCLOAK_SERVER_URL = keycloak_conf["server_url"]
 KEYCLOAK_REALM = keycloak_conf["realm"]
 OIDC_CLIENT_ID = keycloak_conf["client_id"]

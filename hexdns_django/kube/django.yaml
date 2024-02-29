@@ -37,9 +37,6 @@ data:
   RESOLVER_NO_DNS64_ADDR: "hexdns-unbound-no-dns64"
   RESOLVER_NO_DNS64_PORT: "5053"
   FEEDBACK_URL: "https://feedback.glauca.digital"
-  EMAIL_HOST: "mx.postal.as207960.net"
-  EMAIL_HOST_USER: "apikey"
-  EMAIL_PORT: "25"
   EMAIL_FROM: "Glauca HexDNS <dns@glauca.digital>"
   PYTHONUNBUFFERED: "TRUE"
   GITHUB_APP_NAME: "glauca-hexdns"
@@ -56,6 +53,8 @@ data:
   S3_CUSTOM_DOMAIN: "hexdns-django.content.as207960.net"
   STATIC_URL: "https://hexdns-django.content.as207960.net/"
   MEDIA_URL: "https://hexdns-django.content.as207960.net/"
+  LISTMONK_TEMPLATE_ID: "3"
+  LISTMONK_URL: "https://listmonk.as207960.net"
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -166,9 +165,6 @@ spec:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
             - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
@@ -204,9 +200,6 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
-            - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
             - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
@@ -296,9 +289,6 @@ spec:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
             - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
@@ -385,9 +375,6 @@ spec:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
             - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
@@ -470,9 +457,6 @@ spec:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
             - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
@@ -546,9 +530,6 @@ spec:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
                 - secretRef:
-                    name: hexdns-email
-                  prefix: "EMAIL_"
-                - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
                 - secretRef:
@@ -610,9 +591,6 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
-                - secretRef:
-                    name: hexdns-email
-                  prefix: "EMAIL_"
                 - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
@@ -684,9 +662,6 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
-                - secretRef:
-                    name: hexdns-email
-                  prefix: "EMAIL_"
                 - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
@@ -767,9 +742,6 @@ spec:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
                 - secretRef:
-                    name: hexdns-email
-                  prefix: "EMAIL_"
-                - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
                 - secretRef:
@@ -832,9 +804,6 @@ spec:
                 - secretRef:
                     name: hexdns-keycloak
                   prefix: "KEYCLOAK_"
-                - secretRef:
-                    name: hexdns-email
-                  prefix: "EMAIL_"
                 - secretRef:
                     name: hexdns-github
                   prefix: "GITHUB_"
@@ -917,9 +886,6 @@ spec:
             - secretRef:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
-            - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
             - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
@@ -1017,9 +983,6 @@ spec:
                 name: hexdns-keycloak
               prefix: "KEYCLOAK_"
             - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
                 name: hexdns-github
               prefix: "GITHUB_"
             - secretRef:
@@ -1044,76 +1007,6 @@ spec:
       part: rpc
   policyTypes:
   - Ingress
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hexdns-keycloak-events
-  labels:
-    app: hexdns
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hexdns
-      part: keycloak-events
-  template:
-    metadata:
-      annotations:
-        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
-      labels:
-        app: hexdns
-        part: keycloak-events
-    spec:
-      volumes:
-        - name: pubkey
-          configMap:
-            name: hexdns-key-pub
-        - name: privkey
-          secret:
-            secretName: hexdns-key-priv
-        - name: domains-pubkey
-          configMap:
-            name: domains-jwt-pub
-      containers:
-        - name: rpc
-          image: as207960/hexdns-django:(version)
-          imagePullPolicy: Always
-          command: ["sh", "-c", "python3 manage.py keycloak-events"]
-          volumeMounts:
-            - mountPath: "/pubkey/"
-              name: pubkey
-            - mountPath: "/domains-pubkey/"
-              name: domains-pubkey
-            - mountPath: "/privkey/"
-              name: privkey
-          envFrom:
-            - configMapRef:
-                name: hexdns-django-conf
-            - secretRef:
-                name: hexdns-db-creds
-              prefix: "DB_"
-            - secretRef:
-                name: hexdns-django-secret
-            - secretRef:
-                name: hexdns-keycloak
-              prefix: "KEYCLOAK_"
-            - secretRef:
-                name: hexdns-email
-              prefix: "EMAIL_"
-            - secretRef:
-                name: hexdns-github
-              prefix: "GITHUB_"
-            - secretRef:
-                name: hexdns-google
-              prefix: "GOOGLE_"
-            - secretRef:
-                name: hexdns-netnod
-              prefix: "NETNOD_"
-            - secretRef:
-                name: hexdns-rpc
-            - secretRef:
-                name: hexdns-s3
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

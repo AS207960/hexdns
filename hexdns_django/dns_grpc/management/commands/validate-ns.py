@@ -1,8 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
-from dns_grpc import models
+from dns_grpc import models, emails, utils
 import keycloak.exceptions
 import random
 import retry
@@ -14,49 +13,6 @@ WANTED_NS = [
     dnslib.DNSLabel('ns3.as207960.net'),
     dnslib.DNSLabel('ns4.as207960.net'),
 ]
-
-
-def mail_valid(user, zone):
-    feedback_url = dns_grpc.utils.get_feedback_url(
-        f"HexDNS for {zone.zone_root}", zone.id
-    )
-
-    context = {
-        "name": user.first_name,
-        "zone": zone,
-        "feedback_url": feedback_url
-    }
-    html_content = render_to_string("dns_email/valid.html", context)
-    txt_content = render_to_string("dns_email/valid.txt", context)
-
-    email = EmailMultiAlternatives(
-        subject='HexDNS Zone Activated',
-        body=txt_content,
-        to=[user.email],
-        bcc=['email-log@as207960.net'],
-        reply_to=['Glauca Support <hello@glauca.digital>']
-    )
-    email.attach_alternative(html_content, "text/html")
-    email.send()
-
-
-def mail_invalid(user, zone):
-    context = {
-        "name": user.first_name,
-        "zone": zone
-    }
-    html_content = render_to_string("dns_email/invalid.html", context)
-    txt_content = render_to_string("dns_email/invalid.txt", context)
-
-    email = EmailMultiAlternatives(
-        subject='HexDNS Zone Inactive',
-        body=txt_content,
-        to=[user.email],
-        bcc=['email-log@as207960.net'],
-        reply_to=['Glauca Support <hello@glauca.digital>']
-    )
-    email.attach_alternative(html_content, "text/html")
-    email.send()
 
 
 @retry.retry(tries=5)
@@ -112,7 +68,12 @@ class Command(BaseCommand):
                 print(f"Setting {zone} to inactive")
                 zone.active = False
                 try:
-                    mail_invalid(zone.get_user(), zone)
+                    emails.send_email(zone.get_user(), {
+                        "subject": "HexDNS Zone Inactive",
+                        "content": render_to_string("dns_email/invalid.html", {
+                            "zone": zone
+                        })
+                    })
                 except keycloak.exceptions.KeycloakClientError as e:
                     print(f"Failed to notify user of status: {e}")
             zone.save()
@@ -141,9 +102,21 @@ class Command(BaseCommand):
                 print(f"{zone} is valid")
                 if not zone.active:
                     print(f"Setting {zone} to active")
-                zone.active = True
-                zone.num_check_fails = 0
-                zone.save()
+                    zone.active = True
+                    zone.num_check_fails = 0
+                    zone.save()
+
+                    feedback_url = utils.get_feedback_url(
+                        f"HexDNS for {zone.zone_root}", zone.id
+                    )
+                    emails.send_email(zone.get_user(), {
+                        "subject": "HexDNS Zone Activated",
+                        "feedback_url": feedback_url,
+                        "content": render_to_string("dns_email/valid.html", {
+                            "zone": zone
+                        })
+                    })
+
             else:
                 print(f"{zone} is invalid")
                 self.increment_zone_fail(zone)

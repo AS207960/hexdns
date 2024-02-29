@@ -173,13 +173,10 @@ STORAGES = {
     "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3ManifestStaticStorage"}
 }
 
-EMAIL_HOST = os.getenv("EMAIL_HOST")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 25))
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", False)
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.getenv("EMAIL_FROM", "Glauca HexDNS <dns@glauca.digital>")
+
+LISTMONK_TEMPLATE_ID = int(os.getenv("LISTMONK_TEMPLATE_ID"))
+LISTMONK_URL = os.getenv("LISTMONK_URL")
 
 KEYCLOAK_SERVER_URL = os.getenv("KEYCLOAK_SERVER_URL")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM")
