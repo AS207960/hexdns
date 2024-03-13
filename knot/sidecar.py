@@ -47,14 +47,11 @@ def main():
         sock.close()
 
 
-def direct_file_hash(filename: str) -> str:
+def file_hash(filename: str) -> str:
     offset = 0
     m = hashlib.sha256()
 
-    if hasattr(os, "O_DIRECT"):
-        fd = os.open(filename, os.O_RDONLY | os.O_DIRECT)
-    else:
-        fd = os.open(filename, os.O_RDONLY)
+    fd = os.open(filename, os.O_RDONLY)
 
     file_size = os.lseek(fd, 0, os.SEEK_END)
 
@@ -82,9 +79,9 @@ def callback_reload(channel, method, properties, body: bytes):
     zone_file_signed = f"/zones/{zone}zone.signed"
 
     if os.path.exists(zone_file):
-        zone_file_hashes.append(direct_file_hash(zone_file))
+        zone_file_hashes.append(file_hash(zone_file))
     if os.path.exists(zone_file_signed):
-        zone_file_hashes.append(direct_file_hash(zone_file_signed))
+        zone_file_hashes.append(file_hash(zone_file_signed))
 
     if len(zone_file_hashes) == 0:
         time.sleep(1)

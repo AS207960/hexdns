@@ -588,7 +588,7 @@ def add_szone(zone_id: str):
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
     m = hashlib.sha256()
-    m.update(zone_file)
+    m.update(zone_file.encode())
     send_reload_message(zone_root, m.hexdigest())
     update_catalog.delay()
 
@@ -607,7 +607,7 @@ def update_szone(zone_id: str):
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
     m = hashlib.sha256()
-    m.update(zone_file)
+    m.update(zone_file.encode())
     send_reload_message(zone_root, m.hexdigest())
 
 
