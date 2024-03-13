@@ -33,7 +33,7 @@ def main():
     channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
     channel.exchange_declare(exchange='hexdns_secondary_reload', exchange_type='fanout', durable=True)
 
-    queue = channel.queue_declare(queue='', exclusive=True)
+    queue = channel.queue_declare(queue=os.getenv("POD_NAME"), exclusive=True, durable=True)
     channel.queue_bind(exchange='hexdns_primary_reload', queue=queue.method.queue)
 
     channel.basic_qos(prefetch_count=0)
@@ -47,7 +47,7 @@ def main():
         sock.close()
 
 
-def file_hash(filename: str) -> str:
+def get_file_hash(filename: str) -> str:
     offset = 0
     m = hashlib.sha256()
 
@@ -79,9 +79,9 @@ def callback_reload(channel, method, properties, body: bytes):
     zone_file_signed = f"/zones/{zone}zone.signed"
 
     if os.path.exists(zone_file):
-        zone_file_hashes.append(file_hash(zone_file))
+        zone_file_hashes.append(get_file_hash(zone_file))
     if os.path.exists(zone_file_signed):
-        zone_file_hashes.append(file_hash(zone_file_signed))
+        zone_file_hashes.append(get_file_hash(zone_file_signed))
 
     if len(zone_file_hashes) == 0:
         time.sleep(1)

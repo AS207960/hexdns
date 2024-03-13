@@ -301,14 +301,9 @@ spec:
           image: as207960/knot-exporter:2
           imagePullPolicy: IfNotPresent
           command: [
-            "python3",
-            "/app/knot_exporter",
-            "--web-listen-addr",
-            "::",
-            "--knot-socket-path",
-            "/rundir/knot.sock",
-            "--knot-library-path",
-            "/usr/lib/x86_64-linux-gnu/libknot.so.11"
+            "sh", "-c",
+            "sleep 60 &&
+              python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
           ]
           readinessProbe:
             tcpSocket:
