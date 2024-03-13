@@ -26,6 +26,7 @@ data:
   DB_HOST: "cockroachdb"
   DB_NAME: "hexdns"
   DNSSEC_PUBKEY_LOCATION: "/pubkey/pubkey.pem"
+  DNSSEC_SIGNAL_PRIVKEY_LOCATION: "/signal-privkey/privkey.pem"
   DOMAINS_PUBKEY_LOCATION: "/domains-pubkey/pubkey.pem"
   DNSSEC_KEY_LOCATION: "/privkey/privkey.pem"
   BILLING_URL: "https://billing.as207960.net"
@@ -143,17 +144,22 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       initContainers:
         - name: django
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
           command: ["sh", "-c", "python3 manage.py collectstatic --noinput && python3 manage.py migrate"]
-          volumeMounts:
+          volumeMounts: &volumeMounts
             - mountPath: "/pubkey/"
               name: pubkey
             - mountPath: "/domains-pubkey/"
               name: domains-pubkey
-          envFrom:
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
+          envFrom: &envFrom
             - configMapRef:
                 name: hexdns-django-conf
             - secretRef:
@@ -184,35 +190,8 @@ spec:
           command: ["gunicorn", "-w", "4", "-b", "[::]:8000", "--forwarded-allow-ips", "*", "--access-logfile", "-", "hexdns_django.wsgi:application"]
           ports:
             - containerPort: 8000
-          volumeMounts:
-            - mountPath: "/pubkey/"
-              name: pubkey
-            - mountPath: "/domains-pubkey/"
-              name: domains-pubkey
-          envFrom:
-            - configMapRef:
-                name: hexdns-django-conf
-            - secretRef:
-                name: hexdns-db-creds
-              prefix: "DB_"
-            - secretRef:
-                name: hexdns-django-secret
-            - secretRef:
-                name: hexdns-keycloak
-              prefix: "KEYCLOAK_"
-            - secretRef:
-                name: hexdns-github
-              prefix: "GITHUB_"
-            - secretRef:
-                name: hexdns-google
-              prefix: "GOOGLE_"
-            - secretRef:
-                name: hexdns-netnod
-              prefix: "NETNOD_"
-            - secretRef:
-                name: hexdns-rpc
-            - secretRef:
-                name: hexdns-s3
+          volumeMounts: *volumeMounts
+          envFrom: *envFrom
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -265,6 +244,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: gunicorn
           image: as207960/hexdns-django:(version)
@@ -277,6 +259,8 @@ spec:
               name: pubkey
             - mountPath: "/domains-pubkey/"
               name: domains-pubkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -353,6 +337,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: celery
           image: as207960/hexdns-django:(version)
@@ -363,6 +350,8 @@ spec:
               name: pubkey
             - mountPath: "/domains-pubkey/"
               name: domains-pubkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -431,6 +420,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: console
           image: as207960/hexdns-django-root:(version)
@@ -445,6 +437,8 @@ spec:
               name: knot
             - mountPath: "/domains-pubkey/"
               name: domains-pubkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -508,6 +502,9 @@ spec:
             - name: domains-pubkey
               configMap:
                 name: domains-jwt-pub
+            - name: signal-privkey
+              secret:
+                secretName: hexdns-signal-privkey
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -518,6 +515,8 @@ spec:
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
                   name: domains-pubkey
+                - mountPath: "/signal-privkey/"
+                  name: signal-privkey
               envFrom:
                 - configMapRef:
                     name: hexdns-django-conf
@@ -570,6 +569,9 @@ spec:
             - name: domains-pubkey
               configMap:
                 name: domains-jwt-pub
+            - name: signal-privkey
+              secret:
+                secretName: hexdns-signal-privkey
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -580,6 +582,8 @@ spec:
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
                   name: domains-pubkey
+                - mountPath: "/signal-privkey/"
+                  name: signal-privkey
               envFrom:
                 - configMapRef:
                     name: hexdns-django-conf
@@ -635,6 +639,9 @@ spec:
                 name: domains-jwt-pub
             - name: tmp-pod
               emptyDir: {}
+            - name: signal-privkey
+              secret:
+                secretName: hexdns-signal-privkey
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -650,7 +657,9 @@ spec:
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
-                  name: domains-pubkey
+                  name: domains-pubke
+                - mountPath: "/signal-privkey/"
+                  name: signal-privkey
               envFrom:
                 - configMapRef:
                     name: hexdns-django-conf
@@ -720,6 +729,9 @@ spec:
             - name: domains-pubkey
               configMap:
                 name: domains-jwt-pub
+            - name: signal-privkey
+              secret:
+                secretName: hexdns-signal-privkey
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -730,6 +742,8 @@ spec:
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
                   name: domains-pubkey
+                - mountPath: "/signal-privkey/"
+                  name: signal-privkey
               envFrom:
                 - configMapRef:
                     name: hexdns-django-conf
@@ -783,6 +797,9 @@ spec:
             - name: domains-pubkey
               configMap:
                 name: domains-jwt-pub
+            - name: signal-privkey
+              secret:
+                secretName: hexdns-signal-privkey
           containers:
             - name: django
               image: as207960/hexdns-django:(version)
@@ -793,6 +810,8 @@ spec:
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
                   name: domains-pubkey
+                - mountPath: "/signal-privkey/"
+                  name: signal-privkey
               envFrom:
                 - configMapRef:
                     name: hexdns-django-conf
@@ -861,6 +880,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: grpc
           image: as207960/hexdns-django:(version)
@@ -875,6 +897,8 @@ spec:
               name: domains-pubkey
             - mountPath: "/privkey/"
               name: privkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -959,6 +983,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: rpc
           image: as207960/hexdns-django:(version)
@@ -971,6 +998,8 @@ spec:
               name: domains-pubkey
             - mountPath: "/privkey/"
               name: privkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf

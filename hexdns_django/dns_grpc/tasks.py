@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from . import models, apps, utils, netnod
 import dnslib
+import hashlib
 import base64
 import pika
 import ipaddress
@@ -472,13 +473,13 @@ def send_resign_message(label: dnslib.DNSLabel):
     pika_client.get_channel(pub)
 
 
-def send_reload_message(label: dnslib.DNSLabel):
+def send_reload_message(label: dnslib.DNSLabel, zone_hash: str):
     global pika_client
 
     def pub(channel):
         channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
         channel.basic_publish(
-            exchange='hexdns_primary_reload', routing_key='', body=str(label).encode(),
+            exchange='hexdns_primary_reload', routing_key='', body=f"{zone_hash}:{label}".encode(),
             properties=pika.BasicProperties(
                 delivery_mode=2,
                 priority=0,
@@ -586,7 +587,9 @@ def add_szone(zone_id: str):
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
-    send_resign_message(zone_root)
+    m = hashlib.sha256()
+    m.update(zone_file)
+    send_reload_message(zone_root, m.hexdigest())
     update_catalog.delay()
 
 
@@ -603,7 +606,9 @@ def update_szone(zone_id: str):
     zone_root = dnslib.DNSLabel(zone.zone_root)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
-    send_reload_message(zone_root)
+    m = hashlib.sha256()
+    m.update(zone_file)
+    send_reload_message(zone_root, m.hexdigest())
 
 
 def get_user(zone):
@@ -675,7 +680,7 @@ def update_signal_zones():
 
         zone_file += zone_file_base
 
-        write_zone_file(zone_file, "", str(zone_root))
+        write_zone_file(zone_file, settings.DNSSEC_SIGNAL_PRIVKEY_DATA, str(zone_root))
         send_resign_message(zone_root)
 
 
@@ -748,7 +753,9 @@ def update_catalog():
                 inactive_zones.append(str(zone_root))
 
     write_zone_file(zone_file, "", "catalog.")
-    send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."))
+    m = hashlib.sha256()
+    m.update(zone_file)
+    send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."), m.hexdigest())
 
     update_signal_zones.delay()
     sync_netnod_zones.delay(active_zones, inactive_zones)
