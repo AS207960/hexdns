@@ -51,7 +51,10 @@ def get_file_hash(filename: str) -> str:
     offset = 0
     m = hashlib.sha256()
 
-    fd = os.open(filename, os.O_RDONLY)
+    if hasattr(os, "O_DIRECT"):
+        fd = os.open(filename, os.O_RDONLY | os.O_DIRECT)
+    else:
+        fd = os.open(filename, os.O_RDONLY)
 
     file_size = os.lseek(fd, 0, os.SEEK_END)
 
