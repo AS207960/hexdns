@@ -250,6 +250,11 @@ spec:
           ]
           securityContext:
             privileged: true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           volumeMounts:
             - mountPath: "/rundir/"
               name: rundir
