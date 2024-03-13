@@ -213,7 +213,8 @@ spec:
           imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
-            "cp /config-template/knot.conf /config/knot.conf &&
+            "sleep 30 &&
+             cp /config-template/knot.conf /config/knot.conf &&
              sed -i \"s/(xfr-secret)/$XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(netnod-xfr-secret)/$NETNOD_XFR_SECRET/g\" /config/knot.conf &&
              sed -i \"s/(coredns-xfr-secret)/$COREDNS_XFR_SECRET/g\" /config/knot.conf &&

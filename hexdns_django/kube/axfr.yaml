@@ -93,6 +93,9 @@ spec:
         - name: domains-pubkey
           configMap:
             name: domains-jwt-pub
+        - name: signal-privkey
+          secret:
+            secretName: hexdns-signal-privkey
       containers:
         - name: knot
           image: as207960/knotd:7
@@ -159,6 +162,8 @@ spec:
               name: pubkey
             - mountPath: "/domains-pubkey/"
               name: domains-pubkey
+            - mountPath: "/signal-privkey/"
+              name: signal-privkey
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
