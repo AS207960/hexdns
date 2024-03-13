@@ -247,6 +247,8 @@ spec:
           command: [
             "python3", "/app/sidecar.py"
           ]
+          securityContext:
+            privileged: true
           volumeMounts:
             - mountPath: "/rundir/"
               name: rundir
