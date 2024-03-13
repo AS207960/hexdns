@@ -34,7 +34,6 @@ def main():
     channel.exchange_declare(exchange='hexdns_secondary_reload', exchange_type='fanout', durable=True)
 
     queue = channel.queue_declare(queue='', exclusive=True)
-    resign_queue = channel.queue_declare(queue='', exclusive=True)
     channel.queue_bind(exchange='hexdns_primary_reload', queue=queue.method.queue)
 
     channel.basic_qos(prefetch_count=0)
@@ -77,13 +76,22 @@ def callback_reload(channel, method, properties, body: bytes):
     body = body.decode()
     file_hash, zone = body.split(":", 1)
 
+    zone_file_hashes = []
+
     zone_file = f"/zones/{zone}zone"
-    if not os.path.exists(zone_file):
+    zone_file_signed = f"/zones/{zone}zone.signed"
+
+    if os.path.exists(zone_file):
+        zone_file_hashes.append(direct_file_hash(zone_file))
+    if os.path.exists(zone_file_signed):
+        zone_file_hashes.append(direct_file_hash(zone_file_signed))
+
+    if len(zone_file_hashes) == 0:
         time.sleep(1)
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         return
 
-    if direct_file_hash(zone_file) != file_hash:
+    if all(h != file_hash for h in zone_file_hashes):
         time.sleep(1)
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         return

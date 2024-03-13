@@ -657,7 +657,7 @@ spec:
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
-                  name: domains-pubke
+                  name: domains-pubkey
                 - mountPath: "/signal-privkey/"
                   name: signal-privkey
               envFrom:
