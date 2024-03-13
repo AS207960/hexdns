@@ -3,6 +3,7 @@ extern crate log;
 
 use futures_util::StreamExt;
 use tokio::io::AsyncReadExt;
+use sha2::Digest;
 
 mod parser;
 mod lexer;
@@ -248,6 +249,10 @@ async fn main() {
                 }
             };
 
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(zone_signed.as_bytes());
+            let zone_hash = hasher.finalize();
+
             let byte_stream = aws_sdk_s3::primitives::ByteStream::from(zone_signed.as_bytes().to_vec());
             if let Err(err) = s3_client.put_object()
                 .bucket(&s3_bucket)
@@ -266,12 +271,12 @@ async fn main() {
 
             info!("Signed zone zone={}", zone_name);
 
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-
             amqp_channel.basic_publish(
                 "hexdns_primary_reload", "",
-                lapin::options::BasicPublishOptions::default(), zone_name.as_bytes(),
+                lapin::options::BasicPublishOptions::default(),
+                format!("{}:{}", hex::encode(zone_hash), zone_name).as_bytes(),
                 lapin::BasicProperties::default()
+                    .with_expiration("3600000".into())
             ).await.expect("Unable to publish to RabbitMQ exchange");
 
             delivery

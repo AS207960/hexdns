@@ -23,7 +23,7 @@
       <excludeFolder url="file://$MODULE_DIR$/axfr-notify/target" />
       <excludeFolder url="file://$MODULE_DIR$/dnssec-signer/target" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.8 (hexdns)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.11 (hexdns)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Bundled Protobuf Distribution" level="application" />
     <orderEntry type="module" module-name="hexdns_django" />

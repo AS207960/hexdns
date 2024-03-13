@@ -1,6 +1,10 @@
+import time
+
 import pika
 import libknot.control
 import os
+import mmap
+import hashlib
 import socket
 import threading
 import dnslib
@@ -27,17 +31,14 @@ def main():
     channel = connection.channel()
 
     channel.exchange_declare(exchange='hexdns_primary_reload', exchange_type='fanout', durable=True)
-    channel.exchange_declare(exchange='hexdns_primary_resign', exchange_type='fanout', durable=True)
     channel.exchange_declare(exchange='hexdns_secondary_reload', exchange_type='fanout', durable=True)
 
     queue = channel.queue_declare(queue='', exclusive=True)
     resign_queue = channel.queue_declare(queue='', exclusive=True)
     channel.queue_bind(exchange='hexdns_primary_reload', queue=queue.method.queue)
-    channel.queue_bind(exchange='hexdns_primary_resign', queue=resign_queue.method.queue)
 
     channel.basic_qos(prefetch_count=0)
     channel.basic_consume(queue=queue.method.queue, on_message_callback=callback_reload, auto_ack=False)
-    channel.basic_consume(queue=resign_queue.method.queue, on_message_callback=callback_resign, auto_ack=False)
 
     print("RPC handler now running", flush=True)
     try:
@@ -47,8 +48,46 @@ def main():
         sock.close()
 
 
+def direct_file_hash(filename: str) -> str:
+    offset = 0
+    m = hashlib.sha256()
+
+    if hasattr(os, "O_DIRECT"):
+        fd = os.open(filename, os.O_RDONLY | os.O_DIRECT)
+    else:
+        fd = os.open(filename, os.O_RDONLY)
+
+    file_size = os.lseek(fd, 0, os.SEEK_END)
+
+    try:
+        while offset < file_size:
+            block_size = min(file_size - offset, 2**20)
+            with mmap.mmap(fd, block_size, offset=offset, access=mmap.ACCESS_READ) as mm:
+                offset += len(mm)
+                if not mm:
+                    break
+                m.update(mm)
+    finally:
+        os.close(fd)
+
+    return m.hexdigest()
+
+
 def callback_reload(channel, method, properties, body: bytes):
-    zone = body.decode()
+    body = body.decode()
+    file_hash, zone = body.split(":", 1)
+
+    zone_file = f"/zones/{zone}zone"
+    if not os.path.exists(zone_file):
+        time.sleep(1)
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+        return
+
+    if direct_file_hash(zone_file) != file_hash:
+        time.sleep(1)
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+        return
+
     print(f"Reloading {zone}", flush=True)
     ctl = libknot.control.KnotCtl()
     ctl.connect("/rundir/knot.sock")
@@ -60,30 +99,6 @@ def callback_reload(channel, method, properties, body: bytes):
         channel.basic_ack(delivery_tag=method.delivery_tag)
     except libknot.control.KnotCtlError as e:
         if e.data and e.data[libknot.control.KnotCtlDataIdx.ERROR] == "no such zone found":
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-        else:
-            channel.basic_reject(delivery_tag=method.delivery_tag)
-    finally:
-        try:
-            ctl.send(libknot.control.KnotCtlType.END)
-            ctl.close()
-        except libknot.control.KnotCtlError:
-            pass
-
-
-def callback_resign(channel, method, properties, body: bytes):
-    zone = body.decode()
-    print(f"Reloading {zone}", flush=True)
-    ctl = libknot.control.KnotCtl()
-    ctl.connect("/rundir/knot.sock")
-
-    try:
-        ctl.send_block(cmd="zone-sign", zone=zone)
-        ctl.receive_block()
-        print(f"Reloaded {zone}", flush=True)
-        channel.basic_ack(delivery_tag=method.delivery_tag)
-    except libknot.control.KnotCtlError as e:
-        if e.data[libknot.control.KnotCtlDataIdx.ERROR] == "no such zone found":
             channel.basic_ack(delivery_tag=method.delivery_tag)
         else:
             channel.basic_reject(delivery_tag=method.delivery_tag)

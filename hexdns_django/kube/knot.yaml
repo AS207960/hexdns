@@ -250,6 +250,10 @@ spec:
           volumeMounts:
             - mountPath: "/rundir/"
               name: rundir
+            - mountPath: /zones
+              name: zones
+              mountPropagation: Bidirectional
+              readOnly: true
           envFrom:
             - secretRef:
                 name: hexdns-rpc

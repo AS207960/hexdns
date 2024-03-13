@@ -722,7 +722,7 @@ fn parse_datetime(dt: &str) -> ParseResult<u32> {
         chrono::NaiveDate::from_ymd_opt(year as i32, month, day)
             .and_then(|date| date.and_hms_opt(hour, minute, second))
             .ok_or_else(|| ParseError::from(ParseErrorKind::Msg("Invalid timestamp".to_string())))?
-            .timestamp() as u32
+            .and_utc().timestamp() as u32
     } else {
         dt.parse::<u32>()
             .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid timestamp".to_string())))?

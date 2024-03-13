@@ -23,8 +23,8 @@ pub fn sign_zone(
     }).ok_or_else(|| format!("Zone file does not contain SOA record"))?;
     let soa = soa_rrset.records_without_rrsigs().next().unwrap().data().unwrap().as_soa().unwrap();
 
-    let now = chrono::Utc::now() - chrono::Duration::minutes(5);
-    let expiry = now + chrono::Duration::days(14);
+    let now = chrono::Utc::now() - chrono::Duration::try_minutes(5).unwrap();
+    let expiry = now + chrono::Duration::try_days(14).unwrap();
 
     let default_ttl = std::cmp::min(soa_rrset.ttl(), soa.minimum());
     let mut out_zone = zone_file.clone();
