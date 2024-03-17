@@ -754,7 +754,7 @@ def update_catalog():
 
     write_zone_file(zone_file, "", "catalog.")
     m = hashlib.sha256()
-    m.update(zone_file)
+    m.update(zone_file.encode())
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."), m.hexdigest())
 
     update_signal_zones.delay()
