@@ -123,6 +123,7 @@ async fn main() {
     }, lapin::types::FieldTable::default()).await.expect("Unable to declare RabbitMQ exchange");
 
     let mut consumer = amqp_channel.basic_consume("hexdns_resign", "", lapin::options::BasicConsumeOptions {
+        no_ack: false,
         ..lapin::options::BasicConsumeOptions::default()
     }, lapin::types::FieldTable::default()).await.expect("Unable to start consuming on RabbitMQ queue");
 
@@ -147,6 +148,8 @@ async fn main() {
                     return;
                 }
             };
+
+            info!("Signing zone zone={}", zone_name);
 
             let zone_contents = match s3_client.get_object()
                 .bucket(&s3_bucket)

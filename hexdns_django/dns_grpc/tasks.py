@@ -464,10 +464,11 @@ def send_resign_message(label: dnslib.DNSLabel):
         channel.basic_publish(
             exchange='', routing_key='hexdns_resign', body=str(label).encode(),
             properties=pika.BasicProperties(
-                delivery_mode=2,
+                delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE,
                 priority=0,
-                expiration=str(1000 * 60 * 60)
-            )
+                expiration=str(1000 * 60 * 60 * 24)
+            ),
+            mandatory=True
         )
 
     pika_client.get_channel(pub)
