@@ -152,7 +152,7 @@ def verify_zone_google(request, google_token, zone_id):
 
     site = {
         "type": "INET_DOMAIN",
-        "identifier": zone_obj.zone_root
+        "identifier": zone_obj.idna_label
     }
 
     r = requests.post(f"https://www.googleapis.com/siteVerification/v1/token?access_token={google_token}", json={

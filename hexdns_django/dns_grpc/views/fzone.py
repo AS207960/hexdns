@@ -202,7 +202,7 @@ def edit_zone(request, zone_id):
     if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.zone_root)
+    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.idna_label)
     dnskey = utils.get_dnskey()
 
     if user_zone.get_user() == request.user:
@@ -1999,7 +1999,7 @@ def edit_zone_cds(request, zone_id):
     if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.zone_root)
+    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.idna_label)
     dnskey = utils.get_dnskey()
     return render(
         request,
@@ -2582,7 +2582,7 @@ def export_zone_file(request, zone_id):
         raise PermissionDenied
 
     zone_out = [
-        f"$ORIGIN {zone_obj.zone_root}"
+        f"$ORIGIN {zone_obj.idna_label}"
     ]
 
     for ns in zone_obj.custom_ns.all():
@@ -2763,7 +2763,7 @@ def setup_icloud(request, zone_id):
                 zone=zone_obj,
                 record_name=dkim_label,
                 ttl=3600,
-                alias=f"sig1.dkim{dkim_root}.{zone_obj.zone_root}.at.icloudmailadmin.com."
+                alias=f"sig1.dkim{dkim_root}.{zone_obj.idna_label}.at.icloudmailadmin.com."
             )
             dkim_cname.save()
 

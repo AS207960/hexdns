@@ -81,7 +81,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for zone in list(models.DNSZone.objects.all()) + list(models.SecondaryDNSZone.objects.all()):
             try:
-                ns = query_authoritative_ns(zone.zone_root)
+                ns = query_authoritative_ns(zone.idna_label)
             except (dnslib.DNSError, OSError) as e:
                 print(f"Cant validate {zone}: {e}")
                 continue

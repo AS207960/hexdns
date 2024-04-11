@@ -274,9 +274,9 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
 
             if setup_form.is_valid():
                 if setup_form.cleaned_data["record_name"] == "@":
-                    dns_name = zone_obj.zone_root
+                    dns_name = zone_obj.idna_label
                 else:
-                    dns_name = f"{setup_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+                    dns_name = f"{setup_form.cleaned_data['record_name']}.{zone_obj.idna_label}"
 
                 requests.post(f"https://api.github.com/repos/{owner}/{repo}/pages", headers={
                     "Authorization": f"token {get_installation_token(installation)}",
@@ -324,9 +324,9 @@ def setup_github_pages_repo(request, zone_id, owner, repo):
             record_form.fields['source_branch'].choices = list(map(lambda b: (b["name"], b["name"]), branches))
             if record_form.is_valid():
                 if record_form.cleaned_data["record_name"] == "@":
-                    dns_name = zone_obj.zone_root
+                    dns_name = zone_obj.idna_label
                 else:
-                    dns_name = f"{record_form.cleaned_data['record_name']}.{zone_obj.zone_root}"
+                    dns_name = f"{record_form.cleaned_data['record_name']}.{zone_obj.idna_label}"
 
                 requests.put(
                     f"https://api.github.com/repos/{owner}/{repo}/pages",
@@ -418,7 +418,7 @@ def edit_github_pages_record(request, record_id):
                         "Authorization": f"token {get_installation_token(installation)}",
                         "Accept": "application/vnd.github+json"
                     }, json={
-                        "cname": f"{record_form.cleaned_data['record_name']}.{user_record.zone.zone_root}",
+                        "cname": f"{record_form.cleaned_data['record_name']}.{user_record.zone.idna_label}",
                         "source": {
                             "branch": record_form.cleaned_data["source_branch"],
                             "path": record_form.cleaned_data["source_path"],

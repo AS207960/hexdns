@@ -61,8 +61,8 @@ def update_ip(request):
     hostname = data.get("hostname")
     myip = data.get("myip")
 
-    if hostname != f"{dyn_obj.record_name}.{dyn_obj.zone.zone_root}":
-        if not (dyn_obj.record_name == "@" and hostname == dyn_obj.zone.zone_root):
+    if hostname != f"{dyn_obj.record_name}.{dyn_obj.zone.idna_label}":
+        if not (dyn_obj.record_name == "@" and hostname == dyn_obj.zone.idna_label):
             return HttpResponseBadRequest("nohost")
 
     client_ip = get_ip(request)
