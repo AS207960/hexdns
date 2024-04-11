@@ -161,7 +161,7 @@ def generate_zone_header(zone, zone_root):
 
 
 def generate_fzone(zone: "models.DNSZone"):
-    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_root = dnslib.DNSLabel(zone.idna_label)
     zone_file = generate_zone_header(zone, zone_root)
 
     rzones = set()
@@ -425,7 +425,7 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
             zones[record.zone.id] = account2
         if account2 == account:
             if record.record_name == "@":
-                zone_ptr = dnslib.DNSLabel(f"{record.zone.zone_root}")
+                zone_ptr = dnslib.DNSLabel(str(record.zone.zone_root))
             else:
                 zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
             zone_file += f"; Address record {record.id}\n"
@@ -435,7 +435,7 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
 
 
 def generate_szone(zone: "models.SecondaryDNSZone"):
-    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_root = dnslib.DNSLabel(zone.idna_label)
     zone_file = f"$ORIGIN {zone_root}\n"
 
     for record in zone.secondarydnszonerecord_set.all():
@@ -502,8 +502,8 @@ def add_fzone(zone_id: str):
         return
 
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
-    if pattern.match(zone.zone_root):
-        zone_root = dnslib.DNSLabel(zone.zone_root)
+    if pattern.match(zone.idna_label):
+        zone_root = dnslib.DNSLabel(zone.idna_label)
         zone_file = generate_fzone(zone)
         write_zone_file(zone_file, zone.zsk_private, str(zone_root))
         send_resign_message(zone_root)
@@ -523,8 +523,8 @@ def update_fzone(zone_id: str):
         return
 
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
-    if pattern.match(zone.zone_root):
-        zone_root = dnslib.DNSLabel(zone.zone_root)
+    if pattern.match(zone.idna_label):
+        zone_root = dnslib.DNSLabel(zone.idna_label)
         zone_file = generate_fzone(zone)
         write_zone_file(zone_file, zone.zsk_private, str(zone_root))
         send_resign_message(zone_root)
@@ -585,7 +585,7 @@ def add_szone(zone_id: str):
     except models.SecondaryDNSZone.DoesNotExist:
         return
 
-    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_root = dnslib.DNSLabel(zone.idna_label)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
     m = hashlib.sha256()
@@ -604,7 +604,7 @@ def update_szone(zone_id: str):
     except models.SecondaryDNSZone.DoesNotExist:
         return
 
-    zone_root = dnslib.DNSLabel(zone.zone_root)
+    zone_root = dnslib.DNSLabel(zone.idna_label)
     zone_file = generate_szone(zone)
     write_zone_file(zone_file, "", str(zone_root))
     m = hashlib.sha256()
@@ -643,8 +643,8 @@ def update_signal_zones():
     zone_file_base = ""
 
     for zone in models.DNSZone.objects.all():
-        if pattern.match(zone.zone_root):
-            cds_zone_root = dnslib.DNSLabel(zone.zone_root)
+        if pattern.match(zone.idna_label):
+            cds_zone_root = dnslib.DNSLabel(zone.idna_label)
             zone_file_base += f"; Zone {zone.id}\n"
             dsboot_label = f"_dsboot.{str(cds_zone_root)[:-1]}"
 
@@ -652,7 +652,7 @@ def update_signal_zones():
                 zone_file_base += f"{dsboot_label} 86400 IN CDS 0 0 0 00\n"
                 zone_file_base += f"{dsboot_label} 86400 IN CDNSKEY 0 3 0 AA==\n"
             else:
-                digest, tag = utils.make_zone_digest(zone.zone_root)
+                digest, tag = utils.make_zone_digest(zone.idna_label)
                 dnskey_bytes = utils.get_dnskey().key
 
                 zone_file_base += f"{dsboot_label} 86400 IN CDS {tag} 13 2 {digest}\n"
@@ -717,10 +717,10 @@ def update_catalog():
     inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
-        if zone.zone_root in required_zones:
+        if zone.idna_label in required_zones:
             continue
-        if pattern.match(zone.zone_root):
-            zone_root = dnslib.DNSLabel(zone.zone_root)
+        if pattern.match(zone.idna_label):
+            zone_root = dnslib.DNSLabel(zone.idna_label)
             owner = get_user(zone)
             if is_active(owner):
                 active_zones.append((str(zone_root), owner.username))
@@ -743,8 +743,8 @@ def update_catalog():
             inactive_zones.append(str(zone_root))
 
     for zone in models.SecondaryDNSZone.objects.all():
-        if pattern.match(zone.zone_root):
-            zone_root = dnslib.DNSLabel(zone.zone_root)
+        if pattern.match(zone.idna_label):
+            zone_root = dnslib.DNSLabel(zone.idna_label)
             owner = get_user(zone)
             if is_active(owner):
                 active_zones.append((str(zone_root), owner.username))

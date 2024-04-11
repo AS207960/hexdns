@@ -70,6 +70,17 @@ class DNSZone(models.Model):
         self.user = user
         super().__init__(*args, **kwargs)
 
+    @property
+    def idna_label(self):
+        try:
+            return idna.encode(self.zone_root, uts46=True).decode()
+        except idna.IDNAError:
+            allowed_chars = string.ascii_letters + string.digits + "-_ *."
+            if all(c in allowed_chars for c in self.zone_root):
+                return self.zone_root.replace(" ", "\\040")
+
+            return None
+
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
         return cls.objects.filter(resource_id__in=as207960_utils.models.get_object_ids(access_token, 'zone', action))
@@ -109,7 +120,7 @@ class DNSZone(models.Model):
         verbose_name_plural = "DNS Zones"
 
     def __str__(self):
-        return self.zone_root
+        return self.idna_label
 
     def setup_initial_records(self):
         self.create_blank_spf()
@@ -553,6 +564,17 @@ class SecondaryDNSZone(models.Model):
         self.user = user
         super().__init__(*args, **kwargs)
 
+    @property
+    def idna_label(self):
+        try:
+            return idna.encode(self.zone_root, uts46=True).decode()
+        except idna.IDNAError:
+            allowed_chars = string.ascii_letters + string.digits + "-_ *."
+            if all(c in allowed_chars for c in self.zone_root):
+                return self.zone_root.replace(" ", "\\040")
+
+            return None
+
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
         return cls.objects.filter(
@@ -593,7 +615,7 @@ class SecondaryDNSZone(models.Model):
         verbose_name_plural = "Secondary DNS Zones"
 
     def __str__(self):
-        return self.zone_root
+        return self.idna_label
 
 
 class SecondaryDNSZoneRecord(models.Model):
