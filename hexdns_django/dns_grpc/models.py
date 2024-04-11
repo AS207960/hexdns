@@ -1,5 +1,5 @@
 import base64
-
+import encodings.idna
 import Crypto.IO.PEM
 import binascii
 import ipaddress
@@ -31,6 +31,31 @@ else:
 
 DNS_ALPHABET = string.ascii_lowercase + string.digits + "-."
 
+def idna_old_encode(value: str):
+    parts = value.split(".")
+    parts = [encodings.idna.nameprep(p) for p in parts]
+    parts = [encodings.idna.ToASCII(p) for p in parts]
+    return ".".join(parts)
+
+def idna_encode(value: str):
+    if value.strip() == "@" or value.strip() == '':
+        return "@"
+
+    try:
+        return idna.encode(value, uts46=True).decode()
+    except idna.IDNAError:
+        pass
+
+    try:
+        return idna_old_encode(value)
+    except ValueError:
+        pass
+
+    allowed_chars = string.ascii_letters + string.digits + "-_ *."
+    if all(c in allowed_chars for c in value):
+        return value.replace(" ", "\\040")
+
+    return None
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -72,14 +97,7 @@ class DNSZone(models.Model):
 
     @property
     def idna_label(self):
-        try:
-            return idna.encode(self.zone_root, uts46=True).decode()
-        except idna.IDNAError:
-            allowed_chars = string.ascii_letters + string.digits + "-_ *."
-            if all(c in allowed_chars for c in self.zone_root):
-                return self.zone_root.replace(" ", "\\040")
-
-            return None
+        return idna_encode(self.zone_root)
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
@@ -566,14 +584,7 @@ class SecondaryDNSZone(models.Model):
 
     @property
     def idna_label(self):
-        try:
-            return idna.encode(self.zone_root, uts46=True).decode()
-        except idna.IDNAError:
-            allowed_chars = string.ascii_letters + string.digits + "-_ *."
-            if all(c in allowed_chars for c in self.zone_root):
-                return self.zone_root.replace(" ", "\\040")
-
-            return None
+        return idna_encode(self.zone_root)
 
     @classmethod
     def get_object_list(cls, access_token: str, action='view'):
@@ -660,16 +671,7 @@ class DNSZoneRecord(models.Model):
 
     @property
     def idna_label(self):
-        if self.record_name.strip() == "@" or self.record_name.strip() == '':
-            return "@"
-        try:
-            return idna.encode(self.record_name, uts46=True).decode()
-        except idna.IDNAError:
-            allowed_chars = string.ascii_letters + string.digits + "-_ *."
-            if all(c in allowed_chars for c in self.record_name):
-                return self.record_name.replace(" ", "\\040")
-
-            return None
+        return idna_encode(self.record_name)
 
     @classmethod
     def dns_label_to_record_name(cls, rname, zone):
