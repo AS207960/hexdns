@@ -661,9 +661,9 @@ class DNSZoneRecord(models.Model):
     @property
     def dns_label(self):
         if self.record_name == "@":
-            return dnslib.DNSLabel(self.zone.zone_root)
+            return dnslib.DNSLabel(self.zone.idna_label)
         else:
-            return dnslib.DNSLabel(f"{self.idna_label}.{self.zone.zone_root}")
+            return dnslib.DNSLabel(f"{self.idna_label}.{self.zone.idna_label}")
 
     @property
     def record_label(self):
