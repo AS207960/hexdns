@@ -110,7 +110,7 @@ def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
 
 
 def encode_str(data):
-    return "".join((c if ord(c) < 128 else "".join(f'\\{b}' for b in c.encode())) for c in data.replace("\"", "\\\""))
+    return "".join((c if ord(c) < 128 else "".join(f'\\{int(b)}' for b in c.encode())) for c in data.replace("\"", "\\\""))
 
 
 def dd_to_dms(dd: float) -> typing.Tuple[int, int, float]:
