@@ -34,7 +34,7 @@ DNS_ALPHABET = string.ascii_lowercase + string.digits + "-."
 def idna_old_encode(value: str):
     parts = value.split(".")
     parts = [encodings.idna.nameprep(p) for p in parts]
-    parts = [encodings.idna.ToASCII(p) for p in parts]
+    parts = [encodings.idna.ToASCII(p).decode() for p in parts]
     return ".".join(parts)
 
 def idna_encode(value: str):
