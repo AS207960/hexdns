@@ -340,6 +340,8 @@ spec:
         - name: signal-privkey
           secret:
             secretName: hexdns-signal-privkey
+        - name: celery-state
+          emptyDir: {}
       containers:
         - name: celery
           image: as207960/hexdns-django:(version)
@@ -352,6 +354,8 @@ spec:
               name: domains-pubkey
             - mountPath: "/signal-privkey/"
               name: signal-privkey
+            - mountPath: "/celery-state/"
+              name: celery-state
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
