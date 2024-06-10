@@ -78,9 +78,11 @@ def callback_reload(channel, method, properties, body: bytes):
 
     zone_file_hashes = []
 
+    print(f"Received reload request for {zone}", flush=True)
+
     if zone == "catalog.dns.as207960.ltd.uk.":
-        zone_file = f"/zones/catalog.zone"
-        zone_file_signed = f"/zones/catalog.zone.signed"
+        zone_file = "/zones/catalog.zone"
+        zone_file_signed = "/zones/catalog.zone.signed"
     else:
         zone_file = f"/zones/{zone}zone"
         zone_file_signed = f"/zones/{zone}zone.signed"
@@ -91,11 +93,13 @@ def callback_reload(channel, method, properties, body: bytes):
         zone_file_hashes.append(get_file_hash(zone_file_signed))
 
     if len(zone_file_hashes) == 0:
+        print(f"Hash mismatch for {zone}", flush=True)
         time.sleep(1)
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         return
 
     if all(h != file_hash for h in zone_file_hashes):
+        print(f"Hash mismatch for {zone}", flush=True)
         time.sleep(1)
         channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         return
