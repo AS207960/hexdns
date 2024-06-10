@@ -78,6 +78,9 @@ def callback_reload(channel, method, properties, body: bytes):
 
     zone_file_hashes = []
 
+    if zone == "catalog.dns.as207960.ltd.uk.":
+        zone = "catalog."
+
     zone_file = f"/zones/{zone}zone"
     zone_file_signed = f"/zones/{zone}zone.signed"
 
