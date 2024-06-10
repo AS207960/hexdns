@@ -57,7 +57,8 @@ ENV X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/usr/local/musl/ \
     PKG_CONFIG_ALLOW_CROSS=true \
     PKG_CONFIG_ALL_STATIC=true \
     LIBZ_SYS_STATIC=1 \
-    TARGET=musl
+    TARGET=musl \
+    AR=ar
 
 USER rust
 RUN mkdir -p /home/rust/libs /home/rust/src /home/rust/.cargo && \
