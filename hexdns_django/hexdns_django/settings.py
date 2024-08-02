@@ -170,7 +170,19 @@ ZONE_STORAGE_BUCKET = os.getenv("S3_ZONE_BUCKET", "")
 
 STORAGES = {
     "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
-    "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3ManifestStaticStorage"}
+    "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3ManifestStaticStorage"},
+    "zone-storage": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": ZONE_STORAGE_BUCKET,
+        }
+    },
+    "connect-templates": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": "hexdns-connect-templates",
+        }
+    },
 }
 
 DEFAULT_FROM_EMAIL = os.getenv("EMAIL_FROM", "Glauca HexDNS <dns@glauca.digital>")

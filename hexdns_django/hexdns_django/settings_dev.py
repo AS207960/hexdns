@@ -33,6 +33,7 @@ SECRET_KEY = "pb9=mpf!@sphhhjc=074!%)g4!ek#3#onh)+5d4rdkmnl*mp4x"
 DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "hexdns.eu.ngrok.io"]
+CSRF_TRUSTED_ORIGINS = ["https://hexdns.eu.ngrok.io"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -137,7 +138,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-EXTERNAL_URL_BASE = "http://localhost:8002"
+EXTERNAL_URL_BASE = "https://hexdns.eu.ngrok.io"
 STATIC_URL = "/static/"
 
 with open(os.path.join(BASE_DIR, "secrets/keycloak.json")) as f:
@@ -217,6 +218,27 @@ AWS_S3_ADDRESSING_STYLE = "virtual"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
 ZONE_STORAGE_BUCKET = "hexdns-zones-dev"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+    "zone-storage": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": "hexdns-zones-dev",
+        }
+    },
+    "connect-templates": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": "hexdns-connect-templates",
+        }
+    },
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [

@@ -1095,7 +1095,6 @@ spec:
   ports:
     - port: 50051
       targetPort: 50051
-
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -1116,6 +1115,32 @@ spec:
         paths:
           - path: /
             pathType: Prefix
+            backend:
+              service:
+                name: hexdns-django
+                port:
+                  number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hexdns-ingress-dyndns
+  annotations:
+    cert-manager.io/cluster-issuer: "gts"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - dns.glauca.digital
+      secretName: dns-tls
+  rules:
+    - host: dns.glauca.digital
+      http:
+        paths:
+          - path: /nic/update
+            pathType: Exact
             backend:
               service:
                 name: hexdns-django

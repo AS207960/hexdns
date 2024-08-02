@@ -3,7 +3,6 @@ from django.conf import settings
 from django.utils import timezone
 from . import models, apps, utils, netnod
 import dnslib
-import hashlib
 import base64
 import pika
 import ipaddress
@@ -157,6 +156,8 @@ def generate_zone_header(zone, zone_root):
             zone_file += f"@ 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
                          f"{cdnskey.public_key}\n"
 
+    zone_file += "_domainconnect 86400 IN CNAME domain-connect.as207960.ltd.uk\n"
+
     return zone_file
 
 
@@ -275,6 +276,9 @@ def generate_fzone(zone: "models.DNSZone"):
     for record in zone.txtrecord_set.all():
         record_name = record.idna_label
         if record_name:
+            if record_name == "_domainconnect":
+                continue
+
             zone_file += f"; TXT record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN TXT"
             data = record.data.encode('utf-8')
