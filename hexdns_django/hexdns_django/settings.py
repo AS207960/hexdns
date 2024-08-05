@@ -167,15 +167,14 @@ AWS_S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "")
 AWS_S3_ADDRESSING_STYLE = "virtual"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
-ZONE_STORAGE_BUCKET = os.getenv("S3_ZONE_BUCKET", "")
-
 STORAGES = {
     "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
     "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3ManifestStaticStorage"},
     "zone-storage": {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
         "OPTIONS": {
-            "bucket_name": ZONE_STORAGE_BUCKET,
+            "bucket_name": os.getenv("S3_ZONE_BUCKET", ""),
+            "file_overwrite": True
         }
     },
     "connect-templates": {

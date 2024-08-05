@@ -217,8 +217,6 @@ AWS_S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "")
 AWS_S3_ADDRESSING_STYLE = "virtual"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 
-ZONE_STORAGE_BUCKET = "hexdns-zones-dev"
-
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -230,6 +228,7 @@ STORAGES = {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
         "OPTIONS": {
             "bucket_name": "hexdns-zones-dev",
+            "file_overwrite": True
         }
     },
     "connect-templates": {
