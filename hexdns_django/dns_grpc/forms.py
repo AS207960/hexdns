@@ -127,7 +127,7 @@ class DynamicAddressRecordForm(forms.ModelForm):
     class Meta:
         model = models.DynamicAddressRecord
         fields = "__all__"
-        exclude = ("zone", "current_ipv4", "current_ipv6")
+        exclude = ("zone", "current_ipv4", "current_ipv6", "last_modified")
 
 
 class ANAMERecordForm(forms.ModelForm):

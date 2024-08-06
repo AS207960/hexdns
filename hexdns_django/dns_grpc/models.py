@@ -780,6 +780,7 @@ class DynamicAddressRecord(DNSZoneRecord):
     current_ipv4 = models.GenericIPAddressField(protocol='ipv4', blank=True, null=True)
     current_ipv6 = models.GenericIPAddressField(protocol='ipv6', blank=True, null=True)
     password = models.CharField(max_length=255)
+    last_modified = models.DateTimeField(blank=True, null=True)
 
     class Meta(DNSZoneRecord.Meta):
         indexes = [models.Index(fields=['record_name', 'zone'])]

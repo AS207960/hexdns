@@ -116,8 +116,8 @@ class DynamicRecordSerializer(ZoneRecordSerializer, WriteOnceMixin):
 
     class Meta:
         model = models.DynamicAddressRecord
-        fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'current_ipv4', 'current_ipv6', 'password', 'ttl',)
-        read_only_fields = ('id', 'current_ipv4', 'current_ipv6', 'password')
+        fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'current_ipv4', 'current_ipv6', 'password', 'ttl', 'last_modified')
+        read_only_fields = ('id', 'current_ipv4', 'current_ipv6', 'password', 'last_modified')
         write_once_fields = ('zone',)
 
 

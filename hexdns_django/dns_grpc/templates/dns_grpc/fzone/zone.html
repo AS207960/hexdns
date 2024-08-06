@@ -204,6 +204,7 @@
                     <th>Record name</th>
                     <th>Current IPv4</th>
                     <th>Current IPv6</th>
+                    <th>Last modified</th>
                     <th>TTL</th>
                     <th></th>
                 </tr>
@@ -215,6 +216,13 @@
                             <td>{{ record.record_name }}</td>
                             <td>{{ record.current_ipv4 }}</td>
                             <td>{{ record.current_ipv6 }}</td>
+                            <td>
+                                {% if record.last_modified %}
+                                    {{ record.last_modified|date:"N jS Y P" }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">

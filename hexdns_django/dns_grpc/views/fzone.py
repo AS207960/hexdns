@@ -1283,7 +1283,7 @@ def create_sshfp_record(request, zone_id):
             user_zone.save()
             return redirect("edit_zone", user_zone.id)
     else:
-        record_form = forms.SSHFPRecordForm(instance=models.DynamicAddressRecord(zone=user_zone))
+        record_form = forms.SSHFPRecordForm(instance=models.SSHFPRecord(zone=user_zone))
 
     return render(
         request,

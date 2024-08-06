@@ -1,5 +1,6 @@
 import ipaddress
 import base64
+import typing
 import uuid
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -46,7 +47,8 @@ def update_ip(request):
 
     username, password = auth
 
-    dyn_obj = models.DynamicAddressRecord.objects.filter(id=username).first()
+    dyn_obj: typing.Optional[models.DynamicAddressRecord] = \
+        models.DynamicAddressRecord.objects.filter(id=username).first()
     if not dyn_obj:
         return HttpResponseBadRequest("nohost")
 
@@ -76,10 +78,12 @@ def update_ip(request):
         if str(client_ip) == dyn_obj.current_ipv4:
             return HttpResponse(f"nochg {dyn_obj.current_ipv4}")
         dyn_obj.current_ipv4 = str(client_ip)
+        dyn_obj.last_modified = timezone.now()
     elif isinstance(client_ip, ipaddress.IPv6Address):
         if str(client_ip) == dyn_obj.current_ipv6:
             return HttpResponse(f"nochg {dyn_obj.current_ipv6}")
         dyn_obj.current_ipv6 = str(client_ip)
+        dyn_obj.last_modified = timezone.now()
 
     dyn_obj.zone.last_modified = timezone.now()
     dyn_obj.save()
