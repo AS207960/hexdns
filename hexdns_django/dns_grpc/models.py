@@ -32,9 +32,13 @@ else:
 DNS_ALPHABET = string.ascii_lowercase + string.digits + "-."
 
 def idna_old_encode(value: str):
+    allowed_chars = string.ascii_letters + string.digits + "-_*"
     parts = value.split(".")
     parts = [encodings.idna.nameprep(p) for p in parts]
     parts = [encodings.idna.ToASCII(p).decode() for p in parts]
+    for p in parts:
+        if any(c not in allowed_chars for c in p):
+            raise ValueError("invalid DNS characters")
     return ".".join(parts)
 
 def idna_encode(value: str):
