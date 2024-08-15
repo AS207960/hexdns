@@ -152,7 +152,7 @@ def generate_zone_header(zone, zone_root):
             zone_file += f"@ 86400 IN CDNSKEY {cdnskey.flags} {cdnskey.protocol} {cdnskey.algorithm} " \
                          f"{cdnskey.public_key}\n"
 
-    zone_file += "_domainconnect 86400 IN CNAME domain-connect.as207960.ltd.uk\n"
+    zone_file += "_domainconnect 86400 IN CNAME domain-connect.as207960.ltd.uk.\n"
 
     return zone_file
 
@@ -771,17 +771,17 @@ def sync_netnod_zones(
         inactive_zones: typing.List[str],
 ):
     for zone_root, owner in active_zones:
-        if not netnod.check_zone_registered(zone_root):
-            try:
+        try:
+            if not netnod.check_zone_registered(zone_root):
                 netnod.register_zone(zone_root, owner)
-            except Exception as e:
-                logging.error(f"Failed to register zone {zone_root}: {e}")
-                continue
+        except Exception as e:
+            logging.error(f"Failed to register zone {zone_root}: {e}")
+            continue
 
     for zone_root in inactive_zones:
-        if netnod.check_zone_registered(zone_root):
-            try:
+        try:
+            if netnod.check_zone_registered(zone_root):
                 netnod.deregister_zone(zone_root)
-            except Exception as e:
-                logging.error(f"Failed to de-register zone {zone_root}: {e}")
-                continue
+        except Exception as e:
+            logging.error(f"Failed to de-register zone {zone_root}: {e}")
+            continue
