@@ -717,17 +717,18 @@ def update_catalog():
     inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
-        if zone.idna_label in required_zones:
-            continue
-        if pattern.match(zone.idna_label):
-            zone_root = dnslib.DNSLabel(zone.idna_label)
-            owner = get_user(zone)
-            if is_active(owner):
-                active_zones.append((str(zone_root), owner.username))
-                zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
-                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
-            else:
-                inactive_zones.append(str(zone_root))
+        if zone_label := zone.idna_label:
+            if zone_label in required_zones:
+                continue
+            if pattern.match(zone_label):
+                zone_root = dnslib.DNSLabel(zone_label)
+                owner = get_user(zone)
+                if is_active(owner):
+                    active_zones.append((str(zone_root), owner.username))
+                    zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+                else:
+                    inactive_zones.append(str(zone_root))
 
     for zone in models.ReverseDNSZone.objects.all():
         zone_network = ipaddress.ip_network(
@@ -743,15 +744,16 @@ def update_catalog():
             inactive_zones.append(str(zone_root))
 
     for zone in models.SecondaryDNSZone.objects.all():
-        if pattern.match(zone.idna_label):
-            zone_root = dnslib.DNSLabel(zone.idna_label)
-            owner = get_user(zone)
-            if is_active(owner):
-                active_zones.append((str(zone_root), owner.username))
-                zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
-                zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
-            else:
-                inactive_zones.append(str(zone_root))
+        if zone_label := zone.idna_label:
+            if pattern.match(zone_label):
+                zone_root = dnslib.DNSLabel(zone_label)
+                owner = get_user(zone)
+                if is_active(owner):
+                    active_zones.append((str(zone_root), owner.username))
+                    zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
+                    zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
+                else:
+                    inactive_zones.append(str(zone_root))
 
     write_zone_file(zone_file, "", "catalog.")
     m = hashlib.sha256()
