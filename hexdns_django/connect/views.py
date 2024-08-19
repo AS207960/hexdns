@@ -251,7 +251,7 @@ def sync_apply(request, provider_id: str, service_id: str):
         if parsed_redirect.scheme not in ["http", "https"]:
             return HttpResponse(status=400)
 
-        if not signed_request;
+        if not signed_request:
             redirect_domains = template.get("syncRedirectDomains", "").split(",")
             if parsed_redirect.hostname not in redirect_domains:
                 return HttpResponse(status=400)
