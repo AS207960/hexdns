@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "crispy_forms",
     "dns_grpc",
+    "connect",
     "django_grpc",
     'crispy_bootstrap4',
     'rest_framework',
@@ -194,8 +195,9 @@ FEEDBACK_URL = "http://localhost:8003"
 DOMAINS_URL = "http://localhost:8000"
 BILLING_PLAN_ID = "billing_recurringplan_c66432f6b3c544b1b88615fcdb6f9b79"
 
-RESOLVER_ADDR = "2a0d:1a40:7900::2"
+RESOLVER_ADDR = "1.1.1.1"
 RESOLVER_PORT = 53
+RESOLVER_IPV6 = False
 RESOLVER_NO_DNS64_ADDR = "1.1.1.1"
 RESOLVER_NO_DNS64_PORT = 53
 RESOLVER_NO_DNS64_IPV6 = False
@@ -209,6 +211,7 @@ ZONE_FILE_LOCATION = "zones"
 
 AWS_S3_CUSTOM_DOMAIN = os.getenv("S3_CUSTOM_DOMAIN", "")
 AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
 AWS_S3_REGION_NAME = os.getenv("S3_REGION", "")
 AWS_S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT", "")
 AWS_STORAGE_BUCKET_NAME = os.getenv("S3_BUCKET", "")

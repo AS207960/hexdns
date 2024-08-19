@@ -4,6 +4,8 @@ import json
 import dataclasses
 import typing
 import urllib.parse
+import ipaddress
+
 import cryptography.exceptions
 import cryptography.hazmat.primitives.serialization
 import cryptography.hazmat.primitives.asymmetric
@@ -11,16 +13,28 @@ import cryptography.hazmat.primitives.asymmetric.padding
 import cryptography.hazmat.primitives.hashes
 import dnslib
 import django.core.files.storage
-from django.conf import settings
+import django_keycloak_auth.clients
 from django.http import HttpResponse
-from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 
 import dns_grpc.models
 
 @dataclasses.dataclass
+class Record:
+    label: str
+    type: str
+    ttl: int
+    data: dict
+
+@dataclasses.dataclass
 class SyncConnectState:
     zone_id: str
+    template: dict
+    records_to_install: typing.List[Record] = dataclasses.field(default_factory=list)
+    records_to_delete: typing.List[typing.Tuple[str, str]] = dataclasses.field(default_factory=list)
     host: typing.Optional[str] = None
     redirect: typing.Optional[str] = None
     state: typing.Optional[str] = None
@@ -58,6 +72,8 @@ def get_template(provider_id: str, service_id: str):
 
     template_storage = django.core.files.storage.storages["connect-templates"]
     template_file_name = f"{provider_id}.{service_id}.json"
+
+    f = template_storage.open(template_file_name)
 
     if not template_storage.exists(template_file_name):
         return None
@@ -155,10 +171,14 @@ def verify_signature(key, request, signature) -> bool:
             cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15(),
             cryptography.hazmat.primitives.hashes.SHA256()
         )
+        return True
     except cryptography.exceptions.InvalidSignature:
         return False
 
 def sync_apply(request, provider_id: str, service_id: str):
+    if "sync_connect_state" in request.session:
+        del request.session["sync_connect_state"]
+
     if not (template := get_template(provider_id, service_id)):
         return render(request, "dns_grpc/error.html", {
             "error": "Template not found",
@@ -174,22 +194,26 @@ def sync_apply(request, provider_id: str, service_id: str):
             "error": "Missing domain parameter",
         }, status=400)
 
+    query_params = dict(request.GET)
+
     signed_request = False
     signature = None
     key_label = None
-    if "signature" in request.GET or "key" in request.GET:
-        signature = request.GET.get("signature")
-        if not signature:
+    if "signature" in query_params or "key" in query_params:
+        signature = query_params.get("sig")
+        if not signature or len(signature) != 1:
             return render(request, "dns_grpc/error.html", {
                 "error": "Missing signature",
             }, status=400)
-        del request.GET["signature"]
-        key_label = request.GET.get("key")
-        if not key_label:
+        del query_params["sig"]
+        signature = signature[0]
+        key_label = query_params.get("key")
+        if not key_label or len(key_label) != 1:
             return render(request, "dns_grpc/error.html", {
                 "error": "Missing signature key",
             }, status=400)
-        del request.GET["key"]
+        del query_params["key"]
+        key_label = key_label[0]
 
     if signature:
         if not (d := template.get("syncPubKeyDomain")):
@@ -239,59 +263,392 @@ def sync_apply(request, provider_id: str, service_id: str):
         }, status=403)
 
     redirect_uri = None
-    if "redirect_uri" in request.GET:
-        redirect_uri = request.GET["redirect_uri"]
-        del request.GET["redirect_uri"]
+    if "redirect_uri" in query_params:
+        redirect_uri = query_params["redirect_uri"]
+        if len(redirect_uri) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid redirect URL",
+            }, status=400)
+        redirect_uri = redirect_uri[0]
+        del query_params["redirect_uri"]
 
         try:
             parsed_redirect = urllib.parse.urlparse(redirect_uri)
         except ValueError:
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid redirect URL",
+            }, status=400)
 
         if parsed_redirect.scheme not in ["http", "https"]:
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid redirect URL",
+            }, status=400)
 
         if not signed_request:
             redirect_domains = template.get("syncRedirectDomains", "").split(",")
             if parsed_redirect.hostname not in redirect_domains:
-                return HttpResponse(status=400)
+                return render(request, "dns_grpc/error.html", {
+                    "error": "Invalid redirect URL",
+                }, status=400)
 
-    domain = request.GET["domain"]
-    del request.GET["domain"]
-    zone_obj = dns_grpc.models.DNSZone.objects.filter(zone_root=domain).first()
+    domain = query_params["domain"]
+    if len(domain) != 1:
+        return render(request, "dns_grpc/error.html", {
+            "error": "Invalid domain",
+        }, status=400)
+    domain = domain[0]
+    del query_params["domain"]
+    zone_obj: typing.Optional[dns_grpc.models.DNSZone] = \
+        dns_grpc.models.DNSZone.objects.filter(zone_root=domain).first()
 
     if not zone_obj:
         if redirect_uri:
+            qs_state = query_params.get("state")
+            if qs_state:
+                if len(qs_state) == 1:
+                    qs_state = qs_state[0]
+                else:
+                    return render(request, "dns_grpc/error.html", {
+                        "error": "Invalid state",
+                    }, status=400)
+
             return make_redirect(
-                redirect_uri, error_code="invalid_request",
-                state=request.GET.get("state")
+                redirect_uri, error_code="invalid_request", state=qs_state
             )
         else:
             return HttpResponse(status=404)
 
-    state = SyncConnectState(zone_id=zone_obj.id)
+    state = SyncConnectState(zone_id=zone_obj.id, template=template)
 
-    if "host" in request.GET:
-        state.host = request.GET["host"]
-        del request.GET["host"]
+    if "host" in query_params:
+        qs_host = query_params["host"]
+        if len(qs_host) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid host",
+            }, status=400)
 
-    if "state" in request.GET:
-        state.state = request.GET["state"]
-        del request.GET["state"]
+        del query_params["host"]
 
-    if "providerName" in request.GET:
-        state.additional_provider_name = request.GET["providerName"]
-        del request.GET["providerName"]
+    if "state" in query_params:
+        qs_state = query_params["state"]
+        if len(qs_state) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid state",
+            }, status=400)
+        state.state = qs_state[0]
+        del query_params["state"]
 
-    if "serviceName" in request.GET:
-        state.additional_service_name = request.GET["serviceName"]
-        del request.GET["serviceName"]
+    if "providerName" in query_params:
+        qs_additional_provider_name = query_params["providerName"]
+        if len(qs_additional_provider_name) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid providerName",
+            }, status=400)
+        state.additional_provider_name = qs_additional_provider_name[0]
+        del query_params["providerName"]
 
-    if "groupId" in request.GET:
-        group_id = request.GET["groupId"]
-        state.group_ids = group_id.split(",")
-        del request.GET["groupId"]
+    if "serviceName" in query_params:
+        qs_additional_service_name = query_params["serviceName"]
+        if len(qs_additional_service_name) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid serviceName",
+            }, status=400)
+        state.additional_service_name = qs_additional_service_name[0]
+        del query_params["serviceName"]
 
-    print(state)
+    if "groupId" in query_params:
+        group_id = query_params["groupId"]
+        if len(group_id) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid groupId",
+            }, status=400)
+        state.group_ids = group_id[0].split(",")
+        del query_params["groupId"]
 
-    return HttpResponse("")
+    if redirect_uri:
+        state.redirect = redirect_uri
+
+    params = {}
+    for k, v in query_params.items():
+        if len(v) != 1:
+            return render(request, "dns_grpc/error.html", {
+                "error": f"Invalid parameters",
+            }, status=400)
+        params[k] = v[0]
+
+    records_to_install = []
+    records_to_delete = []
+    variables = dict(**params)
+    variables["host"] = state.host
+    variables["domain"] = zone_obj.zone_root
+    variables["fqdn"] = f"{variables['host']}.{variables['domain']}" if state.host else variables["domain"]
+
+    for record in state.template["records"]:
+        if state.group_ids and record.get("groupId") not in state.group_ids:
+            continue
+        try:
+            record_host = apply_variables(record["host"], variables)
+            if record_host.endswith("."):
+                if not record_host[:-1].endswith(zone_obj.zone_root):
+                    continue
+                else:
+                    record_host = record_host[:-(len(zone_obj.zone_root) + 1)]
+                    if not record_host:
+                        record_host = "@"
+
+            record_ttl = int(record.get("ttl", 86400))
+            if record["type"] in ("A", "AAAA"):
+                for r in zone_obj.addressrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("addr", r.id))
+                for r in zone_obj.dynamicaddressrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("dyn_addr", r.id))
+                for r in zone_obj.anamerecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("aname", r.id))
+                for r in zone_obj.redirectrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("redirect", r.id))
+                for r in zone_obj.githubpagesrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("github_pages", r.id))
+
+            if record["type"] == "A":
+                record_data = {
+                    "address": ipaddress.IPv4Address(
+                        apply_variables(record["pointsTo"], variables)
+                    )
+                }
+            elif record["type"] == "AAAA":
+                record_data = {
+                    "address": ipaddress.IPv6Address(
+                        apply_variables(record["pointsTo"], variables)
+                    )
+                }
+            elif record["type"] == "CNAME":
+                if not state.host and record_host == "@":
+                    continue
+                record_data = {
+                    "cname": apply_variables(record["pointsTo"], variables)
+                }
+                conflict_all(zone_obj, record_host, records_to_delete)
+            elif record["type"] == "MX":
+                record_data = {
+                    "priority": int(record["priority"]),
+                    "exchange": apply_variables(record["pointsTo"], variables)
+                }
+                for r in zone_obj.mxrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("mx", r.id))
+            elif record["type"] == "TXT":
+                record_data = {
+                    "text": apply_variables(record["data"], variables)
+                }
+                conflict_mode = record.get("txtConflictMatchingMode", "None")
+                if conflict_mode == "None":
+                    pass
+                elif conflict_mode == "All":
+                    for r in zone_obj.txtrecord_set.filter(
+                            record_name=record_host
+                    ):
+                        records_to_delete.append(("txt", r.id))
+                elif conflict_mode == "Prefix":
+                    for r in zone_obj.txtrecord_set.filter(
+                            record_name=record_host
+                    ):
+                        if r.data.startswith(record_data["txtConflictMatchingPrefix"]):
+                            records_to_delete.append(("txt", r.id))
+            elif record["type"] == "SRV":
+                record_data = {
+                    "priority": int(record["priority"]),
+                    "weight": int(record["weight"]),
+                    "port": int(record["port"]),
+                    "target": apply_variables(record["target"], variables)
+                }
+                for r in zone_obj.srvrecord_set.filter(
+                        record_name=record_host
+                ):
+                    records_to_delete.append(("srv", r.id))
+            elif record["type"] == "NS":
+                record_data = {
+                    "ns": apply_variables(record["pointsTo"], variables)
+                }
+                conflict_all(zone_obj, record_host, records_to_delete)
+            else:
+                continue
+
+            records_to_install.append(Record(
+                label=record_host,
+                type=record["type"],
+                ttl=record_ttl,
+                data=record_data
+            ))
+        except (ValueError, IndexError):
+            continue
+
+    state.records_to_install = records_to_install
+    state.records_to_delete = records_to_delete
+
+    request.session["sync_connect_state"] = dataclasses.asdict(state)
+
+    return redirect("connect_apply_zone")
+
+
+def apply_variables(string, variables):
+    for k, v in variables.items():
+        if v:
+            string = string.replace(f"%{k}%", v)
+    return string
+
+def conflict_all(zone_obj: dns_grpc.models.DNSZone, record_host: str, records_to_delete):
+    for r in zone_obj.addressrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("addr", r.id))
+    for r in zone_obj.dynamicaddressrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("dyn_addr", r.id))
+    for r in zone_obj.anamerecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("aname", r.id))
+    for r in zone_obj.cnamerecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("cname", r.id))
+    for r in zone_obj.redirectrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("redirect", r.id))
+    for r in zone_obj.mxrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("mx", r.id))
+    for r in zone_obj.nsrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("ns", r.id))
+    for r in zone_obj.txtrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("txt", r.id))
+    for r in zone_obj.srvrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("srv", r.id))
+    for r in zone_obj.caarecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("caa", r.id))
+    for r in zone_obj.naptrrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("naptr", r.id))
+    for r in zone_obj.sshfprecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("sshfp", r.id))
+    for r in zone_obj.dsrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("ds", r.id))
+    for r in zone_obj.dnskeyrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("dnskey", r.id))
+    for r in zone_obj.locrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("loc", r.id))
+    for r in zone_obj.hinforecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("hinfo", r.id))
+    for r in zone_obj.rprecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("rp", r.id))
+    for r in zone_obj.httpsrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("https", r.id))
+    for r in zone_obj.tlsarecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("tlsa", r.id))
+    for r in zone_obj.githubpagesrecord_set.filter(
+            record_name=record_host
+    ):
+        records_to_delete.append(("github_pages", r.id))
+
+@login_required
+def apply_zone(request):
+    if "sync_connect_state" not in request.session:
+        return HttpResponse(status=400)
+
+    state = SyncConnectState(**request.session["sync_connect_state"])
+    # print(json.dumps(dataclasses.asdict(state), indent=4))
+
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(dns_grpc.models.DNSZone, id=state.zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    to_delete = []
+    for d in state.records_to_delete:
+        if d[0] == "addr":
+            to_delete.append(("Address", str(user_zone.addressrecord_set.get(id=d[1]))))
+        elif d[0] == "dyn_addr":
+            to_delete.append(("Dynamic Address", str(user_zone.dynamicaddressrecord_set.get(id=d[1]))))
+        elif d[0] == "aname":
+            to_delete.append(("ANAME", str(user_zone.anamerecord_set.get(id=d[1]))))
+        elif d[0] == "cname":
+            to_delete.append(("CNAME", str(user_zone.cnamerecord_set.get(id=d[1]))))
+        elif d[0] == "redirect":
+            to_delete.append(("Redirect", str(user_zone.redirectrecord_set.get(id=d[1]))))
+        elif d[0] == "mx":
+            to_delete.append(("MX", str(user_zone.mxrecord_set.get(id=d[1]))))
+        elif d[0] == "ns":
+            to_delete.append(("NS", str(user_zone.nsrecord_set.get(id=d[1]))))
+        elif d[0] == "txt":
+            to_delete.append(("TXT", str(user_zone.txtrecord_set.get(id=d[1]))))
+        elif d[0] == "srv":
+            to_delete.append(("SRV", str(user_zone.srvrecord_set.get(id=d[1]))))
+        elif d[0] == "caa":
+            to_delete.append(("CAA", str(user_zone.caarecord_set.get(id=d[1]))))
+        elif d[0] == "naptr":
+            to_delete.append(("NAPTR", str(user_zone.naptrrecord_set.get(id=d[1]))))
+        elif d[0] == "sshfp":
+            to_delete.append(("SSHFP", str(user_zone.sshfprecord_set.get(id=d[1]))))
+        elif d[0] == "ds":
+            to_delete.append(("DS", str(user_zone.dsrecord_set.get(id=d[1]))))
+        elif d[0] == "dnskey":
+            to_delete.append(("DNSKEY", str(user_zone.dnskeyrecord_set.get(id=d[1]))))
+        elif d[0] == "loc":
+            to_delete.append(("LOC", str(user_zone.locrecord_set.get(id=d[1]))))
+        elif d[0] == "hinfo":
+            to_delete.append(("HINFO", str(user_zone.hinforecord_set.get(id=d[1]))))
+        elif d[0] == "rp":
+            to_delete.append(("RP", str(user_zone.rprecord_set.get(id=d[1]))))
+        elif d[0] == "https":
+            to_delete.append(("HTTPS", str(user_zone.httpsrecord_set.get(id=d[1]))))
+        elif d[0] == "tlsa":
+            to_delete.append(("TLSA", str(user_zone.tlsarecord_set.get(id=d[1]))))
+        elif d[0] == "github_pages":
+            to_delete.append(("GitHub Pages", str(user_zone.githubpagesrecord_set.get(id=d[1]))))
+
+    return render(request, "connect/apply_template.html", {
+        "zone": user_zone,
+        "template": state.template,
+        "records_to_install": state.records_to_install,
+        "records_to_delete": to_delete,
+    })

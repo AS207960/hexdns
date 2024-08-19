@@ -1,0 +1,108 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <h1>Apply provider updates to a zone</h1>
+        <h2>Zone: {{ zone.zone_root }}</h2>
+        <p class="lead">
+            Make sure you trust this provider, and verify the changes they are making to your zone.
+        </p>
+        {% if template.warnPhishing %}
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">This request wasn't signed</h4>
+                <p>
+                    The provider has informed us it is unable to sign requests.
+                    Someone could be impersonating them.
+                    Please double-check the changes they are making to your zone, and make sure you trust them.
+                </p>
+            </div>
+        {% endif %}
+        <hr/>
+        <h3>Provider</h3>
+        <div class="row">
+            {% if template.logoUrl %}
+                <div class="col-3">
+                    <img src="{{ template.logoUrl }}" class="img-fluid" alt="{{ template.providerName }} logo"/>
+                </div>
+            {% endif %}
+            <div class="col-9">
+                <h2>{{ template.providerName }}: <span class="font-weight-normal">{{ template.serviceName }}</span></h2>
+                {% if template.description %}
+                    <p>{{ template.description }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <hr/>
+        <h3>New records</h3>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Record type</th>
+                        <th>TTL</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records_to_install %}
+                        <tr>
+                            <td>{{ record.label }}</td>
+                            <td>{{ record.type }}</td>
+                            <td>{{ record.ttl }}</td>
+                            <td>
+                                {% if record.type == "A" or record.type == "AAAA" %}
+                                    {{ record.data.address }}
+                                {% elif record.type == "CNAME" %}
+                                    {{ record.data.cname }}
+                                {% elif record.type == "MX" %}
+                                    <b>Priority:</b> {{ record.data.priority }}<br/>
+                                    <b>Mail server:</b> {{ record.data.exchange }}
+                                {% elif record.type == "TXT" %}
+                                    {{ record.data.text }}
+                                {% elif record.type == "SRV" %}
+                                    <b>Priority:</b> {{ record.data.priority }}<br/>
+                                    <b>Weight:</b> {{ record.data.weight }}<br/>
+                                    <b>Port:</b> {{ record.data.port }}<br/>
+                                    <b>Target:</b> {{ record.data.target }}
+                                {% elif record.type == "NS" %}
+                                    {{ record.data.ns }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <h3>Records to delete</h3>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead class="table-dark">
+                <tr>
+                    <th>Record type</th>
+                    <th>Name</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if records_to_delete %}
+                    {% for record in records_to_delete %}
+                        <tr>
+                            <td>{{ record.0 }}</td>
+                            <td>{{ record.1 }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="2">No records to delete</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <hr/>
+        <div class="button-group">
+            <a href="#" class="btn btn-danger btn-lg">Cancel</a>
+            <a href="#" class="btn btn-success btn-lg">Apply</a>
+        </div>
+    </div>
+{% endblock %}

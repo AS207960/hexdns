@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "crispy_forms",
     "dns_grpc",
+    "connect",
     "django_grpc",
     'crispy_bootstrap4',
     'rest_framework',
