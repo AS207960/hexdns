@@ -4,15 +4,14 @@ use base64::Engine;
 use itertools::Itertools;
 use trust_dns_proto::rr::IntoName;
 
+// RFC 9276
+const ITERATIONS: u16 = 0;
+
 pub fn sign_zone(
     zone: &str,
     ksk: &openssl::ec::EcKeyRef<openssl::pkey::Private>,
     zsk: &openssl::ec::EcKeyRef<openssl::pkey::Private>,
 ) -> Result<String, String> {
-    let mut salt = vec![0u8; 16];
-    openssl::rand::rand_bytes(&mut salt).map_err(|e| format!("Unable to generate salt: {}", e))?;
-    let iterations = 10;
-
     let zone_file_lexer = crate::lexer::Lexer::new(zone);
     let (origin, zone_file) = crate::parser::Parser::new()
         .parse(zone_file_lexer, trust_dns_proto::rr::Name::default(), trust_dns_proto::rr::DNSClass::IN)
@@ -99,7 +98,7 @@ pub fn sign_zone(
         trust_dns_proto::rr::dnssec::rdata::DNSSECRData::NSEC3PARAM(
             trust_dns_proto::rr::dnssec::rdata::NSEC3PARAM::new(
                 trust_dns_proto::rr::dnssec::Nsec3HashAlgorithm::SHA1, false,
-                iterations, salt.clone(),
+                ITERATIONS, Vec::new()
             )
         )
     ));
@@ -118,7 +117,7 @@ pub fn sign_zone(
         );
         name.emit_as_canonical(&mut tbs_bin_encoder, true)
             .map_err(|e| format!("Unable to emit name: {}", e))?;
-        let hashed_name = nsec3_hash(&salt, &tbs, iterations as usize);
+        let hashed_name = nsec3_hash(&[], &tbs, ITERATIONS);
         let rtypes = rr_keys.map(|k| k.record_type).collect::<Vec<_>>();
         let mut rr_types = std::collections::BTreeSet::from_iter(rtypes);
         rr_types.insert(trust_dns_client::rr::RecordType::RRSIG);
@@ -134,7 +133,7 @@ pub fn sign_zone(
             );
             new_name.emit_as_canonical(&mut tbs_bin_encoder, true)
                 .map_err(|e| format!("Unable to emit name: {}", e))?;
-            let hashed_name = nsec3_hash(&salt, &tbs, iterations as usize);
+            let hashed_name = nsec3_hash(&[], &tbs, ITERATIONS);
             nsec3_records.push((hashed_name, std::collections::BTreeSet::new()));
         }
     }
@@ -167,7 +166,7 @@ pub fn sign_zone(
             trust_dns_proto::rr::dnssec::rdata::DNSSECRData::NSEC3(
                 trust_dns_proto::rr::dnssec::rdata::NSEC3::new(
                     trust_dns_proto::rr::dnssec::Nsec3HashAlgorithm::SHA1, false,
-                    iterations, salt.clone(), next_record.0.clone(),
+                    ITERATIONS, Vec::new(), next_record.0.clone(),
                     record.1.iter().map(|rt| rt.clone()).collect(),
                 )
             )
@@ -282,7 +281,7 @@ pub fn sign_zone(
     Ok(lines.join("\n"))
 }
 
-fn nsec3_hash(salt: &[u8], x: &[u8], i: usize) -> Vec<u8> {
+fn nsec3_hash(salt: &[u8], x: &[u8], i: u16) -> Vec<u8> {
     if i == 0 {
         let mut hasher = openssl::hash::Hasher::new(
             openssl::hash::MessageDigest::sha1()
