@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hexdns-connect-sync
+spec:
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+          labels:
+            app: hexdns
+            part: resign
+            part-type: cronjob
+        spec:
+          containers:
+            - name: sync
+              image: as207960/hexdns-connect-templates-sync:1
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: hexdns-django-conf
+                - secretRef:
+                    name: hexdns-s3
+          restartPolicy: OnFailure

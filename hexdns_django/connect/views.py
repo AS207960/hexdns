@@ -1,9 +1,14 @@
+import base64
+import binascii
 import json
 import dataclasses
 import typing
 import urllib.parse
-from audioop import error
-
+import cryptography.exceptions
+import cryptography.hazmat.primitives.serialization
+import cryptography.hazmat.primitives.asymmetric
+import cryptography.hazmat.primitives.asymmetric.padding
+import cryptography.hazmat.primitives.hashes
 import dnslib
 import django.core.files.storage
 from django.conf import settings
@@ -29,7 +34,7 @@ def domain_settings(request, domain: str):
 
     out = {
         "providerId": "glauca.digital",
-        "providerName": "Glauca Digital",
+        "providerName": "AS207960 Cyfyngedig",
         "providerDisplayName": "Glauca Digital",
         "urlSyncUX": f"{settings.EXTERNAL_URL_BASE}/connect/sync",
         "urlAsyncUX": None,
@@ -93,28 +98,104 @@ def make_redirect(redirect_uri: str, error_code: str, state: typing.Optional[str
     return redirect(redirect_uri)
 
 
+def parse_keys(keys: typing.List[bytes]):
+    try:
+        keys = list(map(
+            lambda k: k.decode("utf-8"),
+            keys
+        ))
+    except UnicodeDecodeError:
+        return None
+
+    keys = [k.split(",") for k in keys]
+    keys_dict = []
+    for k in keys:
+        key_dict = {}
+        for d in k:
+            d = d.split("=", 1)
+            key_dict[d[0]] = d[1]
+        keys_dict.append(key_dict)
+
+    if not all(
+        k["a"] == keys_dict[0]["a"]
+        for k in keys_dict
+    ):
+        return None
+
+    algorithm = keys_dict[0]["a"]
+    if algorithm != "RS256":
+        return None
+
+    keys_dict.sort(key=lambda k: k["p"])
+    try:
+        key_data = [base64.b64decode(k["d"]) for k in keys_dict]
+    except binascii.Error:
+        return None
+
+    key_data = b"".join(key_data)
+
+    try:
+        return cryptography.hazmat.primitives.serialization.load_der_public_key(
+            key_data
+        )
+    except ValueError:
+        return None
+
+def verify_signature(key, request, signature) -> bool:
+    signed_data = request.META['QUERY_STRING'].rsplit("&sig=", 1)[0]
+    try:
+        signature = base64.b64decode(signature)
+    except binascii.Error:
+        return False
+
+    try:
+        key.verify(
+            signature,
+            signed_data.encode("utf-8"),
+            cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15(),
+            cryptography.hazmat.primitives.hashes.SHA256()
+        )
+    except cryptography.exceptions.InvalidSignature:
+        return False
+
 def sync_apply(request, provider_id: str, service_id: str):
     if not (template := get_template(provider_id, service_id)):
-        return HttpResponse(status=404)
+        return render(request, "dns_grpc/error.html", {
+            "error": "Template not found",
+        }, status=404)
+
+    if template.get("syncBlock", False):
+        return render(request, "dns_grpc/error.html", {
+            "error": "This template cannot be used with the sync flow",
+        }, status=400)
 
     if "domain" not in request.GET:
-        return HttpResponse(status=400)
+        return render(request, "dns_grpc/error.html", {
+            "error": "Missing domain parameter",
+        }, status=400)
 
+    signed_request = False
     signature = None
     key_label = None
     if "signature" in request.GET or "key" in request.GET:
         signature = request.GET.get("signature")
         if not signature:
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Missing signature",
+            }, status=400)
         del request.GET["signature"]
         key_label = request.GET.get("key")
         if not key_label:
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Missing signature key",
+            }, status=400)
         del request.GET["key"]
 
-    if key_label:
+    if signature:
         if not (d := template.get("syncPubKeyDomain")):
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Template does not support signed requests",
+            }, status=400)
 
         label = f"{key_label}.{d}"
         question = dnslib.DNSRecord(q=dnslib.DNSQuestion(label, dnslib.QTYPE.TXT))
@@ -123,15 +204,39 @@ def sync_apply(request, provider_id: str, service_id: str):
             ipv6=settings.RESOLVER_IPV6, tcp=False, timeout=5
         )
         res = dnslib.DNSRecord.parse(res_pkt)
-        provider_keys = list(filter(
-            lambda r: r.rtype == dnslib.QTYPE.TXT and r.rclass == dnslib.CLASS.IN,
-            res.rr
+        if res.header.rcode != dnslib.RCODE.NOERROR:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Unable to retrieve service provider public key",
+            }, status=400)
+        provider_keys = list(map(
+            lambda r: b"".join(r.rdata.data),
+            filter(
+                lambda r: r.rtype == dnslib.QTYPE.TXT and r.rclass == dnslib.CLASS.IN,
+                res.rr
+            )
         ))
-
         if not provider_keys:
-            return HttpResponse(status=400)
+            return render(request, "dns_grpc/error.html", {
+                "error": "Unable to retrieve service provider public key"
+            }, status=400)
 
-        # TODO: Verify signature
+        provider_public_key = parse_keys(provider_keys)
+        if not provider_public_key:
+            return render(request, "dns_grpc/error.html", {
+                "error": "Unable to parse service provider public key"
+            }, status=400)
+
+        if not verify_signature(provider_public_key, request, signature):
+            return render(request, "dns_grpc/error.html", {
+                "error": "Invalid request signature"
+            }, status=403)
+
+        signed_request = True
+
+    if not signed_request and "syncPubKeyDomain" in template:
+        return render(request, "dns_grpc/error.html", {
+            "error": "Template requires signed requests",
+        }, status=403)
 
     redirect_uri = None
     if "redirect_uri" in request.GET:
@@ -146,9 +251,10 @@ def sync_apply(request, provider_id: str, service_id: str):
         if parsed_redirect.scheme not in ["http", "https"]:
             return HttpResponse(status=400)
 
-        # TODO: allow any if request is signed
-        if parsed_redirect.hostname != template.get("syncRedirectDomain"):
-            return HttpResponse(status=400)
+        if not signed_request;
+            redirect_domains = template.get("syncRedirectDomains", "").split(",")
+            if parsed_redirect.hostname not in redirect_domains:
+                return HttpResponse(status=400)
 
     domain = request.GET["domain"]
     del request.GET["domain"]
