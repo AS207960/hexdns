@@ -377,7 +377,11 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                         u8::from(nsec.hash_algorithm()),
                         nsec.flags(),
                         nsec.iterations(),
-                        hex::encode(nsec.salt()),
+                        if nsec.salt().len() == 0 {
+                            "-".to_string()
+                        } else {
+                            hex::encode(nsec.salt())
+                        },
                         data_encoding::BASE32_DNSSEC.encode(&nsec.next_hashed_owner_name()),
                         nsec.type_bit_maps().iter().map(|t| encode_type(*t)).join(" "),
                 )
