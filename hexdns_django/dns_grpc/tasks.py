@@ -643,7 +643,7 @@ def update_signal_zones():
     zone_file_base = ""
 
     for zone in models.DNSZone.objects.all():
-        if pattern.match(zone.idna_label):
+        if zone.idna_label and pattern.match(zone.idna_label):
             cds_zone_root = dnslib.DNSLabel(zone.idna_label)
             zone_file_base += f"; Zone {zone.id}\n"
             dsboot_label = f"_dsboot.{str(cds_zone_root)[:-1]}"
