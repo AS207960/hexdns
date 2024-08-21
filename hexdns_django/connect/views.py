@@ -721,16 +721,22 @@ def apply_zone(request):
     if request.method == "POST":
         if request.POST["action"] == "apply":
             apply_updates(user_zone, state)
+            if "sync_connect_state" in request.session:
+                del request.session["sync_connect_state"]
             if r := make_redirect_uri(state, None):
                 return redirect(r)
             else:
                 return render(request, "connect/done.html", {})
         elif request.POST["action"] == "cancel":
+            if "sync_connect_state" in request.session:
+                del request.session["sync_connect_state"]
             if r := make_redirect_uri(state, "access_denied"):
                 return redirect(r)
             else:
                 return render(request, "connect/done.html", {})
         else:
+            if "sync_connect_state" in request.session:
+                del request.session["sync_connect_state"]
             if r := make_redirect_uri(state, "server_error"):
                 return redirect(r)
             else:
