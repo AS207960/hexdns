@@ -646,6 +646,8 @@ def make_redirect_uri(state: SyncConnectState, error: typing.Optional[str]) -> t
 
 def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
     for record in state.records_to_install:
+        if isinstance(record, dict):
+            record = Record(**record)
         if record.type == "A":
             zone.addressrecord_set.create(
                 record_name=record.label,
