@@ -665,7 +665,7 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
         elif record.type == "CNAME":
             zone.cnamerecord_set.create(
                 record_name=record.label,
-                cname=record.data["cname"],
+                alias=record.data["cname"],
                 ttl=record.ttl
             )
         elif record.type == "MX":
@@ -699,7 +699,7 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
         elif record.type == "NS":
             zone.nsrecord_set.create(
                 record_name=record.label,
-                ns=record.data["ns"],
+                nameserver=record.data["ns"],
                 ttl=record.ttl
             )
 
