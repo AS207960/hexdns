@@ -737,6 +737,9 @@ class AddressRecord(DNSZoneRecord):
     class Meta(DNSZoneRecord.Meta):
         indexes = [models.Index(fields=['record_name', 'zone'])]
 
+    def __str__(self):
+        return f"{self.record_name}: address -> {self.address}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -788,6 +791,9 @@ class DynamicAddressRecord(DNSZoneRecord):
 
     class Meta(DNSZoneRecord.Meta):
         indexes = [models.Index(fields=['record_name', 'zone'])]
+
+    def __str__(self):
+        return f"{self.record_name}: dynamic address record"
 
     def to_rr_v4(self, query_name):
         if not self.current_ipv4:
@@ -903,6 +909,9 @@ class CNAMERecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonecnamerecord", primary_key=True)
     alias = models.CharField(max_length=255)
 
+    def __str__(self):
+        return f"{self.record_name}: cname -> {self.alias}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -988,6 +997,9 @@ class RedirectRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zoneredirectrecord", primary_key=True)
     target = models.URLField()
     include_path = models.BooleanField(blank=True)
+
+    def __str__(self):
+        return f"{self.record_name}: redirect -> {self.target}"
 
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
@@ -1086,6 +1098,9 @@ class MXRecord(DNSZoneRecord):
     exchange = models.CharField(max_length=255)
     priority = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
 
+    def __str__(self):
+        return f"{self.record_name}: MX -> {self.exchange}, priority {self.priority}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -1131,6 +1146,9 @@ class NSRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonensrecord", primary_key=True)
     nameserver = models.CharField(max_length=255, verbose_name="Name server")
 
+    def __str__(self):
+        return f"{self.record_name}: NS -> {self.nameserver}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -1173,6 +1191,9 @@ class NSRecord(DNSZoneRecord):
 class TXTRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonetxtrecord", primary_key=True)
     data = models.TextField()
+
+    def __str__(self):
+        return f"{self.record_name}: TXT -> {self.data}"
 
     @classmethod
     def from_rr(cls, rr, zone):
@@ -1223,6 +1244,9 @@ class SRVRecord(DNSZoneRecord):
     weight = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     port = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     target = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.record_name}: SRV -> {self.priority} {self.weight} {self.port} {self.target}"
 
     @classmethod
     def from_rr(cls, rr, zone):
@@ -1276,6 +1300,9 @@ class CAARecord(DNSZoneRecord):
     tag = models.CharField(max_length=255)
     value = models.CharField(max_length=255)
 
+    def __str__(self):
+        return f"{self.record_name}: CAA -> {self.flag} {self.tag} {self.value}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -1328,6 +1355,9 @@ class NAPTRRecord(DNSZoneRecord):
     service = models.CharField(max_length=255)
     regexp = models.CharField(max_length=255, blank=True, null=True)
     replacement = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.record_name}: NAPTR -> {self.preference} {self.flags} {self.service} {self.regexp} {self.replacement}"
 
     @classmethod
     def from_rr(cls, rr, zone):
@@ -1391,6 +1421,7 @@ class SSHFP(dnslib.RD):
         self.algorithm = algorithm
         self.fingerprint_type = fingerprint_type
         self.fingerprint = fingerprint
+        super().__init__()
 
     def pack(self, buffer):
         buffer.pack("!BB", self.algorithm, self.fingerprint_type)
@@ -1403,6 +1434,9 @@ class SSHFP(dnslib.RD):
 class SSHFPRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonesshfprecord", primary_key=True)
     host_key = models.TextField(verbose_name="Host key (from /etc/ssh/ssh_host_ed25519_key.pub etc.)")
+
+    def __str__(self):
+        return f"{self.record_name}: SSHFP -> {self.host_key}"
 
     @property
     def key(self):
@@ -1474,6 +1508,7 @@ class DS(dnslib.RD):
         self.algorithm = algorithm
         self.digest_type = digest_type
         self.digest = digest
+        super().__init__()
 
     def pack(self, buffer):
         buffer.pack("!HBB", self.key_tag, self.algorithm, self.digest_type)
@@ -1508,6 +1543,9 @@ class DSRecord(DNSZoneRecord):
     algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
     digest_type = models.PositiveSmallIntegerField(choices=DIGEST_TYPES)
     digest = models.TextField(validators=[hex_validator])
+
+    def __str__(self):
+        return f"{self.record_name}: DS -> {self.key_tag} {self.algorithm} {self.digest_type} {self.digest}"
 
     @property
     def digest_bin(self):
@@ -1594,6 +1632,9 @@ class DNSKEYRecord(DNSZoneRecord):
     protocol = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(255)], default=3)
     algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
     public_key = models.TextField(validators=[b64_validator])
+
+    def __str__(self):
+        return f"{self.record_name}: DNSKEY -> {self.flags} {self.protocol} {self.algorithm} {self.public_key}"
 
     @classmethod
     def from_rr(cls, rr, zone):
@@ -1708,6 +1749,9 @@ class LOCRecord(DNSZoneRecord):
         MinValueValidator(0), MaxValueValidator(90000000.00)
     ], verbose_name="Vertical precision (m)", default=0)
 
+    def __str__(self):
+        return f"{self.record_name}: LOC -> ({self.latitude},{self.longitude}) alt {self.altitude}m size {self.size}m hp {self.hp}m vp {self.vp}m"
+
     @staticmethod
     def _dec_size(value):
         size_exp = value & 0x0F
@@ -1788,6 +1832,9 @@ class HINFORecord(DNSZoneRecord):
     cpu = models.CharField(max_length=255, verbose_name="CPU")
     os = models.CharField(max_length=255, verbose_name="OS")
 
+    def __str__(self):
+        return f"{self.record_name}: HINFO -> {self.cpu} {self.os}"
+
     @classmethod
     def from_rr(cls, rr, zone):
         record_name = cls.dns_label_to_record_name(rr.rname, zone)
@@ -1838,6 +1885,7 @@ class RP(dnslib.RD):
     def __init__(self, mbox, txt):
         self.mbox = mbox
         self.txt = txt
+        super().__init__()
 
     def pack(self, buffer):
         buffer.encode_name(self.mbox)
@@ -1851,6 +1899,9 @@ class RPRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonerprecord", primary_key=True)
     mailbox = models.CharField(max_length=255)
     txt = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.record_name}: RP -> {self.mailbox} {self.txt}"
 
     def save(self, *args, **kwargs):
         self.mailbox = self.mailbox.lower()
@@ -2203,6 +2254,10 @@ class HTTPSRecord(SVCBBaseRecord):
     target_port_mandatory = models.BooleanField(default=False, editable=False)
     no_default_alpn_mandatory = models.BooleanField(default=False, editable=False)
 
+    def __str__(self):
+        record = self.svcb_record
+        return f"{self.svcb_record_name}: HTTPS -> {repr(record)}"
+
     @property
     def svcb_data(self):
         data, mandatory = super().svcb_data
@@ -2291,6 +2346,9 @@ class DHCIDRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonedhcidrecord", primary_key=True)
     data = models.BinaryField()
 
+    def __str__(self):
+        return f"{self.record_name}: DHCID -> {self.data_b64}"
+
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
         return super().save(*args, **kwargs)
@@ -2357,6 +2415,10 @@ class TLSARecord(DNSZoneRecord):
     selector = models.PositiveSmallIntegerField(choices=SELECTORS)
     matching_type = models.PositiveSmallIntegerField(choices=MATCHING_TYPES)
     certificate_data = models.BinaryField()
+
+    def __str__(self):
+        return (f"{self.record_name}: TLSA -> {self.get_certificate_usage_display()} {self.get_selector_display()} "
+                f"{self.get_matching_type_display()} {self.certificate_display()}")
 
     def certificate_display(self):
         if self.matching_type == 0:

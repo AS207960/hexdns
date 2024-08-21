@@ -79,30 +79,31 @@
             <table class="table table-striped">
                 <thead class="table-dark">
                 <tr>
-                    <th>Record type</th>
-                    <th>Name</th>
+                    <th>Record</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% if records_to_delete %}
                     {% for record in records_to_delete %}
                         <tr>
-                            <td>{{ record.0 }}</td>
-                            <td>{{ record.1 }}</td>
+                            <td>{{ record }}</td>
                         </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="2">No records to delete</td>
+                        <td>No records to delete</td>
                     </tr>
                 {% endif %}
                 </tbody>
             </table>
         </div>
         <hr/>
-        <div class="button-group">
-            <a href="#" class="btn btn-danger btn-lg">Cancel</a>
-            <a href="#" class="btn btn-success btn-lg">Apply</a>
-        </div>
+        <form action="" method="post">
+            {% csrf_token %}
+            <div class="button-group">
+                <button type="submit" name="action" value="cancel" class="btn btn-danger btn-lg">Cancel</button>
+                <button type="submit" name="action" value="apply" class="btn btn-success btn-lg">Apply</button>
+            </div>
+        </form>
     </div>
 {% endblock %}
