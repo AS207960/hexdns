@@ -489,7 +489,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                         record_name=record_host
                 ):
                     if r.data.startswith("v=spf1"):
-                        records_to_delete.append(("srv", r.id))
+                        records_to_delete.append(("txt", r.id))
             else:
                 continue
 
