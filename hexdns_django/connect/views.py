@@ -34,7 +34,7 @@ class SyncConnectState:
     zone_id: str
     template: dict
     records_to_install: typing.List[Record] = dataclasses.field(default_factory=list)
-    records_to_delete: typing.List[typing.Tuple[str, str]] = dataclasses.field(default_factory=list)
+    records_to_delete: typing.Set[typing.Tuple[str, str]] = dataclasses.field(default_factory=set)
     host: typing.Optional[str] = None
     redirect: typing.Optional[str] = None
     state: typing.Optional[str] = None
@@ -377,7 +377,7 @@ def sync_apply(request, provider_id: str, service_id: str):
         params[k] = v[0]
 
     records_to_install = []
-    records_to_delete = []
+    records_to_delete = set()
     variables = dict(**params)
     variables["host"] = state.host
     variables["domain"] = zone_obj.zone_root
@@ -401,23 +401,23 @@ def sync_apply(request, provider_id: str, service_id: str):
                 for r in zone_obj.addressrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("addr", r.id))
+                    records_to_delete.add(("addr", r.id))
                 for r in zone_obj.dynamicaddressrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("dyn_addr", r.id))
+                    records_to_delete.add(("dyn_addr", r.id))
                 for r in zone_obj.anamerecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("aname", r.id))
+                    records_to_delete.add(("aname", r.id))
                 for r in zone_obj.redirectrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("redirect", r.id))
+                    records_to_delete.add(("redirect", r.id))
                 for r in zone_obj.githubpagesrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("github_pages", r.id))
+                    records_to_delete.add(("github_pages", r.id))
 
             if record["type"] == "A":
                 record_data = {
@@ -446,7 +446,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 for r in zone_obj.mxrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("mx", r.id))
+                    records_to_delete.add(("mx", r.id))
             elif record["type"] == "TXT":
                 record_data = {
                     "text": apply_variables(record["data"], variables)
@@ -458,13 +458,13 @@ def sync_apply(request, provider_id: str, service_id: str):
                     for r in zone_obj.txtrecord_set.filter(
                             record_name=record_host
                     ):
-                        records_to_delete.append(("txt", r.id))
+                        records_to_delete.add(("txt", r.id))
                 elif conflict_mode == "Prefix":
                     for r in zone_obj.txtrecord_set.filter(
                             record_name=record_host
                     ):
                         if r.data.startswith(record_data["txtConflictMatchingPrefix"]):
-                            records_to_delete.append(("txt", r.id))
+                            records_to_delete.add(("txt", r.id))
             elif record["type"] == "SRV":
                 record_data = {
                     "priority": int(record["priority"]),
@@ -475,7 +475,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 for r in zone_obj.srvrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.append(("srv", r.id))
+                    records_to_delete.add(("srv", r.id))
             elif record["type"] == "NS":
                 record_data = {
                     "ns": apply_variables(record["pointsTo"], variables)
@@ -489,7 +489,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                         record_name=record_host
                 ):
                     if r.data.startswith("v=spf1"):
-                        records_to_delete.append(("txt", r.id))
+                        records_to_delete.add(("txt", r.id))
             else:
                 continue
 
@@ -538,87 +538,87 @@ def combine_spf(zone_obj: dns_grpc.models.DNSZone, record_host: str, spf_rules: 
     return f"v=spf1 {new_rules} ~all"
 
 
-def conflict_all(zone_obj: dns_grpc.models.DNSZone, record_host: str, records_to_delete):
+def conflict_all(zone_obj: dns_grpc.models.DNSZone, record_host: str, records_to_delete: set):
     for r in zone_obj.addressrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("addr", r.id))
+        records_to_delete.add(("addr", r.id))
     for r in zone_obj.dynamicaddressrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("dyn_addr", r.id))
+        records_to_delete.add(("dyn_addr", r.id))
     for r in zone_obj.anamerecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("aname", r.id))
+        records_to_delete.add(("aname", r.id))
     for r in zone_obj.cnamerecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("cname", r.id))
+        records_to_delete.add(("cname", r.id))
     for r in zone_obj.redirectrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("redirect", r.id))
+        records_to_delete.add(("redirect", r.id))
     for r in zone_obj.mxrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("mx", r.id))
+        records_to_delete.add(("mx", r.id))
     for r in zone_obj.nsrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("ns", r.id))
+        records_to_delete.add(("ns", r.id))
     for r in zone_obj.txtrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("txt", r.id))
+        records_to_delete.add(("txt", r.id))
     for r in zone_obj.srvrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("srv", r.id))
+        records_to_delete.add(("srv", r.id))
     for r in zone_obj.caarecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("caa", r.id))
+        records_to_delete.add(("caa", r.id))
     for r in zone_obj.naptrrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("naptr", r.id))
+        records_to_delete.add(("naptr", r.id))
     for r in zone_obj.sshfprecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("sshfp", r.id))
+        records_to_delete.add(("sshfp", r.id))
     for r in zone_obj.dsrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("ds", r.id))
+        records_to_delete.add(("ds", r.id))
     for r in zone_obj.dnskeyrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("dnskey", r.id))
+        records_to_delete.add(("dnskey", r.id))
     for r in zone_obj.locrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("loc", r.id))
+        records_to_delete.add(("loc", r.id))
     for r in zone_obj.hinforecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("hinfo", r.id))
+        records_to_delete.add(("hinfo", r.id))
     for r in zone_obj.rprecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("rp", r.id))
+        records_to_delete.add(("rp", r.id))
     for r in zone_obj.httpsrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("https", r.id))
+        records_to_delete.add(("https", r.id))
     for r in zone_obj.tlsarecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("tlsa", r.id))
+        records_to_delete.add(("tlsa", r.id))
     for r in zone_obj.githubpagesrecord_set.filter(
             record_name=record_host
     ):
-        records_to_delete.append(("github_pages", r.id))
+        records_to_delete.add(("github_pages", r.id))
 
 def make_redirect_uri(state: SyncConnectState, error: typing.Optional[str]) -> typing.Optional[str]:
     if not state.redirect:
