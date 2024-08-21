@@ -505,7 +505,9 @@ def sync_apply(request, provider_id: str, service_id: str):
     state.records_to_install = records_to_install
     state.records_to_delete = records_to_delete
 
-    request.session["sync_connect_state"] = dataclasses.asdict(state)
+    state = dataclasses.asdict(state)
+    state["records_to_delete"] = list(state["records_to_delete"])
+    request.session["sync_connect_state"] = state
 
     return redirect("connect_apply_zone")
 
