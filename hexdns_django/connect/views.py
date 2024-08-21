@@ -481,6 +481,15 @@ def sync_apply(request, provider_id: str, service_id: str):
                     "ns": apply_variables(record["pointsTo"], variables)
                 }
                 conflict_all(zone_obj, record_host, records_to_delete)
+            elif record["type"] == "SPFM":
+                record_data = {
+                    "new_spf": combine_spf(zone_obj, record_host, apply_variables(record["spfRules"], variables))
+                }
+                for r in zone_obj.txtrecord_set.filter(
+                        record_name=record_host
+                ):
+                    if r.data.startswith("v=spf1"):
+                        records_to_delete.append(("srv", r.id))
             else:
                 continue
 
@@ -506,6 +515,28 @@ def apply_variables(string, variables):
         if v:
             string = string.replace(f"%{k}%", v)
     return string
+
+def combine_spf(zone_obj: dns_grpc.models.DNSZone, record_host: str, spf_rules: str) -> str:
+    current_rules = set()
+    for r in zone_obj.txtrecord_set.filter(
+            record_name=record_host
+    ):
+        if r.data.startswith("v=spf1"):
+            spf_txt = r.data.removeprefix("v=spf1 ")
+            parts = spf_txt.split(" ")
+            for p in parts:
+                if p.endswith("all"):
+                    continue
+                if p:
+                    current_rules.add(p)
+
+    for r in spf_rules.split(" "):
+        if r:
+            current_rules.add(r)
+
+    new_rules = " ".join(list(current_rules))
+    return f"v=spf1 {new_rules} ~all"
+
 
 def conflict_all(zone_obj: dns_grpc.models.DNSZone, record_host: str, records_to_delete):
     for r in zone_obj.addressrecord_set.filter(
@@ -644,6 +675,12 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
             zone.txtrecord_set.create(
                 record_name=record.label,
                 data=record.data["text"],
+                ttl=record.ttl
+            )
+        elif record.type == "SPFM":
+            zone.txtrecord_set.create(
+                record_name=record.label,
+                data=record.data["new_spf"],
                 ttl=record.ttl
             )
         elif record.type == "SRV":
