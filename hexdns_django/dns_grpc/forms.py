@@ -289,7 +289,7 @@ class CAARecordForm(forms.ModelForm):
         exclude = ("id", "zone")
 
     def clean_tag(self):
-        data = self.cleaned_data['value']
+        data = self.cleaned_data['tag']
 
         if "\"" in data:
             raise ValidationError("Tag cannot contain quotes")
