@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from django.conf import settings
 from django.db.models import Q
 from django.db.models.functions import Length
+from django.template.defaultfilters import length
 from dnslib import CLASS, OPCODE, QTYPE, RCODE
 from dnslib.label import DNSLabel
 
@@ -1333,8 +1334,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
     def AXFRQuery(self, request: dns_pb2.DnsPacket, context):
         try:
-            dns_req = dnslib.DNSRecord.parse(request.msg)
+            dns_req = self.parse_dns_record(request.msg)
         except dnslib.DNSError:
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
             dns_res = dnslib.DNSRecord()
             dns_res.header.rcode = RCODE.FORMERR
             yield self.make_resp(dns_res)
@@ -1363,8 +1367,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
     def UpdateQuery(self, request: dns_pb2.DnsPacket, context):
         try:
-            dns_req = dnslib.DNSRecord.parse(request.msg)
+            dns_req = self.parse_dns_record(request.msg)
         except dnslib.DNSError:
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
             dns_res = dnslib.DNSRecord()
             dns_res.header.rcode = RCODE.FORMERR
             return self.make_resp(dns_res)
@@ -1387,3 +1394,46 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         res = self.make_resp(dns_res)
         return res
+
+    def parse_dns_record(self, packet: bytes):
+        buffer = dnslib.DNSBuffer(packet)
+        try:
+            header = dnslib.DNSHeader.parse(buffer)
+            questions = []
+            rr = []
+            auth = []
+            ar = []
+            for i in range(header.q):
+                questions.append(dnslib.DNSQuestion.parse(buffer))
+            for i in range(header.a):
+                rr.append(self.parse_rr(buffer))
+            for i in range(header.auth):
+                auth.append(self.parse_rr(buffer))
+            for i in range(header.ar):
+                ar.append(self.parse_rr(buffer))
+            return dnslib.DNSRecord(header,questions,rr,auth=auth,ar=ar)
+        except dnslib.DNSError:
+            raise
+        except (BufferError,dnslib.BimapError) as e:
+            raise dnslib.DNSError("Error unpacking DNSRecord [offset=%d]: %s" % (buffer.offset,e))
+
+    def parse_rr(self, buffer: dnslib.DNSBuffer):
+        try:
+            rname = buffer.decode_name()
+            rtype, rclass, ttl, rdlength = buffer.unpack("!HHIH")
+            if rtype == QTYPE.OPT:
+                options = []
+                option_buffer = dnslib.Buffer(buffer.get(rdlength))
+                while option_buffer.remaining() > 4:
+                    code, length = option_buffer.unpack("!HH")
+                    data = option_buffer.get(length)
+                    options.append(dnslib.EDNSOption(code,data))
+                rdata = options
+            else:
+                if rdlength:
+                    rdata = dnslib.RDMAP.get(QTYPE.get(rtype), dnslib.RD).parse(buffer, rdlength)
+                else:
+                    rdata = dnslib.RD.parse(buffer, rdlength)
+            return dnslib.RR(rname,rtype,rclass,ttl,rdata)
+        except (BufferError, dnslib.BimapError) as e:
+            raise dnslib.DNSError("Error unpacking RR [offset=%d]: %s" % (buffer.offset,e))

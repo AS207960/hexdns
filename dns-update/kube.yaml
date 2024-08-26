@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hexdns-update
+  labels:
+    app: hexdns
+    part: update
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hexdns
+      part: update
+  template:
+    metadata:
+      annotations:
+        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+      labels:
+        app: hexdns
+        part: update
+    spec:
+      containers:
+        - name: cache
+          image: as207960/dns-cache-update:1
+          args:
+            - "-a"
+            - "::"
+            - "-u"
+            - "http://hexdns-grpc:50051"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 53
+          env:
+            - name: RUST_LOG
+              value: "info"
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hexdns-update
+spec:
+  podSelector:
+    matchLabels:
+      app: hexdns
+      part: update
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hexdns-update
+spec:
+  selector:
+    app: hexdns
+    part: update
+  ports:
+    - port: 53
+      targetPort: 53
+      protocol: TCP
+      name: dns-tcp
+    - port: 53
+      targetPort: 53
+      protocol: UDP
+      name: dns-udp
