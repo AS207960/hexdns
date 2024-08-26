@@ -178,7 +178,9 @@ pub fn sign_zone(
     }
     let mut new_rrsigs = vec![];
     for (rr_key, record_set) in &out_zone {
-        let (key, kt) = if rr_key.record_type == trust_dns_client::rr::RecordType::DNSKEY {
+        let (key, kt) = if rr_key.record_type == trust_dns_client::rr::RecordType::DNSKEY ||
+          rr_key.record_type == trust_dns_client::rr::RecordType::CDS ||
+          rr_key.record_type == trust_dns_client::rr::RecordType::CDNSKEY {
             (&ksk, ksk_key_tag)
         } else {
             (&zsk, key_tag)
