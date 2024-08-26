@@ -1,6 +1,7 @@
 import dnslib
 import datetime
 import django
+import django.db
 
 django.setup()
 
@@ -8,6 +9,7 @@ from . import models, grpc
 
 
 def application(environ: dict, start_response):
+    django.db.close_old_connections()
     headers = [
         ("Server", "HexDNS Redirect Server")
     ]
