@@ -500,8 +500,12 @@ fn parse_nsec3param<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResu
     let opt_out = flags & 0b0000_0001 != 0;
     let algorithm = trust_dns_proto::rr::dnssec::Nsec3HashAlgorithm::from_u8(algorithm)
         .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid algorithm".to_string())))?;
-    let salt = hex::decode(salt)
-        .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid hex".to_string())))?;
+    let salt = if salt == "-" {
+        vec![]
+    } else {
+        hex::decode(salt)
+        .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid hex".to_string())))?
+    };
 
     Ok(NSEC3PARAM::new(
         algorithm,
@@ -539,8 +543,12 @@ fn parse_nsec3<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResult<NS
     let opt_out = flags & 0b0000_0001 != 0;
     let algorithm = trust_dns_proto::rr::dnssec::Nsec3HashAlgorithm::from_u8(algorithm)
         .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid algorithm".to_string())))?;
-    let salt = hex::decode(salt)
-        .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid hex".to_string())))?;
+    let salt = if salt == "-" {
+        vec![]
+    } else {
+        hex::decode(salt)
+          .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid hex".to_string())))?
+    };
     let next_hashed_owner = data_encoding::BASE32HEX.decode(next_hashed_owner.as_bytes())
         .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid base32".to_string())))?;
 
