@@ -28,3 +28,6 @@ idna
 django-storages
 boto3
 pycryptodome
+pyyaml
+uritemplate
+inflection
