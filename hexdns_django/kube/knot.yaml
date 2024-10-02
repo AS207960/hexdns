@@ -157,12 +157,6 @@ data:
     
       - domain: kube-cluster.as207960.net
         template: zone-k8s
-    
-      - domain: 0.0.0.8.c.f.0.8.7.6.0.1.0.0.2.ip6.arpa
-        template: zone-k8s
-    
-      - domain: 0.0.0.0.1.0.0.0.1.c.c.1.e.0.a.2.ip6.arpa
-        template: zone-k8s
 ---
 apiVersion: apps/v1
 kind: Deployment
