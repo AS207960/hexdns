@@ -1,3 +1,5 @@
+import typing
+
 import dnslib
 import hashlib
 import publicsuffixlist
@@ -97,10 +99,12 @@ def get_dnskey():
     )
 
 
-def make_zone_digest(zone_name: str):
+def make_zone_digest(zone_name: typing.Union[str, dnslib.DNSLabel]):
+    if not isinstance(zone_name, dnslib.DNSLabel):
+        zone_name = dnslib.DNSLabel(zone_name)
     buffer = dnslib.DNSBuffer()
     rd = get_dnskey()
-    buffer.encode_name(dnslib.DNSLabel(zone_name))
+    buffer.encode_name(zone_name)
     rd.pack(buffer)
     digest = hashlib.sha256(buffer.data).hexdigest()
     tag = tasks.make_key_tag(settings.DNSSEC_PUBKEY, flags=257)

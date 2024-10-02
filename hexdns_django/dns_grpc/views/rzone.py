@@ -34,11 +34,14 @@ def edit_rzone(request, zone_id):
     if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    zone_network = ipaddress.ip_network(
-        (user_zone.zone_root_address, user_zone.zone_root_prefix)
-    )
-    zone_name = tasks.network_to_apra(zone_network)
-    dnssec_digest, dnssec_tag = utils.make_zone_digest(zone_name.label)
+    dnssec = {}
+    for label in user_zone.dns_labels:
+        dnssec_digest, dnssec_tag = utils.make_zone_digest(label)
+        dnssec[label] = {
+            "digest": dnssec_digest,
+            "tag": dnssec_tag
+        }
+
 
     if user_zone.get_user() == request.user:
         sharing_data = {
@@ -56,8 +59,7 @@ def edit_rzone(request, zone_id):
         "dns_grpc/rzone/rzone.html",
         {
             "zone": user_zone,
-            "dnssec_tag": dnssec_tag,
-            "dnssec_digest": dnssec_digest,
+            "dnssec": dnssec,
             "sharing_uri": sharing_uri
         }
     )
