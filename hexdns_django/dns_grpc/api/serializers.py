@@ -479,8 +479,8 @@ class SecondaryDNSZoneRecordSerializer(ZoneRecordSerializer):
 
     class Meta:
         model = models.SecondaryDNSZoneRecord
-        fields = ('url', 'id', 'zone', 'zone_url', 'record_name', 'rtype', 'rdata', 'ttl',)
-        read_only_fields = ('id', 'zone', 'record_name', 'rtype', 'rdata', 'ttl',)
+        fields = ('url', 'id', 'zone', 'zone_url', 'record_text',)
+        read_only_fields = ('id', 'zone', 'record_text',)
 
 
 class SecondaryDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
