@@ -345,7 +345,7 @@ def generate_rzone(zone: "models.ReverseDNSZone", network: typing.Union[ipaddres
             zone_file += f"{models.address_to_arpa(addr)} {record.ttl} IN PTR {record.pointer_label}\n"
 
     for record in zone.reversensrecord_set.all():
-        ns_network = ipaddress.ip_network(record.record_address, record.record_prefix)
+        ns_network = ipaddress.ip_network((record.record_address, record.record_prefix))
         if ns_network.subnet_of(network):
             zone_file += f"; NS record {record.id}\n"
             ns_networks = models.reverse_zone_networks(ns_network)
