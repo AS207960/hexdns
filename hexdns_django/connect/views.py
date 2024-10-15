@@ -71,9 +71,7 @@ def get_template(provider_id: str, service_id: str):
         return None
 
     template_storage = django.core.files.storage.storages["connect-templates"]
-    template_file_name = f"{provider_id}.{service_id}.json"
-
-    f = template_storage.open(template_file_name)
+    template_file_name = f"{provider_id.lower()}.{service_id.lower()}.json"
 
     if not template_storage.exists(template_file_name):
         return None
@@ -181,7 +179,7 @@ def sync_apply(request, provider_id: str, service_id: str):
 
     if not (template := get_template(provider_id, service_id)):
         return render(request, "dns_grpc/error.html", {
-            "error": "Template not found",
+            "error": "Template not found - we likely don't support your hosting provider",
         }, status=404)
 
     if template.get("syncBlock", False):
