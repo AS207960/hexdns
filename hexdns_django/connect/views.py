@@ -128,6 +128,10 @@ def parse_keys(keys: typing.List[bytes]):
         for d in k:
             d = d.split("=", 1)
             key_dict[d[0]] = d[1]
+        if "a" not in key_dict:
+            key_dict["a"] = "RS256"
+        if "t" not in key_dict:
+            key_dict["t"] = "x509"
         keys_dict.append(key_dict)
 
     if not all(
