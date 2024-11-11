@@ -1,5 +1,8 @@
 from django.urls import path, include
+
+from hexdns_django import settings
 from . import views
+import rest_framework.schemas
 
 urlpatterns = [
     path("", views.fzone.zones, name="zones"),
@@ -174,5 +177,13 @@ urlpatterns = [
     path("dns_admin/szone/<str:zone_id>/delete/", views.admin.delete_szone, name="admin_delete_szone"),
     path("checkip", views.dyndns.check_ip, name="check_ip"),
     path("nic/update", views.dyndns.update_ip, name="update_ip"),
+
+    path(
+        "api/openapi", rest_framework.schemas.get_schema_view(
+            title="Glauca HexDNS API",
+            urlconf='dns_grpc.api.urls',
+            url=f"{settings.EXTERNAL_URL_BASE}/api"
+        ), name="openapi-schema",
+    ),
     path('api/', include('dns_grpc.api.urls')),
 ]

@@ -1,5 +1,5 @@
 {% extends 'dns_grpc/base.html' %}
-{% load crispy_forms_tags %}
+{% load crispy_forms_tags static %}
 {% block content %}
     <div class="container my-3">
         <h1>Apply provider updates to a zone</h1>
@@ -20,7 +20,11 @@
         <hr/>
         <h3>Provider</h3>
         <div class="row">
-            {% if template.logoUrl %}
+            {% if template.providerId == "microsoft.com" %}
+                <div class="col-3">
+                    <img src="{% static 'connect/microsoft.svg' %}" class="img-fluid" alt="{{ template.providerName }} logo"/>
+                </div>
+            {% elif template.logoUrl %}
                 <div class="col-3">
                     <img src="{{ template.logoUrl }}" class="img-fluid" alt="{{ template.providerName }} logo"/>
                 </div>

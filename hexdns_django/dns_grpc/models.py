@@ -15,6 +15,7 @@ import sshpubkeys
 import uuid
 import kubernetes
 import string
+import typing
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -60,6 +61,43 @@ def idna_encode(value: str):
         return value.replace(" ", "\\040")
 
     return None
+
+def reverse_zone_networks(network: typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]) -> typing.List[typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+    if type(network) == ipaddress.IPv6Network:
+        bits_short = 4 - (network.prefixlen % 4)
+        if bits_short == 4:
+            bits_short = 0
+        num_prefixes = 2 ** bits_short
+        next_nibble = network.prefixlen + bits_short
+        network_addresses = [network.network_address + (i << (128 - next_nibble)) for i in range(num_prefixes)]
+        return [ipaddress.IPv6Network((a, next_nibble)) for a in network_addresses]
+    elif type(network) == ipaddress.IPv4Network:
+        bits_short = 8 - (network.prefixlen % 8)
+        if bits_short == 8:
+            bits_short = 0
+        num_prefixes = 2 ** bits_short
+        next_byte = network.prefixlen + bits_short
+        network_addresses = [network.network_address + (i << (32 - next_byte)) for i in range(num_prefixes)]
+        return [ipaddress.IPv4Network((a, next_byte)) for a in network_addresses]
+
+
+def network_to_arpa(network: typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]) -> dnslib.DNSLabel:
+    if type(network) == ipaddress.IPv6Network:
+        network_labels = list(reversed(network.network_address.exploded.replace(":", "")[:(network.prefixlen // 4)]))
+        return dnslib.DNSLabel(list(map(lambda l: l.encode(), network_labels + ["ip6", "arpa"])))
+    elif type(network) == ipaddress.IPv4Network:
+        network_labels = list(reversed(network.network_address.exploded.split(".")[:(network.prefixlen // 8)]))
+        return dnslib.DNSLabel(list(map(lambda l: l.encode(), network_labels + ["in-addr", "arpa"])))
+
+
+def address_to_arpa(address: typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]) -> dnslib.DNSLabel:
+    if type(address) == ipaddress.IPv6Address:
+        address_labels = list(reversed(address.exploded.replace(":", "")))
+        return dnslib.DNSLabel(list(map(lambda l: l.encode(), address_labels + ["ip6", "arpa"])))
+    elif type(address) == ipaddress.IPv4Address:
+        address_labels = list(reversed(address.exploded.split(".")))
+        return dnslib.DNSLabel(list(map(lambda l: l.encode(), address_labels + ["in-addr", "arpa"])))
+
 
 class DNSError(Exception):
     def __init__(self, message):
@@ -462,6 +500,14 @@ class ReverseDNSZone(models.Model):
             )
         except ValueError:
             return None
+
+    @property
+    def zone_networks(self) -> typing.List[typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        return reverse_zone_networks(self.network)
+
+    @property
+    def dns_labels(self) -> typing.List[dnslib.DNSLabel]:
+        return [network_to_arpa(n) for n in self.zone_networks]
 
     def __str__(self):
         return f"{self.zone_root_address}/{self.zone_root_prefix}"
@@ -2493,6 +2539,10 @@ class PTRRecord(ReverseDNSZoneRecord):
         verbose_name_plural = "PTR records"
         indexes = [models.Index(fields=['record_address', 'zone'])]
 
+    @property
+    def pointer_label(self):
+        return dnslib.DNSLabel(idna_encode(self.pointer))
+
 
 class ReverseNSRecord(ReverseDNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_rzonensrecord", primary_key=True)
@@ -2507,6 +2557,14 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
             )
         except ValueError:
             return None
+
+    @property
+    def zone_networks(self) -> typing.List[typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        return reverse_zone_networks(self.network)
+
+    @property
+    def dns_labels(self) -> typing.List[dnslib.DNSLabel]:
+        return [network_to_arpa(n) for n in self.zone_networks]
 
     def save(self, *args, **kwargs):
         tasks.update_rzone.delay(self.zone.id)

@@ -34,8 +34,11 @@
             </div>
         {% endif %}
         <h2>DNSSEC</h2>
-        <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
-        <b>DS digest:</b> {{ dnssec_digest }}<br/>
+        {% for label, dnssec in dnssec.items %}
+            <h3>{{ label }}</h3>
+            <b>DS key tag:</b> {{ dnssec.tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
+            <b>DS digest:</b> {{ dnssec.digest }}<br/>
+        {% endfor %}
         <hr>
         <h2>PTR records <a href="{% url 'create_r_ptr_record' zone.id %}" class="btn btn-success">New</a></h2>
         <div class="table-responsive">

@@ -22,66 +22,8 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 )
 
 NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net.", "ns3.as207960.net.", "ns4.as207960.net."]
-IP_NETWORK = typing.Union[ipaddress.IPv6Network, ipaddress.IPv4Network]
-IP_ADDR = typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]
 
 pika_client = apps.PikaClient()
-
-
-def network_to_apra(network: IP_NETWORK) -> dnslib.DNSLabel:
-    if type(network) == ipaddress.IPv6Network:
-        return dnslib.DNSLabel(
-            list(
-                map(
-                    lambda l: l.encode(),
-                    list(
-                        reversed(
-                            network.network_address.exploded.replace(":", "")[
-                            : (network.prefixlen + 3) // 4
-                            ]
-                        )
-                    )
-                    + ["ip6", "arpa"],
-                )
-            )
-        )
-    elif type(network) == ipaddress.IPv4Network:
-        return dnslib.DNSLabel(
-            list(
-                map(
-                    lambda l: l.encode(),
-                    list(
-                        reversed(
-                            network.network_address.exploded.split(".")[
-                            : (network.prefixlen + 7) // 8
-                            ]
-                        )
-                    )
-                    + ["in-addr", "arpa"],
-                )
-            )
-        )
-
-
-def address_to_apra(address: IP_ADDR) -> dnslib.DNSLabel:
-    if type(address) == ipaddress.IPv6Address:
-        return dnslib.DNSLabel(
-            list(
-                map(
-                    lambda l: l.encode(),
-                    list(reversed(address.exploded.replace(":", ""))) + ["ip6", "arpa"],
-                )
-            )
-        )
-    elif type(address) == ipaddress.IPv4Address:
-        return dnslib.DNSLabel(
-            list(
-                map(
-                    lambda l: l.encode(),
-                    list(reversed(address.exploded.split("."))) + ["in-addr", "arpa"],
-                )
-            )
-        )
 
 
 def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
@@ -391,32 +333,30 @@ def generate_fzone(zone: "models.DNSZone"):
     return zone_file
 
 
-def generate_rzone(zone: "models.ReverseDNSZone"):
-    zone_network = ipaddress.ip_network(
-        (zone.zone_root_address, zone.zone_root_prefix)
-    )
-    zone_root = network_to_apra(zone_network)
+def generate_rzone(zone: "models.ReverseDNSZone", network: typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]):
+    zone_root = models.network_to_arpa(network)
     zone_file = generate_zone_header(zone, zone_root)
     account = zone.get_user().account.id
 
     for record in zone.ptrrecord_set.all():
-        if record.pointer == "@":
-            pointer = zone_root
-        else:
-            pointer = dnslib.DNSLabel(record.pointer)
-        zone_file += f"; PTR record {record.id}\n"
-        zone_file += f"{address_to_apra(ipaddress.ip_address(record.record_address))} {record.ttl} IN PTR " \
-                     f"{pointer}\n"
+        addr = ipaddress.ip_address(record.record_address)
+        if addr in network:
+            zone_file += f"; PTR record {record.id}\n"
+            zone_file += f"{models.address_to_arpa(addr)} {record.ttl} IN PTR {record.pointer_label}\n"
 
     for record in zone.reversensrecord_set.all():
-        zone_file += f"; NS record {record.id}\n"
-        zone_file += f"{record.record_prefix}.{zone_root} {record.ttl} IN NS " \
-                     f"{dnslib.DNSLabel(record.nameserver)}\n"
+        ns_network = ipaddress.ip_network((record.record_address, record.record_prefix))
+        if ns_network.subnet_of(network):
+            zone_file += f"; NS record {record.id}\n"
+            ns_networks = models.reverse_zone_networks(ns_network)
+            for ns_network in ns_networks:
+                zone_file += f"{models.network_to_arpa(ns_network)} {record.ttl} IN NS " \
+                             f"{dnslib.DNSLabel(record.nameserver)}\n"
 
     zones = {}
     for record in models.AddressRecord.objects.raw(
             "SELECT * FROM dns_grpc_addressrecord WHERE (auto_reverse AND address << inet %s)",
-            [str(zone_network)]
+            [str(network)],
     ):
         if record.zone.id in zones:
             account2 = zones[record.zone.id]
@@ -428,8 +368,9 @@ def generate_rzone(zone: "models.ReverseDNSZone"):
                 zone_ptr = dnslib.DNSLabel(str(record.zone.zone_root))
             else:
                 zone_ptr = dnslib.DNSLabel(f"{record.record_name}.{record.zone.zone_root}")
+            addr = ipaddress.ip_address(record.address)
             zone_file += f"; Address record {record.id}\n"
-            zone_file += f"{address_to_apra(ipaddress.ip_address(record.address))} {record.ttl} IN PTR {zone_ptr}\n"
+            zone_file += f"{models.address_to_arpa(addr)} {record.ttl} IN PTR {zone_ptr}\n"
 
     return zone_file
 
@@ -544,16 +485,14 @@ def add_rzone(zone_id: str):
     except models.ReverseDNSZone.DoesNotExist:
         return
 
-    zone_file = generate_rzone(zone)
-    zone_network = ipaddress.ip_network(
-        (zone.zone_root_address, zone.zone_root_prefix)
-    )
-    zone_root = network_to_apra(zone_network)
-    write_zone_file(zone_file, zone.zsk_private, str(zone_root))
-    send_resign_message(zone_root)
-    zone.last_resign = timezone.now()
-    zone.save()
-    update_catalog.delay()
+    for network in zone.zone_networks:
+        zone_file = generate_rzone(zone, network)
+        zone_root = models.network_to_arpa(network)
+        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        send_resign_message(zone_root)
+        zone.last_resign = timezone.now()
+        zone.save()
+        update_catalog.delay()
 
 
 @shared_task(
@@ -566,15 +505,13 @@ def update_rzone(zone_id: str):
     except models.ReverseDNSZone.DoesNotExist:
         return
 
-    zone_file = generate_rzone(zone)
-    zone_network = ipaddress.ip_network(
-        (zone.zone_root_address, zone.zone_root_prefix)
-    )
-    zone_root = network_to_apra(zone_network)
-    write_zone_file(zone_file, zone.zsk_private, str(zone_root))
-    send_resign_message(zone_root)
-    zone.last_resign = timezone.now()
-    zone.save()
+    for network in zone.zone_networks:
+        zone_file = generate_rzone(zone, network)
+        zone_root = models.network_to_arpa(network)
+        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        send_resign_message(zone_root)
+        zone.last_resign = timezone.now()
+        zone.save()
 
 
 @shared_task(
@@ -710,13 +647,6 @@ def update_catalog():
         zone_file += f"required{i}.zones 0 IN PTR {z}.\n"
         zone_file += f"group.required{i}.zones 0 IN TXT \"zone\"\n"
 
-    zone_file += f"kube-cluster-fwd.zones 0 IN PTR kube-cluster.as207960.net.\n"
-    zone_file += f"group.kube-cluster-fwd1.zones 0 IN TXT \"zone\"\n"
-    zone_file += f"kube-cluster-rvs1.zones 0 IN PTR 0.0.0.8.c.f.0.8.7.6.0.1.0.0.2.ip6.arpa.\n"
-    zone_file += f"group.kube-cluster-rvs1.zones 0 IN TXT \"zone\"\n"
-    zone_file += f"kube-cluster-rvs2.zones 0 IN PTR 0.0.0.0.1.0.0.0.1.c.c.1.e.0.a.2.ip6.arpa.\n"
-    zone_file += f"group.kube-cluster-rvs2.zones 0 IN TXT \"zone\"\n"
-
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
     active_zones = []
     inactive_zones = []
@@ -736,17 +666,15 @@ def update_catalog():
                     inactive_zones.append(str(zone_root))
 
     for zone in models.ReverseDNSZone.objects.all():
-        zone_network = ipaddress.ip_network(
-            (zone.zone_root_address, zone.zone_root_prefix)
-        )
-        zone_root = network_to_apra(zone_network)
         owner = get_user(zone)
         if is_active(owner):
-            active_zones.append((str(zone_root), owner.username))
-            zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
-            zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
+            for i, zone_root in enumerate(zone.dns_labels):
+                active_zones.append((str(zone_root), owner.username))
+                zone_file += f"{zone.id}-{i}.zones 0 IN PTR {zone_root}\n"
+                zone_file += f"group.{zone.id}-{i}.zones 0 IN TXT \"zone\"\n"
         else:
-            inactive_zones.append(str(zone_root))
+            for zone_root in zone.dns_labels:
+                inactive_zones.append(str(zone_root))
 
     for zone in models.SecondaryDNSZone.objects.all():
         if zone_label := zone.idna_label:
