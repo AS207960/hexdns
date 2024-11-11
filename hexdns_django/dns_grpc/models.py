@@ -142,7 +142,7 @@ class DNSZone(models.Model):
         verbose_name_plural = "DNS Zones"
 
     def __str__(self):
-        return self.idna_label
+        return self.idna_label or self.zone_root
 
     def setup_initial_records(self):
         self.create_blank_spf()

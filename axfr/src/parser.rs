@@ -496,7 +496,6 @@ fn parse_nsec3param<'i, I: Iterator<Item = &'i str>>(mut tokens: I) -> ParseResu
         .filter(|fp| !fp.is_empty())
         .ok_or_else(|| ParseError::from(ParseErrorKind::MissingToken("salt".to_string())))?;
 
-
     let opt_out = flags & 0b0000_0001 != 0;
     let algorithm = trust_dns_proto::rr::dnssec::Nsec3HashAlgorithm::from_u8(algorithm)
         .map_err(|_| ParseError::from(ParseErrorKind::Msg("Invalid algorithm".to_string())))?;
