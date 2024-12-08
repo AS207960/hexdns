@@ -397,7 +397,10 @@ def sync_apply(request, provider_id: str, service_id: str):
             continue
         try:
             if record["type"] == "SRV":
-                record_host = apply_variables(f"{record['service']}.{record['protocol']}.{record['name']}", variables)
+                if record["name"] == "@":
+                    record_host = apply_variables(f"{record['service']}.{record['protocol']}", variables)
+                else:
+                    record_host = apply_variables(f"{record['service']}.{record['protocol']}.{record['name']}", variables)
             else:
                 record_host = apply_variables(record["host"], variables)
             if record_host.endswith("."):
