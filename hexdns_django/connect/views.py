@@ -17,7 +17,6 @@ import django_keycloak_auth.clients
 from django.http import HttpResponse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 
 import dns_grpc.models
@@ -47,6 +46,7 @@ def coop(func):
     def handler(request, *args, **kwargs):
         resp = func(request, *args, **kwargs)
         resp.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
+        return resp
     return handler
 
 def domain_settings(request, domain: str):
