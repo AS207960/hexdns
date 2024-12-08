@@ -43,6 +43,12 @@ class SyncConnectState:
     group_ids: typing.List[str] = dataclasses.field(default_factory=list)
 
 
+def coop(func):
+    def handler(request, *args, **kwargs):
+        resp = func(request, *args, **kwargs)
+        resp.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
+    return handler
+
 def domain_settings(request, domain: str):
     zone_obj = get_object_or_404(dns_grpc.models.DNSZone, zone_root=domain)
 
@@ -177,6 +183,7 @@ def verify_signature(key, request, signature) -> bool:
     except cryptography.exceptions.InvalidSignature:
         return False
 
+@coop
 def sync_apply(request, provider_id: str, service_id: str):
     if "sync_connect_state" in request.session:
         del request.session["sync_connect_state"]
@@ -389,7 +396,10 @@ def sync_apply(request, provider_id: str, service_id: str):
         if state.group_ids and record.get("groupId") not in state.group_ids:
             continue
         try:
-            record_host = apply_variables(record["host"], variables)
+            if record["type"] == "SRV":
+                record_host = apply_variables(f"{record['service']}.{record['protocol']}.{record['name']}", variables)
+            else:
+                record_host = apply_variables(record["host"], variables)
             if record_host.endswith("."):
                 if not record_host[:-1].endswith(zone_obj.zone_root):
                     continue
@@ -748,6 +758,7 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
             zone.githubpagesrecord_set.get(id=d[1]).delete()
 
 
+@coop
 @login_required
 def apply_zone(request):
     if "sync_connect_state" not in request.session:
@@ -759,7 +770,9 @@ def apply_zone(request):
     user_zone = get_object_or_404(dns_grpc.models.DNSZone, id=state.zone_id)
 
     if not user_zone.has_scope(access_token, 'edit'):
-        raise PermissionDenied
+        return render(request, "connect/permission_denied.html", {
+            "zone": user_zone,
+        })
 
     if request.method == "POST":
         if request.POST["action"] == "apply":

@@ -1,9 +1,8 @@
 import ipaddress
 import base64
 import typing
-import uuid
+import django.core.exceptions
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from .. import models
@@ -47,8 +46,11 @@ def update_ip(request):
 
     username, password = auth
 
-    dyn_obj: typing.Optional[models.DynamicAddressRecord] = \
-        models.DynamicAddressRecord.objects.filter(id=username).first()
+    try:
+        dyn_obj: typing.Optional[models.DynamicAddressRecord] = \
+            models.DynamicAddressRecord.objects.filter(id=username).first()
+    except django.core.exceptions.ValidationError:
+        return HttpResponseBadRequest("nohost")
     if not dyn_obj:
         return HttpResponseBadRequest("nohost")
 

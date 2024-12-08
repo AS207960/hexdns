@@ -1,0 +1,12 @@
+{% extends 'dns_grpc/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="container my-3">
+        <h1>You don't have permission to edit this domain</h1>
+        <h2>Zone: {{ zone.zone_root }}</h2>
+        <p class="lead">
+            Try logging in with a different account that has access to edit this domain.
+        </p>
+        <a class="btn btn-primary btn-lg" href="{% url 'oidc_logout' %}">Logout</a>
+    </div>
+{% endblock %}
