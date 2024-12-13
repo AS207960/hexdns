@@ -813,6 +813,7 @@ def apply_zone(request):
         return HttpResponse(status=400)
 
     state = SyncConnectState(**request.session["sync_connect_state"])
+    state.records_to_delete = set(map(lambda r: DeleteRecord(**r), state.records_to_delete))
 
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_zone = get_object_or_404(dns_grpc.models.DNSZone, id=state.zone_id)
