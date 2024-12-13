@@ -417,6 +417,11 @@ def sync_apply(request, provider_id: str, service_id: str):
                     record_host = record_host[:-(len(zone_obj.zone_root) + 1)]
                     if not record_host:
                         record_host = "@"
+            if state.host:
+                if record_host == "@":
+                    record_host = state.host
+                else:
+                    record_host = f"{record_host}.{state.host}"
 
             record_ttl = int(record.get("ttl", 86400))
             if record["type"] in ("A", "AAAA"):
@@ -549,6 +554,12 @@ def sync_apply(request, provider_id: str, service_id: str):
                 record_data = {
                     "data": combine_spf(zone_obj, record_host, apply_variables(record["spfRules"], variables))
                 }
+                if zone_obj.txtrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 for r in zone_obj.txtrecord_set.filter(
                         record_name=record_host
                 ):

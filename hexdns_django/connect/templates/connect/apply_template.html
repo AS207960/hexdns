@@ -64,14 +64,14 @@
                                 {% if record.type == "A" or record.type == "AAAA" %}
                                     {{ record.data.address }}
                                 {% elif record.type == "CNAME" %}
-                                    {{ record.data.cname }}
+                                    {{ record.data.alias }}
                                 {% elif record.type == "MX" %}
                                     <b>Priority:</b> {{ record.data.priority }}<br/>
                                     <b>Mail server:</b> {{ record.data.exchange }}
                                 {% elif record.type == "TXT" %}
-                                    {{ record.data.text }}
+                                    {{ record.data.data }}
                                 {% elif record.type == "SPFM" %}
-                                    {{ record.data.new_spf }}
+                                    {{ record.data.data }}
                                 {% elif record.type == "SRV" %}
                                     <b>Priority:</b> {{ record.data.priority }}<br/>
                                     <b>Weight:</b> {{ record.data.weight }}<br/>
