@@ -570,7 +570,7 @@ def sync_apply(request, provider_id: str, service_id: str):
     state.records_to_delete = records_to_delete
 
     state = dataclasses.asdict(state)
-    state["records_to_delete"] = list(state["records_to_delete"])
+    state["records_to_delete"] = list(map(dataclasses.asdict, state["records_to_delete"]))
     request.session["sync_connect_state"] = state
 
     return redirect("connect_apply_zone")
