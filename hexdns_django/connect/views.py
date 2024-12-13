@@ -469,7 +469,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 if not state.host and record_host == "@":
                     continue
                 record_data = {
-                    "cname": apply_variables(record["pointsTo"], variables)
+                    "alias": apply_variables(record["pointsTo"], variables)
                 }
                 if zone_obj.cnamerecord_set.filter(
                     record_name=record_host,
@@ -495,7 +495,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                     records_to_delete.add(DeleteRecord(type="mx", id=r.id))
             elif record["type"] == "TXT":
                 record_data = {
-                    "text": apply_variables(record["data"], variables)
+                    "data": apply_variables(record["data"], variables)
                 }
                 if zone_obj.txtrecord_set.filter(
                     record_name=record_host,
@@ -536,7 +536,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                     records_to_delete.add(DeleteRecord(type="srv", id=r.id))
             elif record["type"] == "NS":
                 record_data = {
-                    "ns": apply_variables(record["pointsTo"], variables)
+                    "nameserver": apply_variables(record["pointsTo"], variables)
                 }
                 if zone_obj.nsrecord_set.filter(
                     record_name=record_host,
@@ -547,7 +547,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 conflict_all(zone_obj, record_host, records_to_delete)
             elif record["type"] == "SPFM":
                 record_data = {
-                    "new_spf": combine_spf(zone_obj, record_host, apply_variables(record["spfRules"], variables))
+                    "data": combine_spf(zone_obj, record_host, apply_variables(record["spfRules"], variables))
                 }
                 for r in zone_obj.txtrecord_set.filter(
                         record_name=record_host
@@ -717,54 +717,50 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
         if record.type == "A":
             zone.addressrecord_set.create(
                 record_name=record.label,
-                address=record.data["address"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
         elif record.type == "AAAA":
             zone.addressrecord_set.create(
                 record_name=record.label,
-                address=record.data["address"],
                 ttl=record.ttl
+                **record.data,
             )
         elif record.type == "CNAME":
             zone.cnamerecord_set.create(
                 record_name=record.label,
-                alias=record.data["cname"],
                 ttl=record.ttl
+                **record.data,
             )
         elif record.type == "MX":
             zone.mxrecord_set.create(
                 record_name=record.label,
-                priority=record.data["priority"],
-                exchange=record.data["exchange"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
         elif record.type == "TXT":
             zone.txtrecord_set.create(
                 record_name=record.label,
-                data=record.data["text"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
         elif record.type == "SPFM":
             zone.txtrecord_set.create(
                 record_name=record.label,
-                data=record.data["new_spf"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
         elif record.type == "SRV":
             zone.srvrecord_set.create(
                 record_name=record.label,
-                priority=record.data["priority"],
-                weight=record.data["weight"],
-                port=record.data["port"],
-                target=record.data["target"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
         elif record.type == "NS":
             zone.nsrecord_set.create(
                 record_name=record.label,
-                nameserver=record.data["ns"],
-                ttl=record.ttl
+                ttl=record.ttl,
+                **record.data,
             )
 
     for d in state.records_to_delete:
