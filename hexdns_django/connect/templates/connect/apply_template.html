@@ -7,7 +7,7 @@
         <p class="lead">
             Make sure you trust this provider, and verify the changes they are making to your zone.
         </p>
-        {% if template.warnPhishing %}
+        {% if template.warnPhishing and not signed_request %}
             <div class="alert alert-warning" role="alert">
                 <h4 class="alert-heading">This request wasn't signed</h4>
                 <p>
@@ -52,7 +52,13 @@
                     {% for record in records_to_install %}
                         <tr>
                             <td>{{ record.label }}</td>
-                            <td>{{ record.type }}</td>
+                            <td>
+                                {% if record.type == "SPFM" %}
+                                    SPF
+                                {% else %}
+                                    {{ record.type }}
+                                {% endif %}
+                            </td>
                             <td>{{ record.ttl }}</td>
                             <td>
                                 {% if record.type == "A" or record.type == "AAAA" %}

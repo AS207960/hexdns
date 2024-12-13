@@ -28,18 +28,25 @@ class Record:
     ttl: int
     data: dict
 
+@dataclasses.dataclass(frozen=True)
+class DeleteRecord:
+    type: str
+    id: str
+    show: bool = True
+
 @dataclasses.dataclass
 class SyncConnectState:
     zone_id: str
     template: dict
     records_to_install: typing.List[Record] = dataclasses.field(default_factory=list)
-    records_to_delete: typing.Set[typing.Tuple[str, str]] = dataclasses.field(default_factory=set)
+    records_to_delete: typing.Set[DeleteRecord] = dataclasses.field(default_factory=set)
     host: typing.Optional[str] = None
     redirect: typing.Optional[str] = None
     state: typing.Optional[str] = None
     additional_provider_name: typing.Optional[str] = None
     additional_service_name: typing.Optional[str] = None
     group_ids: typing.List[str] = dataclasses.field(default_factory=list)
+    signed: bool = False
 
 
 def coop(func):
@@ -327,7 +334,7 @@ def sync_apply(request, provider_id: str, service_id: str):
         else:
             return HttpResponse(status=404)
 
-    state = SyncConnectState(zone_id=zone_obj.id, template=template)
+    state = SyncConnectState(zone_id=zone_obj.id, template=template, signed=signed_request)
 
     if "host" in query_params:
         qs_host = query_params["host"]
@@ -386,7 +393,7 @@ def sync_apply(request, provider_id: str, service_id: str):
         params[k] = v[0]
 
     records_to_install = []
-    records_to_delete = set()
+    records_to_delete: typing.Set[DeleteRecord] = set()
     variables = dict(**params)
     variables["host"] = state.host
     variables["domain"] = zone_obj.zone_root
@@ -416,23 +423,23 @@ def sync_apply(request, provider_id: str, service_id: str):
                 for r in zone_obj.addressrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("addr", r.id))
+                    records_to_delete.add(DeleteRecord(type="addr", id=r.id))
                 for r in zone_obj.dynamicaddressrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("dyn_addr", r.id))
+                    records_to_delete.add(DeleteRecord(type="dyn_addr", id=r.id))
                 for r in zone_obj.anamerecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("aname", r.id))
+                    records_to_delete.add(DeleteRecord(type="aname", id=r.id))
                 for r in zone_obj.redirectrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("redirect", r.id))
+                    records_to_delete.add(DeleteRecord(type="redirect", id=r.id))
                 for r in zone_obj.githubpagesrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("github_pages", r.id))
+                    records_to_delete.add(DeleteRecord(type="github_pages", id=r.id))
 
             if record["type"] == "A":
                 record_data = {
@@ -440,32 +447,62 @@ def sync_apply(request, provider_id: str, service_id: str):
                         apply_variables(record["pointsTo"], variables)
                     )
                 }
+                if zone_obj.addressrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
             elif record["type"] == "AAAA":
                 record_data = {
                     "address": ipaddress.IPv6Address(
                         apply_variables(record["pointsTo"], variables)
                     )
                 }
+                if zone_obj.addressrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
             elif record["type"] == "CNAME":
                 if not state.host and record_host == "@":
                     continue
                 record_data = {
                     "cname": apply_variables(record["pointsTo"], variables)
                 }
+                if zone_obj.cnamerecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 conflict_all(zone_obj, record_host, records_to_delete)
             elif record["type"] == "MX":
                 record_data = {
                     "priority": int(record["priority"]),
                     "exchange": apply_variables(record["pointsTo"], variables)
                 }
+                if zone_obj.mxrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 for r in zone_obj.mxrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("mx", r.id))
+                    records_to_delete.add(DeleteRecord(type="mx", id=r.id))
             elif record["type"] == "TXT":
                 record_data = {
                     "text": apply_variables(record["data"], variables)
                 }
+                if zone_obj.txtrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 conflict_mode = record.get("txtConflictMatchingMode", "None")
                 if conflict_mode == "None":
                     pass
@@ -473,13 +510,13 @@ def sync_apply(request, provider_id: str, service_id: str):
                     for r in zone_obj.txtrecord_set.filter(
                             record_name=record_host
                     ):
-                        records_to_delete.add(("txt", r.id))
+                        records_to_delete.add(DeleteRecord(type="txt", id=r.id))
                 elif conflict_mode == "Prefix":
                     for r in zone_obj.txtrecord_set.filter(
                             record_name=record_host
                     ):
                         if r.data.startswith(record_data["txtConflictMatchingPrefix"]):
-                            records_to_delete.add(("txt", r.id))
+                            records_to_delete.add(DeleteRecord(type="txt", id=r.id))
             elif record["type"] == "SRV":
                 record_data = {
                     "priority": int(record["priority"]),
@@ -487,14 +524,26 @@ def sync_apply(request, provider_id: str, service_id: str):
                     "port": int(record["port"]),
                     "target": apply_variables(record["target"], variables)
                 }
+                if zone_obj.srvrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 for r in zone_obj.srvrecord_set.filter(
                         record_name=record_host
                 ):
-                    records_to_delete.add(("srv", r.id))
+                    records_to_delete.add(DeleteRecord(type="srv", id=r.id))
             elif record["type"] == "NS":
                 record_data = {
                     "ns": apply_variables(record["pointsTo"], variables)
                 }
+                if zone_obj.nsrecord_set.filter(
+                    record_name=record_host,
+                    ttl=record_ttl,
+                    **record_data
+                ).count():
+                    continue
                 conflict_all(zone_obj, record_host, records_to_delete)
             elif record["type"] == "SPFM":
                 record_data = {
@@ -504,7 +553,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                         record_name=record_host
                 ):
                     if r.data.startswith("v=spf1"):
-                        records_to_delete.add(("txt", r.id))
+                        records_to_delete.add(DeleteRecord(type="txt", id=r.id, show=False))
             else:
                 continue
 
@@ -719,46 +768,46 @@ def apply_updates(zone: dns_grpc.models.DNSZone, state: SyncConnectState):
             )
 
     for d in state.records_to_delete:
-        if d[0] == "addr":
-            zone.addressrecord_set.get(id=d[1]).delete()
-        elif d[0] == "dyn_addr":
-            zone.dynamicaddressrecord_set.get(id=d[1]).delete()
-        elif d[0] == "aname":
-            zone.anamerecord_set.get(id=d[1]).delete()
-        elif d[0] == "cname":
-            zone.cnamerecord_set.get(id=d[1]).delete()
-        elif d[0] == "redirect":
-            zone.redirectrecord_set.get(id=d[1]).delete()
-        elif d[0] == "mx":
-            zone.mxrecord_set.get(id=d[1]).delete()
-        elif d[0] == "ns":
-            zone.nsrecord_set.get(id=d[1]).delete()
-        elif d[0] == "txt":
-            zone.txtrecord_set.get(id=d[1]).delete()
-        elif d[0] == "srv":
-            zone.srvrecord_set.get(id=d[1]).delete()
-        elif d[0] == "caa":
-            zone.caarecord_set.get(id=d[1]).delete()
-        elif d[0] == "naptr":
-            zone.naptrrecord_set.get(id=d[1]).delete()
-        elif d[0] == "sshfp":
-            zone.sshfprecord_set.get(id=d[1]).delete()
-        elif d[0] == "ds":
-            zone.dsrecord_set.get(id=d[1]).delete()
-        elif d[0] == "dnskey":
-            zone.dnskeyrecord_set.get(id=d[1]).delete()
-        elif d[0] == "loc":
-            zone.locrecord_set.get(id=d[1]).delete()
-        elif d[0] == "hinfo":
-            zone.hinforecord_set.get(id=d[1]).delete()
-        elif d[0] == "rp":
-            zone.rprecord_set.get(id=d[1]).delete()
-        elif d[0] == "https":
-            zone.httpsrecord_set.get(id=d[1]).delete()
-        elif d[0] == "tlsa":
-            zone.tlsarecord_set.get(id=d[1]).delete()
-        elif d[0] == "github_pages":
-            zone.githubpagesrecord_set.get(id=d[1]).delete()
+        if d.type == "addr":
+            zone.addressrecord_set.get(id=d.id).delete()
+        elif d.type == "dyn_addr":
+            zone.dynamicaddressrecord_set.get(id=d.id).delete()
+        elif d.type == "aname":
+            zone.anamerecord_set.get(id=d.id).delete()
+        elif d.type == "cname":
+            zone.cnamerecord_set.get(id=d.id).delete()
+        elif d.type == "redirect":
+            zone.redirectrecord_set.get(id=d.id).delete()
+        elif d.type == "mx":
+            zone.mxrecord_set.get(id=d.id).delete()
+        elif d.type == "ns":
+            zone.nsrecord_set.get(id=d.id).delete()
+        elif d.type == "txt":
+            zone.txtrecord_set.get(id=d.id).delete()
+        elif d.type == "srv":
+            zone.srvrecord_set.get(id=d.id).delete()
+        elif d.type == "caa":
+            zone.caarecord_set.get(id=d.id).delete()
+        elif d.type == "naptr":
+            zone.naptrrecord_set.get(id=d.id).delete()
+        elif d.type == "sshfp":
+            zone.sshfprecord_set.get(id=d.id).delete()
+        elif d.type == "ds":
+            zone.dsrecord_set.get(id=d.id).delete()
+        elif d.type == "dnskey":
+            zone.dnskeyrecord_set.get(id=d.id).delete()
+        elif d.type == "loc":
+            zone.locrecord_set.get(id=d.id).delete()
+        elif d.type == "hinfo":
+            zone.hinforecord_set.get(id=d.id).delete()
+        elif d.type == "rp":
+            zone.rprecord_set.get(id=d.id).delete()
+        elif d.type == "https":
+            zone.httpsrecord_set.get(id=d.id).delete()
+        elif d.type == "tlsa":
+            zone.tlsarecord_set.get(id=d.id).delete()
+        elif d.type == "github_pages":
+            zone.githubpagesrecord_set.get(id=d.id).delete()
 
 
 @coop
@@ -803,50 +852,53 @@ def apply_zone(request):
     else:
         to_delete = []
         for d in state.records_to_delete:
-            if d[0] == "addr":
-                to_delete.append(str(user_zone.addressrecord_set.get(id=d[1])))
-            elif d[0] == "dyn_addr":
-                to_delete.append(str(user_zone.dynamicaddressrecord_set.get(id=d[1])))
-            elif d[0] == "aname":
-                to_delete.append(str(user_zone.anamerecord_set.get(id=d[1])))
-            elif d[0] == "cname":
-                to_delete.append(str(user_zone.cnamerecord_set.get(id=d[1])))
-            elif d[0] == "redirect":
-                to_delete.append(str(user_zone.redirectrecord_set.get(id=d[1])))
-            elif d[0] == "mx":
-                to_delete.append(str(user_zone.mxrecord_set.get(id=d[1])))
-            elif d[0] == "ns":
-                to_delete.append(str(user_zone.nsrecord_set.get(id=d[1])))
-            elif d[0] == "txt":
-                to_delete.append(str(user_zone.txtrecord_set.get(id=d[1])))
-            elif d[0] == "srv":
-                to_delete.append(str(user_zone.srvrecord_set.get(id=d[1])))
-            elif d[0] == "caa":
-                to_delete.append(str(user_zone.caarecord_set.get(id=d[1])))
-            elif d[0] == "naptr":
-                to_delete.append(str(user_zone.naptrrecord_set.get(id=d[1])))
-            elif d[0] == "sshfp":
-                to_delete.append(str(user_zone.sshfprecord_set.get(id=d[1])))
-            elif d[0] == "ds":
-                to_delete.append(str(user_zone.dsrecord_set.get(id=d[1])))
-            elif d[0] == "dnskey":
-                to_delete.append(str(user_zone.dnskeyrecord_set.get(id=d[1])))
-            elif d[0] == "loc":
-                to_delete.append(str(user_zone.locrecord_set.get(id=d[1])))
-            elif d[0] == "hinfo":
-                to_delete.append(str(user_zone.hinforecord_set.get(id=d[1])))
-            elif d[0] == "rp":
-                to_delete.append(str(user_zone.rprecord_set.get(id=d[1])))
-            elif d[0] == "https":
-                to_delete.append(str(user_zone.httpsrecord_set.get(id=d[1])))
-            elif d[0] == "tlsa":
-                to_delete.append(str(user_zone.tlsarecord_set.get(id=d[1])))
-            elif d[0] == "github_pages":
-                to_delete.append(str(user_zone.githubpagesrecord_set.get(id=d[1])))
+            if not d.show:
+                continue
+            if d.type == "addr":
+                to_delete.append(str(user_zone.addressrecord_set.get(id=d.id)))
+            elif d.type == "dyn_addr":
+                to_delete.append(str(user_zone.dynamicaddressrecord_set.get(id=d.id)))
+            elif d.type == "aname":
+                to_delete.append(str(user_zone.anamerecord_set.get(id=d.id)))
+            elif d.type == "cname":
+                to_delete.append(str(user_zone.cnamerecord_set.get(id=d.id)))
+            elif d.id == "redirect":
+                to_delete.append(str(user_zone.redirectrecord_set.get(id=d.id)))
+            elif d.id == "mx":
+                to_delete.append(str(user_zone.mxrecord_set.get(id=d.id)))
+            elif d.id == "ns":
+                to_delete.append(str(user_zone.nsrecord_set.get(id=d.id)))
+            elif d.id == "txt":
+                to_delete.append(str(user_zone.txtrecord_set.get(id=d.id)))
+            elif d.id == "srv":
+                to_delete.append(str(user_zone.srvrecord_set.get(id=d.id)))
+            elif d.id == "caa":
+                to_delete.append(str(user_zone.caarecord_set.get(id=d.id)))
+            elif d.id == "naptr":
+                to_delete.append(str(user_zone.naptrrecord_set.get(id=d.id)))
+            elif d.id == "sshfp":
+                to_delete.append(str(user_zone.sshfprecord_set.get(id=d.id)))
+            elif d.id == "ds":
+                to_delete.append(str(user_zone.dsrecord_set.get(id=d.id)))
+            elif d.id == "dnskey":
+                to_delete.append(str(user_zone.dnskeyrecord_set.get(id=d.id)))
+            elif d.id == "loc":
+                to_delete.append(str(user_zone.locrecord_set.get(id=d.id)))
+            elif d.id == "hinfo":
+                to_delete.append(str(user_zone.hinforecord_set.get(id=d.id)))
+            elif d.id == "rp":
+                to_delete.append(str(user_zone.rprecord_set.get(id=d.id)))
+            elif d.id == "https":
+                to_delete.append(str(user_zone.httpsrecord_set.get(id=d.id)))
+            elif d.id == "tlsa":
+                to_delete.append(str(user_zone.tlsarecord_set.get(id=d.id)))
+            elif d.id == "github_pages":
+                to_delete.append(str(user_zone.githubpagesrecord_set.get(id=d.id)))
 
         return render(request, "connect/apply_template.html", {
             "zone": user_zone,
             "template": state.template,
             "records_to_install": state.records_to_install,
             "records_to_delete": to_delete,
+            "signed_request": state.signed,
         })

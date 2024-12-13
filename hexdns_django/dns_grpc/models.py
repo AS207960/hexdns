@@ -956,7 +956,7 @@ class CNAMERecord(DNSZoneRecord):
     alias = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"{self.record_name}: cname -> {self.alias}"
+        return f"{self.record_name}: CNAME -> {self.alias}"
 
     @classmethod
     def from_rr(cls, rr, zone):
