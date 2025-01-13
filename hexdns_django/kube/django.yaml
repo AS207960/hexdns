@@ -664,6 +664,7 @@ spec:
               args:
                 - |
                   trap "touch /tmp/pod/main-terminated" EXIT
+                  sleep 15
                   python3 manage.py transfer-secondary
               volumeMounts:
                 - mountPath: /tmp/pod
