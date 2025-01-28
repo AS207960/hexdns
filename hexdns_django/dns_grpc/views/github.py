@@ -129,8 +129,6 @@ def oauth_callback(request):
 
         installation = models.GitHubInstallation.objects.filter(
             installation_id=installation_id, user=request.user.account).first()
-        if not installation:
-            return HttpResponseBadRequest()
     else:
         if "github_state_id" not in request.session:
             return redirect('github_oauth_login')
