@@ -361,8 +361,11 @@ def generate_rzone(zone: "models.ReverseDNSZone", network: typing.Union[ipaddres
         if record.zone.id in zones:
             account2 = zones[record.zone.id]
         else:
-            account2 = record.zone.get_user().account.id
-            zones[record.zone.id] = account2
+            try:
+                account2 = record.zone.get_user().account.id
+                zones[record.zone.id] = account2
+            except keycloak.exceptions.KeycloakClientError:
+                account2 = None
         if account2 == account:
             if record.record_name == "@":
                 zone_ptr = dnslib.DNSLabel(str(record.zone.zone_root))
