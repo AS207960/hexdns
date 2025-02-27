@@ -337,7 +337,7 @@ def generate_rzone(zone: "models.ReverseDNSZone", network: typing.Union[ipaddres
     zone_root = models.network_to_arpa(network)
     zone_file = generate_zone_header(zone, zone_root)
     user = get_user(zone)
-    account = user.account if user else None
+    account = user.account.id if user else None
 
     for record in zone.ptrrecord_set.all():
         addr = ipaddress.ip_address(record.record_address)
