@@ -11,14 +11,18 @@
                     <div class="col-12 col-md-8">
                         <div class="btn-group" style="flex-wrap: wrap; gap: 5px 0;">
                             <a href="{% url 'delete_zone' zone.id %}" class="btn btn-danger">&#x1f5d1; Delete</a>
-                            <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone file</a>
+                            <a href="{% url 'import_zone_file' zone.id %}" class="btn btn-primary">Import from zone
+                                file</a>
                             <a href="{% url 'export_zone_file' zone.id %}" class="btn btn-primary">Export zone file</a>
-                            <a href="{% url 'edit_zone_secrets' zone.id %}" class="btn btn-secondary">Edit update secrets</a>
+                            <a href="{% url 'edit_zone_secrets' zone.id %}" class="btn btn-secondary">Edit update
+                                secrets</a>
                             <a href="{% url 'edit_zone_axfr' zone.id %}" class="btn btn-secondary">Edit AXFR</a>
                             <a href="{% url 'edit_zone_cds' zone.id %}" class="btn btn-secondary">Manage CDS</a>
                             <a href="{% url 'verify_google' zone.id %}" class="btn btn-success">Verify with Google</a>
-                            <a href="{% url 'setup_icloud' zone.id %}" class="btn btn-secondary">Setup for iCloud Custom Email</a>
-                            <a href="{% url 'edit_custom_ns' zone.id %}" class="btn btn-secondary">White-label nameservers</a>
+                            <a href="{% url 'setup_icloud' zone.id %}" class="btn btn-secondary">Setup for iCloud Custom
+                                Email</a>
+                            <a href="{% url 'edit_custom_ns' zone.id %}" class="btn btn-secondary">White-label
+                                nameservers</a>
                             {% if sharing_uri %}
                                 <a href="{{ sharing_uri }}" class="btn btn-info">&#x1f91d; Share</a>
                             {% endif %}
@@ -35,7 +39,8 @@
                 <p>Your zone doesn't appear to be pointed to us correctly yet.</p>
                 <hr>
                 <p class="mb-0">
-                    Please ensure the parent is configured as described <a href="https://docs.glauca.digital/hexdns/setup/" class="alert-link">here</a>.
+                    Please ensure the parent is configured as described <a
+                        href="https://docs.glauca.digital/hexdns/setup/" class="alert-link">here</a>.
                     It may take up to 24 hours for the NS updates to propagate.
                 </p>
             </div>
@@ -44,9 +49,11 @@
         {% if spf_status == spf_status.NotPresent %}
             <div class="alert alert-warning" role="alert">
                 <h4 class="alert-heading">No SPF record</h4>
-                <p>Your zone doesn't have an SPF record. You should create one to ensure deliverability of your emails.</p>
+                <p>Your zone doesn't have an SPF record. You should create one to ensure deliverability of your
+                    emails.</p>
                 <hr>
-                <p>Not going to be sending emails from this domain? Create a blank SPF record to protect against spoofing.</p>
+                <p>Not going to be sending emails from this domain? Create a blank SPF record to protect against
+                    spoofing.</p>
                 <a href="{% url 'create_blank_spf' zone.id %}" class="btn btn-primary">Create blank SPF</a>
             </div>
         {% elif spf_status == spf_status.MultiplePresent %}
@@ -96,9 +103,11 @@
         {% if dmarc_status == dmarc_status.NotPresent %}
             <div class="alert alert-warning" role="alert">
                 <h4 class="alert-heading">No DMARC record</h4>
-                <p>Your zone doesn't have a DMARC record. You should create one to ensure deliverability of your emails.</p>
+                <p>Your zone doesn't have a DMARC record. You should create one to ensure deliverability of your
+                    emails.</p>
                 <hr>
-                <p>Not going to be sending emails from this domain? Create a blank DMARC record to protect against spoofing.</p>
+                <p>Not going to be sending emails from this domain? Create a blank DMARC record to protect against
+                    spoofing.</p>
                 <a href="{% url 'create_blank_dmarc' zone.id %}" class="btn btn-primary">Create blank DMARC</a>
             </div>
         {% elif dmarc_status == dmarc_status.MultiplePresent %}
@@ -141,7 +150,8 @@
         <b>DS digest:</b> {{ dnssec_digest }}<br/>
         <hr/>
         <h3>DNSKEY record (not usually required)</h3>
-        <b>DNSKEY key flags:</b> {{ dnskey.flags }} <b>DNSKEY protocol:</b> {{ dnskey.protocol }} <b>DNSKEY algorithm:</b> ECDSA (13)<br/>
+        <b>DNSKEY key flags:</b> {{ dnskey.flags }} <b>DNSKEY protocol:</b> {{ dnskey.protocol }} <b>DNSKEY
+        algorithm:</b> ECDSA (13)<br/>
         <b>DNSKEY key:</b> {{ dnskey_key }}<br/>
         <hr>
         <h2>
@@ -177,9 +187,12 @@
                             </td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_address_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_address_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_address_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_address_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_address_record' record.id %}"
+                                       class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
+                                    <a href="{% url 'delete_address_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -193,10 +206,16 @@
             </table>
         </div>
         <hr>
-        <h2>Dynamic address records <a href="{% url 'create_dynamic_address_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <h2>Dynamic address records <a href="{% url 'create_dynamic_address_record' zone.id %}" class="btn btn-success">New</a>
+        </h2>
         <p>
-            Send a GET/POST request to <code>http://{id}:{password}@dns.glauca.digital/nic/update?hostname={fqdn}[&myip={v4/v6 addr}]</code> to update.
+            Send a GET/POST request to <code>https://{id}:{password}@dns.glauca.digital/nic/update?hostname={fqdn}[&myip={v4/v6
+            addr}]</code> to update.
         </p>
+        <div class="alert alert-info" role="alert">
+            If the above URL doesn't work with your software, it might be that it doesn't support modern HTTPS.
+            We also allow HTTP; try with <code>http://</code> instead of <code>https://</code> instead.
+        </div>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-dark">
@@ -226,9 +245,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_dynamic_address_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_dynamic_address_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_dynamic_address_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_dynamic_address_record' record.id %}"
+                                       class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
+                                    <a href="{% url 'copy_dynamic_address_record' record.id %}"
+                                       class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
+                                    <a href="{% url 'delete_dynamic_address_record' record.id %}"
+                                       class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -262,9 +284,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_aname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_aname_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_aname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_aname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_aname_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_aname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -302,9 +327,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_redirect_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_redirect_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_redirect_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_redirect_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_redirect_record' record.id %}"
+                                       class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
+                                    <a href="{% url 'delete_redirect_record' record.id %}"
+                                       class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -345,13 +373,15 @@
                             </td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_github_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-{#                                    {% if record.repo_name %}#}
-{#                                        <a href="{% url 'github_record_rebuild' record.id %}" class="btn btn-success btn-sm">#}
-{#                                            Queue rebuild#}
-{#                                        </a>#}
-{#                                    {% endif %}#}
-                                    <a href="{% url 'delete_github_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_github_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    {#                                    {% if record.repo_name %}#}
+                                    {#                                        <a href="{% url 'github_record_rebuild' record.id %}" class="btn btn-success btn-sm">#}
+                                    {#                                            Queue rebuild#}
+                                    {#                                        </a>#}
+                                    {#                                    {% endif %}#}
+                                    <a href="{% url 'delete_github_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -385,9 +415,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_cname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_cname_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_cname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_cname_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_cname_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_cname_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -430,9 +463,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_mx_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_mx_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_mx_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_mx_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_mx_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_mx_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -466,9 +502,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_ns_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_ns_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_ns_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_ns_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_ns_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_ns_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -508,9 +547,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_txt_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_txt_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_txt_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_txt_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_txt_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_txt_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -524,10 +566,13 @@
             </table>
         </div>
         <hr>
-        <h2>HTTPS records <span class="badge bg-warning">Experimental</span> <a href="{% url 'create_https_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <h2>HTTPS records <span class="badge bg-warning">Experimental</span> <a
+                href="{% url 'create_https_record' zone.id %}" class="btn btn-success">New</a></h2>
         <p>
-            The IETF standard for this is still a draft, however experimental support is provided to support emerging technologies.
-            For your reference we've implemented <code>draft-ietf-dnsop-svcb-https-05</code>, dated the 21<sup>st</sup> of April 2021.
+            The IETF standard for this is still a draft, however experimental support is provided to support emerging
+            technologies.
+            For your reference we've implemented <code>draft-ietf-dnsop-svcb-https-05</code>, dated the 21<sup>st</sup>
+            of April 2021.
         </p>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
@@ -555,9 +600,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_https_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_https_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_https_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_https_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_https_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_https_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -597,9 +645,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_srv_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_srv_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_srv_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_srv_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_srv_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_srv_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -632,14 +683,17 @@
                         <tr>
                             <td>{{ record.record_name }}</td>
                             <td>{{ record.flag }}</td>
-                            <td>{{ record.tag  }}</td>
+                            <td>{{ record.tag }}</td>
                             <td>{{ record.value }}</td>
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_caa_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_caa_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_caa_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_caa_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_caa_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_caa_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -681,9 +735,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_naptr_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_naptr_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_naptr_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_naptr_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_naptr_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_naptr_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -717,9 +774,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_sshfp_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_sshfp_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_sshfp_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_sshfp_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_sshfp_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_sshfp_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -759,9 +819,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_ds_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_ds_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_ds_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_ds_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_ds_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_ds_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -801,9 +864,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_dnskey_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_dnskey_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_dnskey_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_dnskey_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_dnskey_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_dnskey_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -843,9 +909,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_tlsa_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_tlsa_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_tlsa_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_tlsa_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_tlsa_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_tlsa_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -889,9 +958,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_loc_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_loc_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_loc_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_loc_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_loc_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_loc_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -927,9 +999,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_hinfo_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_hinfo_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_hinfo_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_hinfo_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_hinfo_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_hinfo_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
@@ -943,7 +1018,8 @@
             </table>
         </div>
         <hr>
-        <h2>Responsible person records <a href="{% url 'create_rp_record' zone.id %}" class="btn btn-success">New</a></h2>
+        <h2>Responsible person records <a href="{% url 'create_rp_record' zone.id %}" class="btn btn-success">New</a>
+        </h2>
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead class="table-dark">
@@ -965,9 +1041,12 @@
                             <td>{{ record.ttl }}</td>
                             <td style="width: 1px;">
                                 <div class="btn-group">
-                                    <a href="{% url 'edit_rp_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a; Edit</a>
-                                    <a href="{% url 'copy_rp_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1; Copy</a>
-                                    <a href="{% url 'delete_rp_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1; Delete</a>
+                                    <a href="{% url 'edit_rp_record' record.id %}" class="btn btn-primary btn-sm">&#x1f58a;
+                                        Edit</a>
+                                    <a href="{% url 'copy_rp_record' record.id %}" class="btn btn-secondary btn-sm">&#x1f4d1;
+                                        Copy</a>
+                                    <a href="{% url 'delete_rp_record' record.id %}" class="btn btn-danger btn-sm">&#x1f5d1;
+                                        Delete</a>
                                 </div>
                             </td>
                         </tr>
