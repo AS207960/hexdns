@@ -210,6 +210,7 @@ pub fn sign_zone(
                 let mut record_tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
                     &mut record_tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
                 );
+                println!("{}", r);
                 record_tbs_bin_encoder.with_canonical_names(|e| {
                     r.emit(e)
                 }).map_err(|e| format!("Unable to emit record: {}", e))?;
@@ -232,6 +233,8 @@ pub fn sign_zone(
             tbs_bin_encoder.emit_vec(&r)
                 .map_err(|e| format!("Unable to emit record: {}", e))?;
         }
+
+        println!("{:02x?}", tbs);
 
         let mut hasher = openssl::hash::Hasher::new(
             openssl::hash::MessageDigest::sha256()
@@ -337,9 +340,11 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                         let mut out = String::new();
                         if let Some(name) = name {
                             write!(out, "{}", name.to_ascii()).unwrap();
-                        }
-                        for value in values.iter() {
-                            write!(out, "; {value}").unwrap();
+                            for value in values.iter() {
+                                write!(out, "; {value}").unwrap();
+                            }
+                        } else {
+                            write!(out, ";").unwrap();
                         }
                         out
                     },
