@@ -652,8 +652,8 @@ def update_catalog():
         zone_file += f"group.required{i}.zones 0 IN TXT \"zone\"\n"
 
     pattern = re.compile("^[a-zA-Z0-9-.]+$")
-    active_zones = []
-    inactive_zones = []
+    netnod_active_zones = []
+    netnod_inactive_zones = []
 
     for zone in models.DNSZone.objects.all():
         if zone_label := zone.idna_label:
@@ -663,22 +663,28 @@ def update_catalog():
                 zone_root = dnslib.DNSLabel(zone_label)
                 owner = get_user(zone)
                 if is_active(owner):
-                    active_zones.append((str(zone_root), owner.username))
+                    if zone.active:
+                        netnod_active_zones.append((str(zone_root), owner.username))
+                    else:
+                        netnod_inactive_zones.append(str(zone_root))
                     zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                     zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone\"\n"
                 else:
-                    inactive_zones.append(str(zone_root))
+                    netnod_inactive_zones.append(str(zone_root))
 
     for zone in models.ReverseDNSZone.objects.all():
         owner = get_user(zone)
         if is_active(owner):
             for i, zone_root in enumerate(zone.dns_labels):
-                active_zones.append((str(zone_root), owner.username))
+                if zone.active:
+                    netnod_active_zones.append((str(zone_root), owner.username))
+                else:
+                    netnod_inactive_zones.append(str(zone_root))
                 zone_file += f"{zone.id}-{i}.zones 0 IN PTR {zone_root}\n"
                 zone_file += f"group.{zone.id}-{i}.zones 0 IN TXT \"zone\"\n"
         else:
             for zone_root in zone.dns_labels:
-                inactive_zones.append(str(zone_root))
+                netnod_inactive_zones.append(str(zone_root))
 
     for zone in models.SecondaryDNSZone.objects.all():
         if zone_label := zone.idna_label:
@@ -686,11 +692,14 @@ def update_catalog():
                 zone_root = dnslib.DNSLabel(zone_label)
                 owner = get_user(zone)
                 if is_active(owner):
-                    active_zones.append((str(zone_root), owner.username))
+                    if zone.active:
+                        netnod_active_zones.append((str(zone_root), owner.username))
+                    else:
+                        netnod_inactive_zones.append(str(zone_root))
                     zone_file += f"{zone.id}.zones 0 IN PTR {zone_root}\n"
                     zone_file += f"group.{zone.id}.zones 0 IN TXT \"zone-secondary\"\n"
                 else:
-                    inactive_zones.append(str(zone_root))
+                    netnod_inactive_zones.append(str(zone_root))
 
     write_zone_file(zone_file, "", "catalog.")
     m = hashlib.sha256()
@@ -698,7 +707,7 @@ def update_catalog():
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."), m.hexdigest())
 
     update_signal_zones.delay()
-    sync_netnod_zones.delay(active_zones, inactive_zones)
+    sync_netnod_zones.delay(netnod_active_zones, netnod_inactive_zones)
 
 
 @shared_task(
