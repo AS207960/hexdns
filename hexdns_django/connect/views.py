@@ -450,7 +450,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 record_data = {
                     "address": ipaddress.IPv4Address(
                         apply_variables(record["pointsTo"], variables)
-                    )
+                    ).exploded
                 }
                 if zone_obj.addressrecord_set.filter(
                     record_name=record_host,
@@ -462,7 +462,7 @@ def sync_apply(request, provider_id: str, service_id: str):
                 record_data = {
                     "address": ipaddress.IPv6Address(
                         apply_variables(record["pointsTo"], variables)
-                    )
+                    ).exploded
                 }
                 if zone_obj.addressrecord_set.filter(
                     record_name=record_host,
