@@ -44,7 +44,7 @@ spec:
             - name: "RUST_LOG"
               value: "info"
             - name: "KSK_PATH"
-              value: "/ksk/privkey.pem"
+              value: "/ksk/privkey.pem;/ksk/privkey-ed25519.pem"
           envFrom:
             - configMapRef:
                 name: hexdns-dnssec-conf

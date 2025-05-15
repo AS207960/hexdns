@@ -40,7 +40,8 @@ async fn main() {
             .env("KSK_PATH")
             .help("Path to the file with the KSK (EC/Ed25519, PEM encoded)")
             .required(true)
-            .num_args(1..))
+            .num_args(1..)
+            .value_delimiter(";"))
         .arg(clap::Arg::new("s3_endpoint")
             .long("s3-endpoint")
             .value_name("URL")
@@ -229,7 +230,7 @@ async fn main() {
                     return;
                 }
             };
-            
+
             let mut zsk_indicies = zsk_pem
                 .windows(2)
                 .enumerate()
@@ -237,7 +238,7 @@ async fn main() {
                 .map(|(i, _)| i)
                 .collect::<Vec<_>>();
             zsk_indicies.insert(0, 0);
-            
+
             let mut zsk = vec![];
             for i in zsk_indicies {
                 match openssl::pkey::PKey::private_key_from_pem(&zsk_pem[i..]) {
