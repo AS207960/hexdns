@@ -397,7 +397,7 @@ def write_zone_file(zone_contents: str, priv_key: typing.List[str], zone_name: s
     )
     if priv_key:
         zone_storage.save(
-            f"{zone_name}key", django.core.files.base.ContentFile("\n\n".join(priv_key).encode())
+            f"{zone_name}key", django.core.files.base.ContentFile("\n\n".join(priv_key).strip().encode())
         )
 
 
