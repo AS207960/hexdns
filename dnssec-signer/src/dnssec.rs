@@ -297,12 +297,7 @@ pub fn sign_zone(
                 },
                 openssl::pkey::Id::ED25519 => {
                     let mut signer = openssl::sign::Signer::new_without_digest(&key).unwrap();
-                    let mut hasher = openssl::hash::Hasher::new(
-                        openssl::hash::MessageDigest::sha512()
-                    ).unwrap();
-                    hasher.update(&tbs).unwrap();
-                    let hash = hasher.finish().unwrap();
-                    signer.sign_oneshot_to_vec(hash.as_ref())
+                    signer.sign_oneshot_to_vec(&tbs)
                         .map_err(|e| format!("Unable to sign: {}", e))?
                 }
                 _ => unreachable!()
