@@ -216,7 +216,7 @@ pub fn sign_zone(
             let alg = match key.id() {
                 openssl::pkey::Id::EC => {
                     match key.ec_key().unwrap().group().curve_name() {
-                        Some(openssl::nid::Nid::SECP256K1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
+                        Some(openssl::nid::Nid::X9_62_PRIME256V1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
                         _ => unreachable!()
                     }
                 },
@@ -277,7 +277,7 @@ pub fn sign_zone(
                 openssl::pkey::Id::EC => {
                     let key = key.ec_key().unwrap();
                     match key.group().curve_name() {
-                        Some(openssl::nid::Nid::SECP256K1) => {
+                        Some(openssl::nid::Nid::X9_62_PRIME256V1) => {
                             let mut hasher = openssl::hash::Hasher::new(
                                 openssl::hash::MessageDigest::sha256()
                             ).unwrap();
