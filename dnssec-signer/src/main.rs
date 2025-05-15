@@ -74,7 +74,7 @@ async fn main() {
         .get_matches();
 
     let rpc_url = args.get_one::<String>("rpc_server").unwrap();
-    let ksk_path = args.get_one::<Vec<String>>("ksk_path").unwrap();
+    let ksk_path = args.get_many::<String>("ksk_path").unwrap();
 
     let ksk_data = futures_util::stream::iter(ksk_path).then(|p| async move {
         tokio::fs::read(p).await
