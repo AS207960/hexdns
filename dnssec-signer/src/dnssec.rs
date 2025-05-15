@@ -15,7 +15,7 @@ fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>) -> Resu
                 .map_err(|e| format!("Unable to create BigNum context: {}", e))?;
             let ec = k.ec_key().unwrap();
             let alg = match ec.group().curve_name() {
-                Some(openssl::nid::Nid::SECP256K1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
+                Some(openssl::nid::Nid::X9_62_PRIME256V1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
                 o => return Err(format!("Unsupported ECDSA curve: {:?}", o))
             };
             let ksk_public_key = &ec.public_key().to_bytes(
@@ -87,7 +87,7 @@ pub fn sign_zone(
     let zsk_rrs = zsk.iter()
         .map(|k| key_to_rr(k.deref()))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     let ksk_key_tags = ksk_rrs.iter()
         .map(|r| r.calculate_key_tag())
         .collect::<Result<Vec<_>, _>>()
@@ -211,7 +211,7 @@ pub fn sign_zone(
         } else {
             (zsk, &key_tags)
         };
-        
+
         for (key, kt) in std::iter::zip(keys, kts) {
             let alg = match key.id() {
                 openssl::pkey::Id::EC => {
@@ -225,7 +225,7 @@ pub fn sign_zone(
                 },
                 _ => unreachable!()
             };
-            
+
             let orig_ttl = record_set.ttl();
             let mut tbs = vec![];
             let mut tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
