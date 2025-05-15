@@ -41,7 +41,7 @@ async fn main() {
             .help("Path to the file with the KSK (EC/Ed25519, PEM encoded)")
             .required(true)
             .num_args(1..)
-            .value_delimiter(";"))
+            .value_delimiter(';'))
         .arg(clap::Arg::new("s3_endpoint")
             .long("s3-endpoint")
             .value_name("URL")
