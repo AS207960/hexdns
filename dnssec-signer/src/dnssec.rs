@@ -8,7 +8,7 @@ use trust_dns_proto::rr::IntoName;
 // RFC 9276
 const ITERATIONS: u16 = 0;
 
-fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>) -> Result<trust_dns_proto::rr::dnssec::rdata::DNSKEY, String> {
+fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>, sep: bool) -> Result<trust_dns_proto::rr::dnssec::rdata::DNSKEY, String> {
     match k.id() {
         openssl::pkey::Id::EC => {
             let mut ctx = openssl::bn::BigNumContext::new()
@@ -22,14 +22,14 @@ fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>) -> Resu
                 ec.group(), openssl::ec::PointConversionForm::UNCOMPRESSED, &mut ctx
             ).map_err(|e| format!("Unable to get KSK public key: {}", e))?;
             Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
-                true, true, false,alg,
+                true, sep, false,alg,
                 ksk_public_key[1..].to_vec(),
             ))
         },
         openssl::pkey::Id::ED25519 => {
             let ksk_public_key = k.raw_public_key().map_err(|e| format!("Unable to get KSK public key: {}", e))?;
             Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
-                true, true, false,
+                true, sep, false,
                 trust_dns_proto::rr::dnssec::Algorithm::ED25519,
                 ksk_public_key[1..].to_vec(),
             ))
@@ -82,10 +82,10 @@ pub fn sign_zone(
     }, out_soa_rrset);
 
     let ksk_rrs = ksk.iter()
-        .map(|k| key_to_rr(k.deref()))
+        .map(|k| key_to_rr(k.deref(), true))
         .collect::<Result<Vec<_>, _>>()?;
     let zsk_rrs = zsk.iter()
-        .map(|k| key_to_rr(k.deref()))
+        .map(|k| key_to_rr(k.deref(), false))
         .collect::<Result<Vec<_>, _>>()?;
 
     let ksk_key_tags = ksk_rrs.iter()
