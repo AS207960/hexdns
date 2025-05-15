@@ -22,7 +22,7 @@ fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>, sep: bo
                 ec.group(), openssl::ec::PointConversionForm::UNCOMPRESSED, &mut ctx
             ).map_err(|e| format!("Unable to get KSK public key: {}", e))?;
             Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
-                true, sep, false,alg,
+                true, sep, false, alg,
                 ksk_public_key[1..].to_vec(),
             ))
         },
@@ -31,7 +31,7 @@ fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>, sep: bo
             Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
                 true, sep, false,
                 trust_dns_proto::rr::dnssec::Algorithm::ED25519,
-                ksk_public_key[1..].to_vec(),
+                ksk_public_key
             ))
         },
         t => Err(format!("Unsupported key type: {:?}", t))
