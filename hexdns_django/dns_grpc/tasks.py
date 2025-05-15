@@ -531,7 +531,7 @@ def add_szone(zone_id: str):
     if zone_name := zone.idna_label:
         zone_root = dnslib.DNSLabel(zone_name)
         zone_file = generate_szone(zone)
-        write_zone_file(zone_file, "", str(zone_root))
+        write_zone_file(zone_file, [""], str(zone_root))
         m = hashlib.sha256()
         m.update(zone_file.encode())
         send_reload_message(zone_root, m.hexdigest())
@@ -551,7 +551,7 @@ def update_szone(zone_id: str):
     if zone_name := zone.idna_label:
         zone_root = dnslib.DNSLabel(zone_name)
         zone_file = generate_szone(zone)
-        write_zone_file(zone_file, "", str(zone_root))
+        write_zone_file(zone_file, [""], str(zone_root))
         m = hashlib.sha256()
         m.update(zone_file.encode())
         send_reload_message(zone_root, m.hexdigest())
@@ -627,7 +627,7 @@ def update_signal_zones():
 
         zone_file += zone_file_base
 
-        write_zone_file(zone_file, settings.DNSSEC_SIGNAL_PRIVKEY_DATA, str(zone_root))
+        write_zone_file(zone_file, [settings.DNSSEC_SIGNAL_PRIVKEY_DATA], str(zone_root))
         send_resign_message(zone_root)
 
 
@@ -701,7 +701,7 @@ def update_catalog():
                 else:
                     netnod_inactive_zones.append(str(zone_root))
 
-    write_zone_file(zone_file, "", "catalog.")
+    write_zone_file(zone_file, [""], "catalog.")
     m = hashlib.sha256()
     m.update(zone_file.encode())
     send_reload_message(dnslib.DNSLabel("catalog.dns.as207960.ltd.uk."), m.hexdigest())
