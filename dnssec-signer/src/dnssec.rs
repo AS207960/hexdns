@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::ops::Deref;
 use trust_dns_proto::serialize::binary::BinEncodable;
 use base64::Engine;
 use itertools::Itertools;
@@ -7,10 +8,40 @@ use trust_dns_proto::rr::IntoName;
 // RFC 9276
 const ITERATIONS: u16 = 0;
 
+fn key_to_rr<T: openssl::pkey::HasPublic>(k: &openssl::pkey::PKeyRef<T>) -> Result<trust_dns_proto::rr::dnssec::rdata::DNSKEY, String> {
+    match k.id() {
+        openssl::pkey::Id::EC => {
+            let mut ctx = openssl::bn::BigNumContext::new()
+                .map_err(|e| format!("Unable to create BigNum context: {}", e))?;
+            let ec = k.ec_key().unwrap();
+            let alg = match ec.group().curve_name() {
+                Some(openssl::nid::Nid::SECP256K1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
+                o => return Err(format!("Unsupported ECDSA curve: {:?}", o))
+            };
+            let ksk_public_key = &ec.public_key().to_bytes(
+                ec.group(), openssl::ec::PointConversionForm::UNCOMPRESSED, &mut ctx
+            ).map_err(|e| format!("Unable to get KSK public key: {}", e))?;
+            Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
+                true, true, false,alg,
+                ksk_public_key[1..].to_vec(),
+            ))
+        },
+        openssl::pkey::Id::ED25519 => {
+            let ksk_public_key = k.raw_public_key().map_err(|e| format!("Unable to get KSK public key: {}", e))?;
+            Ok(trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
+                true, true, false,
+                trust_dns_proto::rr::dnssec::Algorithm::ED25519,
+                ksk_public_key[1..].to_vec(),
+            ))
+        },
+        t => Err(format!("Unsupported key type: {:?}", t))
+    }
+}
+
 pub fn sign_zone(
     zone: &str,
-    ksk: &openssl::ec::EcKeyRef<openssl::pkey::Private>,
-    zsk: &openssl::ec::EcKeyRef<openssl::pkey::Private>,
+    ksk: &[openssl::pkey::PKey<openssl::pkey::Private>],
+    zsk: &[openssl::pkey::PKey<openssl::pkey::Private>],
 ) -> Result<String, String> {
     let zone_file_lexer = crate::lexer::Lexer::new(zone);
     let (origin, zone_file) = crate::parser::Parser::new()
@@ -19,7 +50,7 @@ pub fn sign_zone(
     let soa_rrset = zone_file.get(&trust_dns_client::rr::RrKey {
         name: origin.clone().into(),
         record_type: trust_dns_client::rr::RecordType::SOA,
-    }).ok_or_else(|| format!("Zone file does not contain SOA record"))?;
+    }).ok_or_else(|| "Zone file does not contain SOA record".to_string())?;
     let soa = soa_rrset.records_without_rrsigs().next().unwrap().data().unwrap().as_soa().unwrap();
 
     let now = chrono::Utc::now() - chrono::Duration::try_minutes(5).unwrap();
@@ -50,41 +81,36 @@ pub fn sign_zone(
         record_type: trust_dns_client::rr::RecordType::SOA,
     }, out_soa_rrset);
 
-    let mut ctx = openssl::bn::BigNumContext::new()
-        .map_err(|e| format!("Unable to create BigNum context: {}", e))?;
-    let group = openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::X9_62_PRIME256V1).unwrap();
-    let alg = trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256;
-    let ksk_public_key = &ksk.public_key().to_bytes(
-        &group, openssl::ec::PointConversionForm::UNCOMPRESSED, &mut ctx
-    ).map_err(|e| format!("Unable to get KSK public key: {}", e))?;
-    let ksk_rr = trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
-        true, true, false,alg,
-        ksk_public_key[1..].to_vec(),
-    );
-    let zsk_public_key = &zsk.public_key().to_bytes(
-        &group, openssl::ec::PointConversionForm::UNCOMPRESSED, &mut ctx
-    ).map_err(|e| format!("Unable to get ZSK public key: {}", e))?;
-    let zsk_rr = trust_dns_proto::rr::dnssec::rdata::DNSKEY::new(
-        true, false, false, alg,
-        zsk_public_key[1..].to_vec(),
-    );
-
-    let alg = trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256;
-    let key_tag = zsk_rr.calculate_key_tag()
+    let ksk_rrs = ksk.iter()
+        .map(|k| key_to_rr(k.deref()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let zsk_rrs = zsk.iter()
+        .map(|k| key_to_rr(k.deref()))
+        .collect::<Result<Vec<_>, _>>()?;
+    
+    let ksk_key_tags = ksk_rrs.iter()
+        .map(|r| r.calculate_key_tag())
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Unable to calculate ZSK key tag: {}", e))?;
-    let ksk_key_tag = ksk_rr.calculate_key_tag()
-        .map_err(|e| format!("Unable to calculate KSK key tag: {}", e))?;
+    let key_tags = zsk_rrs.iter()
+        .map(|r| r.calculate_key_tag())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Unable to calculate ZSK key tag: {}", e))?;
 
     let mut dnskey_rset = trust_dns_proto::rr::RecordSet::new(
         &origin, trust_dns_client::rr::RecordType::DNSKEY, new_serial,
     );
     dnskey_rset.set_ttl(default_ttl);
-    dnskey_rset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
-        trust_dns_proto::rr::dnssec::rdata::DNSSECRData::DNSKEY(ksk_rr)
-    ));
-    dnskey_rset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
-        trust_dns_proto::rr::dnssec::rdata::DNSSECRData::DNSKEY(zsk_rr)
-    ));
+    for ksk_rr in ksk_rrs {
+        dnskey_rset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
+            trust_dns_proto::rr::dnssec::rdata::DNSSECRData::DNSKEY(ksk_rr)
+        ));
+    }
+    for zsk_rr in zsk_rrs {
+        dnskey_rset.add_rdata(trust_dns_proto::rr::record_data::RData::DNSSEC(
+            trust_dns_proto::rr::dnssec::rdata::DNSSECRData::DNSKEY(zsk_rr)
+        ));
+    }
     out_zone.insert(trust_dns_client::rr::RrKey {
         name: origin.clone().into(),
         record_type: trust_dns_client::rr::RecordType::DNSKEY,
@@ -110,7 +136,7 @@ pub fn sign_zone(
     let mut nsec3_records = vec![];
     let mut keys = out_zone.keys().collect::<Vec<_>>();
     keys.sort_by(|k1, k2| k1.name.cmp(&k2.name));
-    for (name, rr_keys) in &keys.into_iter().group_by(|k| k.name.clone()) {
+    for (name, rr_keys) in &keys.into_iter().chunk_by(|k| k.name.clone()) {
         let mut tbs = vec![];
         let mut tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
             &mut tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
@@ -139,7 +165,7 @@ pub fn sign_zone(
     }
 
     nsec3_records.sort_by(|(h1, _), (h2, _)| h1.cmp(h2));
-    let nsec3_records = nsec3_records.into_iter().group_by(|(h, _)| h.clone())
+    let nsec3_records = nsec3_records.into_iter().chunk_by(|(h, _)| h.clone())
         .into_iter().map(|(_, g)| {
         g.into_iter().reduce(|(h1, mut s1), (h2, s2)| {
             assert_eq!(h1, h2);
@@ -178,94 +204,131 @@ pub fn sign_zone(
     }
     let mut new_rrsigs = vec![];
     for (rr_key, record_set) in &out_zone {
-        let (key, kt) = if rr_key.record_type == trust_dns_client::rr::RecordType::DNSKEY ||
+        let (keys, kts) = if rr_key.record_type == trust_dns_client::rr::RecordType::DNSKEY ||
           rr_key.record_type == trust_dns_client::rr::RecordType::CDS ||
           rr_key.record_type == trust_dns_client::rr::RecordType::CDNSKEY {
-            (&ksk, ksk_key_tag)
+            (ksk, &ksk_key_tags)
         } else {
-            (&zsk, key_tag)
+            (zsk, &key_tags)
         };
+        
+        for (key, kt) in std::iter::zip(keys, kts) {
+            let alg = match key.id() {
+                openssl::pkey::Id::EC => {
+                    match key.ec_key().unwrap().group().curve_name() {
+                        Some(openssl::nid::Nid::SECP256K1) => trust_dns_proto::rr::dnssec::Algorithm::ECDSAP256SHA256,
+                        _ => unreachable!()
+                    }
+                },
+                openssl::pkey::Id::ED25519 => {
+                    trust_dns_proto::rr::dnssec::Algorithm::ED25519
+                },
+                _ => unreachable!()
+            };
+            
+            let orig_ttl = record_set.ttl();
+            let mut tbs = vec![];
+            let mut tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
+                &mut tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
+            );
+            trust_dns_proto::rr::dnssec::rdata::sig::emit_pre_sig(
+                &mut tbs_bin_encoder,
+                rr_key.record_type,
+                alg,
+                rr_key.name.num_labels(),
+                orig_ttl,
+                expiry.timestamp() as u32,
+                now.timestamp() as u32,
+                *kt,
+                &origin,
+            ).map_err(|e| format!("Unable to generate pre-sig: {}", e))?;
 
-        let orig_ttl = record_set.ttl();
-        let mut tbs = vec![];
-        let mut tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
-            &mut tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
-        );
-        trust_dns_proto::rr::dnssec::rdata::sig::emit_pre_sig(
-            &mut tbs_bin_encoder,
-            rr_key.record_type,
-            alg,
-            rr_key.name.num_labels(),
-            orig_ttl,
-            expiry.timestamp() as u32,
-            now.timestamp() as u32,
-            kt,
-            &origin,
-        ).map_err(|e| format!("Unable to generate pre-sig: {}", e))?;
+            let mut records = record_set.records_without_rrsigs()
+                .filter_map(|r| r.data())
+                .map(|r| -> Result<Vec<u8>, trust_dns_proto::error::ProtoError> {
+                    let mut record_tbs: Vec<u8> = vec![];
+                    let mut record_tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
+                        &mut record_tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
+                    );
+                    record_tbs_bin_encoder.with_canonical_names(|e| {
+                        r.emit(e)
+                    }).map_err(|e| format!("Unable to emit record: {}", e))?;
+                    Ok(record_tbs)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            records.sort();
 
-        let mut records = record_set.records_without_rrsigs()
-            .filter_map(|r| r.data())
-            .map(|r| -> Result<Vec<u8>, trust_dns_proto::error::ProtoError> {
-                let mut record_tbs: Vec<u8> = vec![];
-                let mut record_tbs_bin_encoder = trust_dns_proto::serialize::binary::BinEncoder::with_mode(
-                    &mut record_tbs, trust_dns_proto::serialize::binary::EncodeMode::Signing,
-                );
-                record_tbs_bin_encoder.with_canonical_names(|e| {
-                    r.emit(e)
-                }).map_err(|e| format!("Unable to emit record: {}", e))?;
-                Ok(record_tbs)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        records.sort();
+            for r in records {
+                rr_key.name.emit_as_canonical(&mut tbs_bin_encoder, true)
+                    .map_err(|e| format!("Unable to emit name: {}", e))?;
+                rr_key.record_type.emit(&mut tbs_bin_encoder)
+                    .map_err(|e| format!("Unable to emit record type: {}", e))?;
+                trust_dns_proto::rr::DNSClass::IN.emit(&mut tbs_bin_encoder)
+                    .map_err(|e| format!("Unable to emit class: {}", e))?;
+                orig_ttl.emit(&mut tbs_bin_encoder)
+                    .map_err(|e| format!("Unable to emit TTL: {}", e))?;
+                tbs_bin_encoder.emit_u16(r.len() as u16)
+                    .map_err(|e| format!("Unable to emit record length: {}", e))?;
+                tbs_bin_encoder.emit_vec(&r)
+                    .map_err(|e| format!("Unable to emit record: {}", e))?;
+            }
 
-        for r in records {
-            rr_key.name.emit_as_canonical(&mut tbs_bin_encoder, true)
-                .map_err(|e| format!("Unable to emit name: {}", e))?;
-            rr_key.record_type.emit(&mut tbs_bin_encoder)
-                .map_err(|e| format!("Unable to emit record type: {}", e))?;
-            trust_dns_proto::rr::DNSClass::IN.emit(&mut tbs_bin_encoder)
-                .map_err(|e| format!("Unable to emit class: {}", e))?;
-            orig_ttl.emit(&mut tbs_bin_encoder)
-                .map_err(|e| format!("Unable to emit TTL: {}", e))?;
-            tbs_bin_encoder.emit_u16(r.len() as u16)
-                .map_err(|e| format!("Unable to emit record length: {}", e))?;
-            tbs_bin_encoder.emit_vec(&r)
-                .map_err(|e| format!("Unable to emit record: {}", e))?;
+            let sig_bytes = match key.id() {
+                openssl::pkey::Id::EC => {
+                    let key = key.ec_key().unwrap();
+                    match key.group().curve_name() {
+                        Some(openssl::nid::Nid::SECP256K1) => {
+                            let mut hasher = openssl::hash::Hasher::new(
+                                openssl::hash::MessageDigest::sha256()
+                            ).unwrap();
+                            hasher.update(&tbs).unwrap();
+                            let hash = hasher.finish().unwrap();
+                            let sig = openssl::ecdsa::EcdsaSig::sign(&hash, &key)
+                                .map_err(|e| format!("Unable to sign: {}", e))?;
+                            let r = sig.r().to_vec_padded(32).unwrap();
+                            let s = sig.s().to_vec_padded(32).unwrap();
+                            let mut sig_bytes = vec![];
+                            sig_bytes.extend_from_slice(&r);
+                            sig_bytes.extend_from_slice(&s);
+                            sig_bytes
+                        },
+                        _ => unreachable!()
+                    }
+                },
+                openssl::pkey::Id::ED25519 => {
+                    let mut signer = openssl::sign::Signer::new_without_digest(&key).unwrap();
+                    let mut hasher = openssl::hash::Hasher::new(
+                        openssl::hash::MessageDigest::sha256()
+                    ).unwrap();
+                    hasher.update(&tbs).unwrap();
+                    let hash = hasher.finish().unwrap();
+                    signer.sign_oneshot_to_vec(hash.as_ref())
+                        .map_err(|e| format!("Unable to sign: {}", e))?
+                }
+                _ => unreachable!()
+            };
+
+            let rrsig = trust_dns_proto::rr::dnssec::rdata::SIG::new(
+                rr_key.record_type,
+                alg,
+                rr_key.name.num_labels(),
+                orig_ttl,
+                expiry.timestamp() as u32,
+                now.timestamp() as u32,
+                *kt,
+                origin.clone(),
+                sig_bytes,
+            );
+            let mut record = trust_dns_proto::rr::Record::new();
+            record.set_ttl(orig_ttl);
+            record.set_name(rr_key.name.clone().into());
+            record.set_dns_class(trust_dns_proto::rr::DNSClass::IN);
+            record.set_record_type(trust_dns_proto::rr::RecordType::RRSIG);
+            record.set_data(Some(trust_dns_proto::rr::record_data::RData::DNSSEC(
+                trust_dns_proto::rr::dnssec::rdata::DNSSECRData::SIG(rrsig.clone())
+            )));
+            new_rrsigs.push(record);
         }
-
-        let mut hasher = openssl::hash::Hasher::new(
-            openssl::hash::MessageDigest::sha256()
-        ).unwrap();
-        hasher.update(&tbs).unwrap();
-        let hash = hasher.finish().unwrap();
-        let sig = openssl::ecdsa::EcdsaSig::sign(&hash, key)
-            .map_err(|e| format!("Unable to sign: {}", e))?;
-        let r = sig.r().to_vec_padded(32).unwrap();
-        let s = sig.s().to_vec_padded(32).unwrap();
-        let mut sig_bytes = vec![];
-        sig_bytes.extend_from_slice(&r);
-        sig_bytes.extend_from_slice(&s);
-
-        let rrsig = trust_dns_proto::rr::dnssec::rdata::SIG::new(
-            rr_key.record_type,
-            alg,
-            rr_key.name.num_labels(),
-            orig_ttl,
-            expiry.timestamp() as u32,
-            now.timestamp() as u32,
-            kt,
-            origin.clone(),
-            sig_bytes,
-        );
-        let mut record = trust_dns_proto::rr::Record::new();
-        record.set_ttl(orig_ttl);
-        record.set_name(rr_key.name.clone().into());
-        record.set_dns_class(trust_dns_proto::rr::DNSClass::IN);
-        record.set_record_type(trust_dns_proto::rr::RecordType::RRSIG);
-        record.set_data(Some(trust_dns_proto::rr::record_data::RData::DNSSEC(
-            trust_dns_proto::rr::dnssec::rdata::DNSSECRData::SIG(rrsig.clone())
-        )));
-        new_rrsigs.push(record);
     }
 
     let mut lines = vec![];

@@ -31,7 +31,8 @@ def create_zone(request):
                 zone_root=zone_root_txt,
                 last_modified=timezone.now(),
                 user=user,
-                zsk_private=utils.get_priv_key_bytes()
+                zsk_private=utils.get_priv_key_bytes(),
+                zsk_private_ed25519=utils.get_priv_key_ed25519_bytes(),
             )
             zone_obj.save()
             tasks.add_fzone.delay(zone_obj.id)
@@ -74,7 +75,8 @@ def create_rzone(request):
                 zone_root_prefix=form.cleaned_data['zone_root_prefix'],
                 last_modified=timezone.now(),
                 user=user,
-                zsk_private=utils.get_priv_key_bytes()
+                zsk_private=utils.get_priv_key_bytes(),
+                zsk_private_ed25519=utils.get_priv_key_ed25519_bytes(),
             )
             zone_obj.save()
             tasks.add_rzone.delay(zone_obj.id)

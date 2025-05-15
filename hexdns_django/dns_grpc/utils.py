@@ -1,12 +1,11 @@
 import typing
-
 import dnslib
 import hashlib
 import publicsuffixlist
 import django_keycloak_auth.clients
 import requests
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 from dns_grpc import models, tasks
 from django.conf import settings
@@ -18,7 +17,17 @@ def get_priv_key_bytes():
     priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
     priv_key_bytes = priv_key.private_bytes(
         encoding=Encoding.PEM,
-        format=PrivateFormat.TraditionalOpenSSL,
+        format=PrivateFormat.PKCS8,
+        encryption_algorithm=NoEncryption()
+    ).decode()
+    return priv_key_bytes
+
+
+def get_priv_key_ed25519_bytes():
+    priv_key = ed25519.Ed25519PrivateKey.generate()
+    priv_key_bytes = priv_key.private_bytes(
+        encoding=Encoding.PEM,
+        format=PrivateFormat.PKCS8,
         encryption_algorithm=NoEncryption()
     ).decode()
     return priv_key_bytes

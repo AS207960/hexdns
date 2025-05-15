@@ -5,13 +5,13 @@ from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 from as207960_utils.api import auth
 import as207960_utils.api.permissions
 import secrets
 from . import serializers, permissions
-from .. import models, views, tasks
+from .. import models, views, tasks, utils
 
 
 class InvalidZone(exceptions.APIException):
@@ -56,17 +56,11 @@ class DNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
 
-        priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
-        priv_key_bytes = priv_key.private_bytes(
-            encoding=Encoding.PEM,
-            format=PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=NoEncryption()
-        ).decode()
-
         zone_obj = serializer.save(
             user=self.request.user,
             last_modified=timezone.now(),
-            zsk_private=priv_key_bytes
+            zsk_private=utils.get_priv_key_bytes(),
+            zsk_private_ed25519=utils.get_priv_key_ed25519_bytes()
         )
         tasks.add_fzone.delay(zone_obj.id)
 
@@ -119,17 +113,11 @@ class ReverseDNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
 
-        priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
-        priv_key_bytes = priv_key.private_bytes(
-            encoding=Encoding.PEM,
-            format=PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=NoEncryption()
-        ).decode()
-
         zone_obj = serializer.save(
             user=self.request.user,
             last_modified=timezone.now(),
-            zsk_private=priv_key_bytes
+            zsk_private=utils.get_priv_key_bytes(),
+            zsk_private_ed25519=utils.get_priv_key_ed25519_bytes(),
         )
         tasks.add_rzone.delay(zone_obj.id)
 
@@ -164,16 +152,10 @@ class SecondaryDNSZoneViewSet(viewsets.ModelViewSet):
         if status == "error":
             raise BillingError()
 
-        priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
-        priv_key_bytes = priv_key.private_bytes(
-            encoding=Encoding.PEM,
-            format=PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=NoEncryption()
-        ).decode()
-
         serializer.save(
             user=self.request.user,
-            zsk_private=priv_key_bytes
+            zsk_private=utils.get_priv_key_bytes(),
+            zsk_private_ed25519=utils.get_priv_key_ed25519_bytes()
         )
 
     def perform_destroy(self, instance):

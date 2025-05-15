@@ -79,6 +79,8 @@ def reverse_zone_networks(network: typing.Union[ipaddress.IPv4Network, ipaddress
         next_byte = network.prefixlen + bits_short
         network_addresses = [network.network_address + (i << (32 - next_byte)) for i in range(num_prefixes)]
         return [ipaddress.IPv4Network((a, next_byte)) for a in network_addresses]
+    else:
+        raise ValueError("invalid network type")
 
 
 def network_to_arpa(network: typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]) -> dnslib.DNSLabel:
@@ -88,6 +90,8 @@ def network_to_arpa(network: typing.Union[ipaddress.IPv4Network, ipaddress.IPv6N
     elif type(network) == ipaddress.IPv4Network:
         network_labels = list(reversed(network.network_address.exploded.split(".")[:(network.prefixlen // 8)]))
         return dnslib.DNSLabel(list(map(lambda l: l.encode(), network_labels + ["in-addr", "arpa"])))
+    else:
+        raise ValueError("invalid network type")
 
 
 def address_to_arpa(address: typing.Union[ipaddress.IPv6Address, ipaddress.IPv4Address]) -> dnslib.DNSLabel:
@@ -97,6 +101,8 @@ def address_to_arpa(address: typing.Union[ipaddress.IPv6Address, ipaddress.IPv4A
     elif type(address) == ipaddress.IPv4Address:
         address_labels = list(reversed(address.exploded.split(".")))
         return dnslib.DNSLabel(list(map(lambda l: l.encode(), address_labels + ["in-addr", "arpa"])))
+    else:
+        raise ValueError("invalid address type")
 
 
 class DNSError(Exception):
@@ -126,6 +132,7 @@ class DNSZone(models.Model):
     zone_root = models.CharField(max_length=255, db_index=True)
     last_modified = models.DateTimeField()
     zsk_private = models.TextField(blank=True, null=True)
+    zsk_private_ed25519 = models.TextField(blank=True, null=True)
     last_resign = models.DateTimeField(null=True, blank=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=False, blank=True)
@@ -437,6 +444,7 @@ class ReverseDNSZone(models.Model):
     zone_root_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)], db_index=True)
     last_modified = models.DateTimeField()
     zsk_private = models.TextField(blank=True, null=True)
+    zsk_private_ed25519 = models.TextField(blank=True, null=True)
     last_resign = models.DateTimeField(null=True, blank=True)
     charged = models.BooleanField(default=True, blank=True)
     active = models.BooleanField(default=True, blank=True)

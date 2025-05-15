@@ -76,7 +76,8 @@ def create_zone(request):
                         zone_root=zone_root_txt,
                         last_modified=timezone.now(),
                         user=request.user,
-                        zsk_private=utils.get_priv_key_bytes()
+                        zsk_private=utils.get_priv_key_bytes(),
+                        zsk_private_ed25519=utils.get_priv_key_ed25519_bytes(),
                     )
                     zone_obj.save()
                     zone_obj.setup_initial_records()
@@ -155,6 +156,7 @@ def create_domains_zone(request):
         last_modified=timezone.now(),
         user=request.user,
         zsk_private=utils.get_priv_key_bytes(),
+        zsk_private_ed25519=utils.get_priv_key_ed25519_bytes(),
         charged=False,
         active=True,
     )

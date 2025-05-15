@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use std::ops::Deref;
 use futures_util::StreamExt;
 use tokio::io::AsyncReadExt;
 use sha2::Digest;
@@ -37,8 +38,9 @@ async fn main() {
             .long("ksk-path")
             .value_name("PATH")
             .env("KSK_PATH")
-            .help("Path to the file with the KSK (EC, PEM encoded)")
-            .required(true))
+            .help("Path to the file with the KSK (EC/Ed25519, PEM encoded)")
+            .required(true)
+            .num_args(1..))
         .arg(clap::Arg::new("s3_endpoint")
             .long("s3-endpoint")
             .value_name("URL")
@@ -72,10 +74,14 @@ async fn main() {
         .get_matches();
 
     let rpc_url = args.get_one::<String>("rpc_server").unwrap();
-    let ksk_path = args.get_one::<String>("ksk_path").unwrap();
+    let ksk_path = args.get_one::<Vec<String>>("ksk_path").unwrap();
 
-    let ksk_data = tokio::fs::read(ksk_path).await.expect("Unable to read KSK file");
-    let ksk = openssl::ec::EcKey::private_key_from_pem(&ksk_data).expect("Unable to parse KSK file");
+    let ksk_data = futures_util::stream::iter(ksk_path).then(|p| async move {
+        tokio::fs::read(p).await
+    }).collect::<Vec<_>>().await.into_iter().collect::<Result<Vec<_>, _>>().expect("Unable to read KSK file");
+    let ksk = ksk_data.iter()
+        .map(|k| openssl::pkey::PKey::private_key_from_pem(k))
+        .collect::<Result<Vec<_>, _>>().expect("Unable to parse KSK file");
 
     let s3_endpoint = args.get_one::<String>("s3_endpoint").unwrap();
     let s3_region = aws_sdk_s3::config::Region::new(
@@ -223,22 +229,33 @@ async fn main() {
                     return;
                 }
             };
-
-            let zsk = match openssl::ec::EcKey::private_key_from_pem(&zsk_pem) {
-                Ok(k) => k,
-                Err(e) => {
-                    warn!("Unable to parse ZSK zone={}: {:?}", zone_name, e);
-                    delivery
-                        .reject(lapin::options::BasicRejectOptions {
-                            requeue: true,
-                        })
-                        .await
-                        .expect("unable to nack");
-                    return;
+            
+            let mut zsk_indicies = zsk_pem
+                .windows(2)
+                .enumerate()
+                .filter(|(_, w)| matches!(*w, b"\n\n"))
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+            zsk_indicies.insert(0, 0);
+            
+            let mut zsk = vec![];
+            for i in zsk_indicies {
+                match openssl::pkey::PKey::private_key_from_pem(&zsk_pem[i..]) {
+                    Ok(k) => zsk.push(k),
+                    Err(e) => {
+                        warn!("Unable to parse ZSK zone={}: {:?}", zone_name, e);
+                        delivery
+                            .reject(lapin::options::BasicRejectOptions {
+                                requeue: true,
+                            })
+                            .await
+                            .expect("unable to nack");
+                        return;
+                    }
                 }
-            };
+            }
 
-            let zone_signed = match dnssec::sign_zone(&zone_contents, &ksk, &zsk) {
+            let zone_signed = match dnssec::sign_zone(&zone_contents, ksk.deref(), zsk.deref()) {
                 Ok(z) => z,
                 Err(e) => {
                     warn!("Unable to sign zone zone={}: {:?}", zone_name, e);

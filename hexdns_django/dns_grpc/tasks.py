@@ -390,14 +390,14 @@ def generate_szone(zone: "models.SecondaryDNSZone"):
     return zone_file
 
 
-def write_zone_file(zone_contents: str, priv_key: str, zone_name: str):
+def write_zone_file(zone_contents: str, priv_key: typing.List[str], zone_name: str):
     zone_storage = django.core.files.storage.storages["zone-storage"]
     zone_storage.save(
         f"{zone_name}zone", django.core.files.base.ContentFile(zone_contents.encode())
     )
     if priv_key:
         zone_storage.save(
-            f"{zone_name}key", django.core.files.base.ContentFile(priv_key.encode())
+            f"{zone_name}key", django.core.files.base.ContentFile("\n\n".join(priv_key).encode())
         )
 
 
@@ -451,7 +451,7 @@ def add_fzone(zone_id: str):
     if zone_name and pattern.match(zone_name):
         zone_root = dnslib.DNSLabel(zone_name)
         zone_file = generate_fzone(zone)
-        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        write_zone_file(zone_file, [zone.zsk_private, zone.zsk_private_ed25519], str(zone_root))
         send_resign_message(zone_root)
         zone.last_resign = timezone.now()
         zone.save()
@@ -473,7 +473,7 @@ def update_fzone(zone_id: str):
     if zone_name and pattern.match(zone_name):
         zone_root = dnslib.DNSLabel(zone_name)
         zone_file = generate_fzone(zone)
-        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        write_zone_file(zone_file, [zone.zsk_private, zone.zsk_private_ed25519], str(zone_root))
         send_resign_message(zone_root)
         zone.last_resign = timezone.now()
         zone.save()
@@ -492,7 +492,7 @@ def add_rzone(zone_id: str):
     for network in zone.zone_networks:
         zone_file = generate_rzone(zone, network)
         zone_root = models.network_to_arpa(network)
-        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        write_zone_file(zone_file, [zone.zsk_private, zone.zsk_private_ed25519], str(zone_root))
         send_resign_message(zone_root)
         zone.last_resign = timezone.now()
         zone.save()
@@ -512,7 +512,7 @@ def update_rzone(zone_id: str):
     for network in zone.zone_networks:
         zone_file = generate_rzone(zone, network)
         zone_root = models.network_to_arpa(network)
-        write_zone_file(zone_file, zone.zsk_private, str(zone_root))
+        write_zone_file(zone_file, [zone.zsk_private, zone.zsk_private_ed25519], str(zone_root))
         send_resign_message(zone_root)
         zone.last_resign = timezone.now()
         zone.save()

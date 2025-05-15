@@ -1,4 +1,4 @@
-FROM ekidd/rust-musl-builder:nightly-2021-12-23 as builder
+FROM ekidd/rust-musl-builder:nightly-2021-12-23 AS builder
 
 ADD --chown=rust:rust . ./
 RUN USER=rust cargo build --release --bin update

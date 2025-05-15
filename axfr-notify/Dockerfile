@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 as builder
+FROM ubuntu:22.04 AS builder
 ARG TOOLCHAIN=stable
 
 ARG OPENSSL_VERSION=1.1.1u
