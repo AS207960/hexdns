@@ -141,6 +141,7 @@ def make_zone_digests(zone_name: typing.Union[str, dnslib.DNSLabel]):
             digest_type=2,
             digest=digest,
         ))
+    return out
 
 
 def valid_zone(zone_root_txt):
