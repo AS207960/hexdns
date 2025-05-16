@@ -17,25 +17,15 @@ import requests.exceptions
 import keycloak.exceptions
 import django.core.files.base
 import django.core.files.storage
-from cryptography.hazmat.primitives.asymmetric.ec import (
-    EllipticCurvePublicKey,
-)
 
 NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net.", "ns3.as207960.net.", "ns4.as207960.net."]
 
 pika_client = apps.PikaClient()
 
 
-def make_key_tag(public_key: EllipticCurvePublicKey, flags=256):
+def make_key_tag(public_key: dnslib.DNSKEY, flags=256):
     buffer = dnslib.DNSBuffer()
-    nums = public_key.public_numbers()
-    rd = dnslib.DNSKEY(
-        flags,
-        3,
-        13,
-        nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big"),
-    )
-    rd.pack(buffer)
+    public_key.pack(buffer)
     tag = 0
     for i in range(len(buffer.data) // 2):
         tag += (buffer.data[2 * i] << 8) + buffer.data[2 * i + 1]
