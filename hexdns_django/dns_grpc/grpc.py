@@ -101,18 +101,6 @@ def grpc_hook(server):
 
 
 class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
-    def __init__(self):
-        with open(settings.DNSSEC_KEY_LOCATION, "rb") as f:
-            priv_key_data = f.read()
-
-        priv_key = load_pem_private_key(
-            priv_key_data, password=None, backend=default_backend()
-        )
-        if not issubclass(type(priv_key), EllipticCurvePrivateKey):
-            raise Exception("Only EC private keys supported")
-
-        self.priv_key = priv_key
-
     @staticmethod
     def find_zone(
             qname: DNSLabel

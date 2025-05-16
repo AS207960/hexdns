@@ -75,6 +75,8 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
                 return "redirect", data["redirect_uri"]
             elif r.status_code == 200:
                 return "ok", None
+            else:
+                return "error", None
         else:
             return "error", 'There was an unexpected error'
     else:
@@ -94,30 +96,51 @@ def log_usage(user, extra=0, can_reject=True, off_session=True, redirect_uri=Non
                 return "redirect", data["redirect_uri"]
             elif r.status_code == 200:
                 return "ok", None
+            else:
+                return "error", None
         else:
             return "error", 'There was an unexpected error'
 
 
-def get_dnskey():
-    nums = settings.DNSSEC_PUBKEY.public_numbers()
-    return dnslib.DNSKEY(
-        257,
-        3,
-        13,
-        nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big"),
-    )
+def get_dnskeys():
+    out = []
+    for k in settings.DNSSEC_PUBKEYS:
+        if isinstance(k, ec.EllipticCurvePublicKey):
+            nums = k.public_numbers()
+            out.append(dnslib.DNSKEY(
+                flags=257,
+                protocol=3,
+                algorithm=13,
+                key=nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big"),
+            ))
+        elif isinstance(k, ed25519.Ed25519PublicKey):
+            out.append(dnslib.DNSKEY(
+                flags=257,
+                protocol=3,
+                algorithm=15,
+                key=k.public_bytes_raw()
+            ))
+        else:
+            raise ValueError("Unsupported DNSSEC key type")
+    return out
 
 
-def make_zone_digest(zone_name: typing.Union[str, dnslib.DNSLabel]):
+def make_zone_digests(zone_name: typing.Union[str, dnslib.DNSLabel]):
     if not isinstance(zone_name, dnslib.DNSLabel):
         zone_name = dnslib.DNSLabel(zone_name)
-    buffer = dnslib.DNSBuffer()
-    rd = get_dnskey()
-    buffer.encode_name(zone_name)
-    rd.pack(buffer)
-    digest = hashlib.sha256(buffer.data).hexdigest()
-    tag = tasks.make_key_tag(settings.DNSSEC_PUBKEY, flags=257)
-    return digest, tag
+    out = []
+    for rd, k in zip(get_dnskeys(), settings.DNSSEC_PUBKEYS):
+        buffer = dnslib.DNSBuffer()
+        buffer.encode_name(zone_name)
+        rd.pack(buffer)
+        digest = hashlib.sha256(buffer.data).hexdigest()
+        tag = tasks.make_key_tag(k, flags=257)
+        out.append(dnslib.DS(
+            key_tag=tag,
+            algorithm=rd.algorithm,
+            digest_type=2,
+            digest=digest,
+        ))
 
 
 def valid_zone(zone_root_txt):
@@ -130,3 +153,6 @@ def valid_zone(zone_root_txt):
             other_zone_root = dnslib.DNSLabel(zone.zone_root.lower())
             if zone_root.matchSuffix(other_zone_root):
                 return "Same or more generic zone already exists"
+
+    return None
+

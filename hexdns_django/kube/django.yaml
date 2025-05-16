@@ -25,7 +25,7 @@ data:
   KEYCLOAK_CLIENT_ID: "hexdns"
   DB_HOST: "cockroachdb"
   DB_NAME: "hexdns"
-  DNSSEC_PUBKEY_LOCATION: "/pubkey/pubkey.pem"
+  DNSSEC_PUBKEY_LOCATIONS: "/pubkey/pubkey.pem;/pubkey/pubkey-ed25519.pem"
   DNSSEC_SIGNAL_PRIVKEY_LOCATION: "/signal-privkey/privkey.pem"
   DOMAINS_PUBKEY_LOCATION: "/domains-pubkey/pubkey.pem"
   DNSSEC_KEY_LOCATION: "/privkey/privkey.pem"
@@ -66,6 +66,10 @@ data:
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUIh8VQuVXbUQwCjV4d+ptxKCvtbI
     6XcAdf9qnL1f21663JotyeXU/sNF6GUz5jutm1nmcrRbKS8DDGRz0fzoHA==
+    -----END PUBLIC KEY-----
+  pubkey-ed25519.pem: |
+    -----BEGIN PUBLIC KEY-----
+    MCowBQYDK2VwAyEAKleria5TLgUAxEz8G9IZZnbuI945LYnxe2PETiB63/0=
     -----END PUBLIC KEY-----
 ---
 apiVersion: v1

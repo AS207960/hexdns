@@ -1,4 +1,5 @@
 {% extends 'dns_grpc/base.html' %}
+{% load dns %}
 {% block content %}
     <section class="stripe">
         <div class="container py-3">
@@ -145,14 +146,47 @@
             </div>
         {% endif %}
         <h2>DNSSEC</h2>
-        <h3>DS record</h3>
-        <b>DS key tag:</b> {{ dnssec_tag }} <b>DS algorithm:</b> ECDSA (13) <b>DS digest type:</b> SHA256 (2)<br/>
-        <b>DS digest:</b> {{ dnssec_digest }}<br/>
+        <h3>DS records</h3>
+        {% for digest in dnssec_digests %}
+            <b>DS key tag:</b>
+            <code>{{ digest.key_tag }}</code>
+            <b>DS algorithm:</b>
+            {% if digest.algorithm == 13 %}
+                ECDSA P-256 (<code>13</code>)
+            {% elif digest.algorithm == 15 %}
+                Ed25519 (<code>15</code>)
+            {% else %}
+                <code>digest.algorithm</code>
+            {% endif %}
+            <b>DS digest type:</b>
+            {% if digest.digest_type == 2 %}
+                SHA-256 (<code>2</code>)
+            {% else %}
+                <code>digest.digest_type</code>
+            {% endif %}
+            <b>DS digest:</b>
+            {{ digest.digest.hex }}
+            <br/>
+        {% endfor %}
         <hr/>
-        <h3>DNSKEY record (not usually required)</h3>
-        <b>DNSKEY key flags:</b> {{ dnskey.flags }} <b>DNSKEY protocol:</b> {{ dnskey.protocol }} <b>DNSKEY
-        algorithm:</b> ECDSA (13)<br/>
-        <b>DNSKEY key:</b> {{ dnskey_key }}<br/>
+        <h3>DNSKEY records (not usually required)</h3>
+        {% for key in dnskeys %}
+            <b>DNSKEY key flags:</b>
+            <code>{{ key.flags }}</code>
+            <b>DNSKEY protocol:</b>
+            <code>{{ key.protocol }}</code>
+            <b>DNSKEY algorithm:</b>
+            {% if key.algorithm == 13 %}
+                ECDSA P-256 (<code>13</code>)
+            {% elif key.algorithm == 15 %}
+                Ed25519 (<code>15</code>)
+            {% else %}
+                <code>key.algorithm</code>
+            {% endif %}
+            <b>DNSKEY key:</b>
+            <code>{{ key.key|b64_encode }}</code>
+            <br/>
+        {% endfor %}
         <hr>
         <h2>
             Address records

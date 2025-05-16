@@ -3,7 +3,7 @@ from django.conf import settings
 import base64
 import ipaddress
 import collections
-from .. import models, views, tasks
+from .. import models, views, tasks, utils
 
 
 class WriteOnceMixin:
@@ -365,26 +365,27 @@ class DNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
     hinfo_records = HINFORecordSerializer(many=True, read_only=True, source='hinforecord_set')
     rp_records = RPRecordSerializer(many=True, read_only=True, source='rprecord_set')
     https_records = HTTPSRecordSerializer(many=True, read_only=True, source='httpsrecord_set')
-    dnssec = DNSSECSerializer(read_only=True)
+    dnssec = DNSSECSerializer(many=True, read_only=True)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
 
-        dnssec_digest, dnssec_tag = dns_grpc.utils.make_zone_digest(instance.zone_root)
-        nums = settings.DNSSEC_PUBKEY.public_numbers()
-        pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
-        ret["dnssec"] = {
-            "key_tag": dnssec_tag,
-            "algorithm": 13,
-            "digest_type": 2,
-            "digest": dnssec_digest,
-            "key": {
-                "flags": 257,
-                "protocol": 3,
-                "algorithm": 13,
-                "public_key": base64.b64encode(pubkey_bytes)
-            }
-        }
+        digests = utils.make_zone_digests(instance.zone_root)
+        keys = utils.get_dnskeys()
+        ret["dnssec"] = []
+        for key, digest in zip(keys, digests):
+            ret["dnssec"].append({
+                "key_tag": digest.key_tag,
+                "algorithm": digest.algorithm,
+                "digest_type": digest.digest_type,
+                "digest": digest,
+                "key": {
+                    "flags": key.flags,
+                    "protocol": key.protocol,
+                    "algorithm": key.algorithm,
+                    "public_key": base64.b64encode(key.key)
+                }
+            })
 
         return ret
 
@@ -437,7 +438,7 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
 
     ptr_records = PTRRecordSerializer(many=True, read_only=True, source='ptrrecord_set')
     ns_records = ReverseNSRecordSerializer(many=True, read_only=True, source='reversensrecord_set')
-    dnssec = DNSSECSerializer(read_only=True)
+    dnssec = DNSSECSerializer(many=True, read_only=True)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -446,21 +447,22 @@ class ReverseDNSZoneSerializer(WriteOnceMixin, serializers.ModelSerializer):
             (instance.zone_root_address, instance.zone_root_prefix)
         )
         zone_name = tasks.network_to_apra(zone_network)
-        dnssec_digest, dnssec_tag = views.make_zone_digest(zone_name.label)
-        nums = settings.DNSSEC_PUBKEY.public_numbers()
-        pubkey_bytes = nums.x.to_bytes(32, byteorder="big") + nums.y.to_bytes(32, byteorder="big")
-        ret["dnssec"] = {
-            "key_tag": dnssec_tag,
-            "algorithm": 13,
-            "digest_type": 2,
-            "digest": dnssec_digest,
-            "key": {
-                "flags": 257,
-                "protocol": 3,
-                "algorithm": 13,
-                "public_key": base64.b64encode(pubkey_bytes)
-            }
-        }
+        digests = utils.make_zone_digests(zone_name.label)
+        keys = utils.get_dnskeys()
+        ret["dnssec"] = []
+        for key, digest in zip(keys, digests):
+            ret["dnssec"].append({
+                "key_tag": digest.key_tag,
+                "algorithm": digest.algorithm,
+                "digest_type": digest.digest_type,
+                "digest": digest,
+                "key": {
+                    "flags": key.flags,
+                    "protocol": key.protocol,
+                    "algorithm": key.algorithm,
+                    "public_key": base64.b64encode(key.key)
+                }
+            })
 
         return ret
 

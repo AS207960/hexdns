@@ -211,23 +211,21 @@ NETNOD_API_KEY = os.getenv("NETNOD_API_KEY")
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
 
-DNSSEC_KEY_LOCATION = os.getenv("DNSSEC_KEY_LOCATION")
-DNSSEC_PUBKEY_LOCATION = os.getenv("DNSSEC_PUBKEY_LOCATION")
+DNSSEC_PUBKEY_LOCATIONS = os.getenv("DNSSEC_PUBKEY_LOCATION", "").split(";")
 DNSSEC_SIGNAL_PRIVKEY_LOCATION = os.getenv("DNSSEC_SIGNAL_PRIVKEY_LOCATION")
 DOMAINS_PUBKEY_LOCATION = os.getenv("DOMAINS_PUBKEY_LOCATION")
 
-with open(DNSSEC_PUBKEY_LOCATION, "rb") as f:
-    pub_key_data = f.read()
+DNSSEC_PUBKEYS = []
+for l in DNSSEC_PUBKEY_LOCATIONS:
+    with open(l, "rb") as f:
+        pub_key_data = f.read()
+    DNSSEC_PUBKEYS.append(load_pem_public_key(pub_key_data, backend=default_backend()))
 
 with open(DNSSEC_SIGNAL_PRIVKEY_LOCATION, "r") as f:
     DNSSEC_SIGNAL_PRIVKEY_DATA = f.read()
 
 with open(DOMAINS_PUBKEY_LOCATION, "rb") as f:
     DOMAINS_JWT_PUB = f.read()
-
-DNSSEC_PUBKEY = load_pem_public_key(pub_key_data, backend=default_backend())
-if not issubclass(type(DNSSEC_PUBKEY), EllipticCurvePublicKey):
-    raise Exception("Only EC public keys supported")
 
 XFF_TRUSTED_PROXY_DEPTH = 1
 XFF_STRICT = True

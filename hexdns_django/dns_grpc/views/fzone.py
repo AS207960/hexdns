@@ -204,9 +204,6 @@ def edit_zone(request, zone_id):
     if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.idna_label)
-    dnskey = utils.get_dnskey()
-
     if user_zone.get_user() == request.user:
         sharing_data = {
             "referrer": settings.OIDC_CLIENT_ID,
@@ -223,12 +220,10 @@ def edit_zone(request, zone_id):
         "dns_grpc/fzone/zone.html",
         {
             "zone": user_zone,
-            "dnssec_tag": dnssec_tag,
-            "dnssec_digest": dnssec_digest,
             "sharing_uri": sharing_uri,
             "notice": request.session.pop("zone_notice", None),
-            "dnskey": dnskey,
-            "dnskey_key": base64.b64encode(dnskey.key).decode(),
+            "dnssec_digests": utils.make_zone_digests(user_zone.idna_label),
+            "dnskeys": utils.get_dnskeys(),
             "spf_status": zone_checks.check_spf(user_zone),
             "dmarc_status": zone_checks.check_dmarc(user_zone),
         },
@@ -2001,16 +1996,13 @@ def edit_zone_cds(request, zone_id):
     if not user_zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
 
-    dnssec_digest, dnssec_tag = utils.make_zone_digest(user_zone.idna_label)
-    dnskey = utils.get_dnskey()
     return render(
         request,
         "dns_grpc/fzone/zone_cds.html",
         {
             "zone": user_zone,
-            "dnssec_digest": dnssec_digest,
-            "dnssec_tag": dnssec_tag,
-            "dnskey": dnskey
+            "dnssec_digests": utils.make_zone_digests(user_zone.idna_label),
+            "dnskeys": utils.get_dnskeys(),
         },
     )
 

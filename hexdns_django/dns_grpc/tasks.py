@@ -78,16 +78,13 @@ def generate_zone_header(zone, zone_root):
         zone_file += "@ 86400 IN CDS 0 0 0 00\n"
         zone_file += "@ 86400 IN CDNSKEY 0 3 0 AA==\n"
     else:
-        digest, tag = utils.make_zone_digest(zone_root)
-        dnskey_bytes = utils.get_dnskey().key
-
-        zone_file += f"@ 86400 IN CDS {tag} 13 2 {digest}\n"
+        for key, digest in zip(utils.get_dnskeys(), utils.make_zone_digests(zone_root)):
+            zone_file += f"@ 86400 IN CDS {digest}\n"
+            zone_file += f"@ 86400 IN CDNSKEY {key}\n"
 
         for cds in zone.additional_cds.all():
             zone_file += f"; Additional CDS {cds.id}\n"
             zone_file += f"@ 86400 IN CDS {cds.key_tag} {cds.algorithm} {cds.digest_type} {cds.digest}\n"
-
-        zone_file += f"@ 86400 IN CDNSKEY 257 3 13 {base64.b64encode(dnskey_bytes).decode()}\n"
 
         for cdnskey in zone.additional_cdnskey.all():
             zone_file += f"; Additional CDNSKEY {cdnskey.id}\n"
@@ -598,18 +595,14 @@ def update_signal_zones():
                 zone_file_base += f"{dsboot_label} 86400 IN CDS 0 0 0 00\n"
                 zone_file_base += f"{dsboot_label} 86400 IN CDNSKEY 0 3 0 AA==\n"
             else:
-                digest, tag = utils.make_zone_digest(zone_name)
-                dnskey_bytes = utils.get_dnskey().key
-
-                zone_file_base += f"{dsboot_label} 86400 IN CDS {tag} 13 2 {digest}\n"
+                for key, digest in zip(utils.get_dnskeys(), utils.make_zone_digests(zone_name)):
+                    zone_file += f"@ 86400 IN CDS {digest}\n"
+                    zone_file += f"@ 86400 IN CDNSKEY {key}\n"
 
                 for cds in zone.additional_cds.all():
                     zone_file_base += f"; Additional CDS {cds.id}\n"
                     zone_file_base += (f"{dsboot_label} 86400 IN CDS {cds.key_tag} {cds.algorithm} "
                                        f"{cds.digest_type} {cds.digest}\n")
-
-                zone_file_base += (f"{dsboot_label} 86400 IN CDNSKEY 257 3 13 "
-                                   f"{base64.b64encode(dnskey_bytes).decode()}\n")
 
                 for cdnskey in zone.additional_cdnskey.all():
                     zone_file_base += f"; Additional CDNSKEY {cdnskey.id}\n"
