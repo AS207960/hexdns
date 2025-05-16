@@ -133,7 +133,7 @@ def make_zone_digests(zone_name: typing.Union[str, dnslib.DNSLabel]):
         buffer = dnslib.DNSBuffer()
         buffer.encode_name(zone_name)
         rd.pack(buffer)
-        digest = hashlib.sha256(buffer.data).hexdigest()
+        digest = hashlib.sha256(buffer.data).digest()
         tag = tasks.make_key_tag(rd, flags=257)
         out.append(dnslib.DS(
             key_tag=tag,
