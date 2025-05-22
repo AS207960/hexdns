@@ -586,8 +586,8 @@ def update_signal_zones():
                 zone_file_base += f"{dsboot_label} 86400 IN CDNSKEY 0 3 0 AA==\n"
             else:
                 for key, digest in zip(utils.get_dnskeys(), utils.make_zone_digests(zone_name)):
-                    zone_file += f"@ 86400 IN CDS {digest}\n"
-                    zone_file += f"@ 86400 IN CDNSKEY {key}\n"
+                    zone_file_base += f"{dsboot_label} 86400 IN CDS {digest}\n"
+                    zone_file_base += f"{dsboot_label} 86400 IN CDNSKEY {key}\n"
 
                 for cds in zone.additional_cds.all():
                     zone_file_base += f"; Additional CDS {cds.id}\n"
