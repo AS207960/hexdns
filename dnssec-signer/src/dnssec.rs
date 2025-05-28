@@ -389,6 +389,9 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                     format!("\"{}\"", txt)
                 }).join(" ")
             }
+            trust_dns_proto::rr::record_data::RData::CNAME(name) => {
+                name.to_ascii()
+            }
             trust_dns_proto::rr::record_data::RData::CAA(caa) => {
                 let txt = match caa.value() {
                     trust_dns_proto::rr::rdata::caa::Value::Issuer(name, values) => {
