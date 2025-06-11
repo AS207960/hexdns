@@ -54,7 +54,7 @@ def generate_zone_header(zone, zone_root):
     else:
         primary_ns = NAMESERVERS[0]
 
-    contact_email = f"{zone.soa_email_id.hex()}.dns.glauca.digital."
+    contact_email = f"{zone.soa_email_id.hex}.dns.glauca.digital."
     zone_file = f"$ORIGIN {zone_root}\n"
     zone_file += f"@ 86400 IN SOA {primary_ns} {contact_email} {int(time.time())} " \
                  f"86400 3600 86400 3600\n"
