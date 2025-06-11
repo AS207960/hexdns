@@ -304,7 +304,7 @@ def generate_fzone(zone: "models.DNSZone"):
         svcb_record.pack(buf)
         data = bytes(buf.data)
         zone_file += f"; HTTPS record {record.id}\n"
-        zone_file += f"{record.svcb_record_name} {record.ttl} IN TYPE65 \# {len(data)} {data.hex()}\n"
+        zone_file += f"{record.svcb_record_name} {record.ttl} IN TYPE65 \\# {len(data)} {data.hex()}\n"
 
     for record in zone.dhcidrecord_set.all():
         record_name = record.idna_label
@@ -727,9 +727,9 @@ def sync_netnod_zones(
 def forward_soa_email(zone_id, msg_bytes):
     msg_bytes = base64.b64decode(msg_bytes)
 
-    zone = models.DNSZone.objects.filter(pk=zone_id).first()
+    zone = models.DNSZone.objects.filter(soa_email_id=zone_id).first()
     if not zone:
-        zone = models.ReverseDNSZone.objects.filter(pk=zone_id).first()
+        zone = models.ReverseDNSZone.objects.filter(soa_email_id=zone_id).first()
         if not zone:
             return
 

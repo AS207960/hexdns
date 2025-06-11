@@ -139,6 +139,7 @@ class DNSZone(models.Model):
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
     cds_disable = models.BooleanField(default=False, blank=True)
+    soa_email_id = models.UUIDField(db_index=True, default=uuid.uuid4, editable=False)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
@@ -451,6 +452,7 @@ class ReverseDNSZone(models.Model):
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
     cds_disable = models.BooleanField(default=False, blank=True)
+    soa_email_id = models.UUIDField(db_index=True, default=uuid.uuid4, editable=False)
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user

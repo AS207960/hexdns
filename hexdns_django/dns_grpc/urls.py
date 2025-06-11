@@ -1,6 +1,5 @@
 from django.urls import path, include
-
-from hexdns_django import settings
+from django.conf import settings
 from . import views
 import rest_framework.schemas
 
