@@ -56,6 +56,9 @@ data:
   MEDIA_URL: "https://hexdns-django.content.as207960.net/"
   LISTMONK_TEMPLATE_ID: "3"
   LISTMONK_URL: "https://listmonk.as207960.net"
+  POSTAL_PUBLIC_KEY: >-
+    MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQChELn1Fkauo6bduyGeXNca/z27OYNMd85JZMlNiycfFHaAXzgPd53OKVSbyzBuILFPYmzkfaF
+    uOCW2qgvFd8cAye6qLsUAqEetiuRTPpAysX3hss1TqIML51kb0ADTmylKi3Hr553qrDy9AEMFmvaKnTH8o0YFozGk0QtlmiLtXQIDAQAB
 ---
 kind: ConfigMap
 apiVersion: v1

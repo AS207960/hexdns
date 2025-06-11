@@ -1,8 +1,9 @@
 from django.conf import settings
 import django_keycloak_auth.clients
 import requests
+import json
 
-def send_email(user, data: dict):
+def send_email(user, data: dict, files = None) -> None:
     request = {
         "template_id": settings.LISTMONK_TEMPLATE_ID,
         "from_email": settings.DEFAULT_FROM_EMAIL,
@@ -22,10 +23,13 @@ def send_email(user, data: dict):
     access_token = django_keycloak_auth.clients.get_access_token()
     r = requests.post(
         f"{settings.LISTMONK_URL}/api/tx",
-        json=request,
         headers={
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
-        }
+        },
+        data={
+            "data": json.dumps(request),
+        },
+        files=files,
     )
     r.raise_for_status()

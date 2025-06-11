@@ -1,7 +1,8 @@
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
-from . import models, apps, utils, netnod
+from django.template.loader import render_to_string
+from . import models, apps, utils, netnod, emails
 import dnslib
 import base64
 import pika
@@ -53,8 +54,9 @@ def generate_zone_header(zone, zone_root):
     else:
         primary_ns = NAMESERVERS[0]
 
+    contact_email = f"{zone.id.hex()}.dns.glauca.digital."
     zone_file = f"$ORIGIN {zone_root}\n"
-    zone_file += f"@ 86400 IN SOA {primary_ns} noc.as207960.net. {int(time.time())} " \
+    zone_file += f"@ 86400 IN SOA {primary_ns} {contact_email} {int(time.time())} " \
                  f"86400 3600 86400 3600\n"
 
     if hasattr(zone, "custom_ns") and zone.custom_ns.count():
@@ -716,3 +718,30 @@ def sync_netnod_zones(
         except Exception as e:
             logging.error(f"Failed to de-register zone {zone_root}: {e}")
             continue
+
+
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
+def forward_soa_email(zone_id, msg_bytes):
+    msg_bytes = base64.b64decode(msg_bytes)
+
+    zone = models.DNSZone.objects.filter(pk=zone_id).first()
+    if not zone:
+        zone = models.ReverseDNSZone.objects.filter(pk=zone_id).first()
+        if not zone:
+            return
+
+    user = zone.get_user()
+    if not user:
+        return
+
+    emails.send_email(user, {
+        "subject": f"Your HexDNS zone {zone}",
+        "content": render_to_string("dns_email/soa_contact.html", {
+            "zone": zone
+        })
+    }, [
+        ("file", ("forwarded.eml", msg_bytes, "message/rfc822")),
+    ])
