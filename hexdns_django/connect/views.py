@@ -342,7 +342,7 @@ def sync_apply(request, provider_id: str, service_id: str):
             return render(request, "dns_grpc/error.html", {
                 "error": "Invalid host",
             }, status=400)
-
+        state.host = qs_host[0]
         del query_params["host"]
 
     if "state" in query_params:
