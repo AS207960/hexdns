@@ -178,6 +178,8 @@ urlpatterns = [
     path("checkip", views.dyndns.check_ip, name="check_ip"),
     path("nic/update", views.dyndns.update_ip, name="update_ip"),
 
+    path('postal/webhook/', views.postal.postal),
+
     path(
         "api/openapi", rest_framework.schemas.get_schema_view(
             title="Glauca HexDNS API",
@@ -186,4 +188,5 @@ urlpatterns = [
         ), name="openapi-schema",
     ),
     path('api/', include('dns_grpc.api.urls')),
+
 ]
