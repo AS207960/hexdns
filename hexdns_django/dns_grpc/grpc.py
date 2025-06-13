@@ -10,13 +10,8 @@ import hmac
 import requests
 import sys
 import django.core.exceptions
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from django.conf import settings
 from django.db.models import Q
 from django.db.models.functions import Length
-from django.template.defaultfilters import length
 from dnslib import CLASS, OPCODE, QTYPE, RCODE
 from dnslib.label import DNSLabel
 
@@ -779,8 +774,9 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         # self.sign_rrset(soa_dns_res, zone, query_name, is_dnssec)
 
-    def handle_update_query(self, dns_req: dnslib.DNSRecord):
+    def handle_update_query(self, dns_req: dnslib.DNSRecord, raw_msg: bytes):
         dns_res = dns_req.reply(ra=False)
+        raw_msg = bytearray(raw_msg)
 
         # RFC 2136 § 3.1
         if dns_req.header.opcode != OPCODE.UPDATE or dns_req.q.qclass != CLASS.IN or dns_req.q.qtype != QTYPE.SOA:
@@ -793,7 +789,8 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             if last_ar.rtype == QTYPE.TSIG:
                 req_tsig = last_ar
                 del dns_req.ar[-1]
-                dns_req.set_header_qa()
+                ar_count = len(dns_req.ar)
+                raw_msg[10:12] = ar_count.to_bytes(2, byteorder="big")
 
         if not req_tsig:
             dns_res.header.rcode = RCODE.REFUSED
@@ -816,7 +813,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             dns_res.header.rcode = RCODE.NOTAUTH
             res_tsig = TSIG(
                 alg_name=dnslib.DNSLabel("."),
-                time_signed=datetime.datetime.utcnow(),
+                time_signed=datetime.datetime.now(datetime.timezone.utc),
                 fudge=300,
                 mac=b'',
                 original_id=dns_res.header.id,
@@ -840,90 +837,35 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         # RFC 2845 § 4.5.3
         message_digest = HMAC_NAMES[tsig_alg_label]
+        raw_msg[0:2] = incoming_tsig.original_id.to_bytes(2, byteorder="big")
         incoming_hmac = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
-        incoming_hmac2 = hmac.new(bytes(tsig_key.secret), digestmod=message_digest)
-        dns_req.header.id = incoming_tsig.original_id
-
-        for r in dns_req.rr:
-            if r.rdata == '':
-                r.rdata = dnslib.RD(data=b'')
-        for r in dns_req.auth:
-            if r.rdata == '':
-                r.rdata = dnslib.RD(data=b'')
-        for r in dns_req.ar:
-            if r.rdata == '':
-                r.rdata = dnslib.RD(data=b'')
-
-        def pack_rr_canon(rd, buffer):
-            buffer.encode_name_nocompress(rd.rname)
-            buffer.pack("!HHI", rd.rtype, rd.rclass, rd.ttl)
-            rdlength_ptr = buffer.offset
-            buffer.pack("!H", 0)
-            start = buffer.offset
-            if rd.rtype == QTYPE.OPT:
-                for opt in rd.rdata:
-                    opt.pack(buffer)
-            elif isinstance(rd.rdata, dnslib.MX):
-                buffer.pack("!H", rd.rdata.preference)
-                buffer.encode_name_nocompress(rd.rdata.label)
-            elif isinstance(rd.rdata, dnslib.CNAME):
-                buffer.encode_name_nocompress(rd.rdata.label)
-            elif isinstance(rd.rdata, dnslib.SOA):
-                buffer.encode_name_nocompress(rd.rdata.mname)
-                buffer.encode_name_nocompress(rd.rdata.rname)
-                buffer.pack("!IIIII", *rd.rdata.times)
-            elif isinstance(rd.rdata, dnslib.SRV):
-                buffer.pack("!HHH", rd.rdata.priority, rd.rdata.weight, rd.rdata.port)
-                buffer.encode_name_nocompress(rd.rdata.target)
-            else:
-                rd.rdata.pack(buffer)
-            end = buffer.offset
-            buffer.update(rdlength_ptr, "!H", end-start)
-
-        d = dns_req.pack()
-        db = dnslib.DNSBuffer()
-        dns_req.header.pack(db)
-        for q in dns_req.questions:
-            db.encode_name(q.qname)
-            db.pack("!HH", q.qtype, q.qclass)
-        for rr in dns_req.rr:
-            pack_rr_canon(rr, db)
-        for auth in dns_req.auth:
-            pack_rr_canon(auth, db)
-        for ar in dns_req.ar:
-            pack_rr_canon(ar, db)
-        d2 = db.data
-
-        for r in dns_req.rr:
-            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
-                r.rdata = ''
-        for r in dns_req.auth:
-            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
-                r.rdata = ''
-        for r in dns_req.ar:
-            if type(r.rdata) == dnslib.RD and r.rdata.data == b'':
-                r.rdata = ''
-
+        b = dnslib.DNSBuffer(raw_msg)
+        h = dnslib.DNSHeader.parse(b)
+        for i in range(h.q):
+            dnslib.DNSQuestion.parse(b)
+        for i in range(h.a):
+            dnslib.RR.parse(b)
+        for i in range(h.auth):
+            dnslib.RR.parse(b)
+        for i in range(h.ar):
+            dnslib.RR.parse(b)
+        d = raw_msg[:b.offset]
         temp_buffer = dnslib.DNSBuffer()
         temp_buffer.encode_name_nocompress(req_tsig.rname)
         temp_buffer.pack("!HI", getattr(CLASS, "*"), 0)
         d += temp_buffer.data
-        d2 += temp_buffer.data
         d += incoming_tsig.make_variables()
-        d2 += incoming_tsig.make_variables()
         incoming_hmac.update(d)
-        incoming_hmac2.update(d2)
         incoming_digest = incoming_hmac.digest()
-        incoming_digest2 = incoming_hmac2.digest()
 
-        if (incoming_digest != incoming_tsig.mac) and (incoming_digest2 != incoming_tsig.mac):
+        if incoming_digest != incoming_tsig.mac:
             tsig_unsigned_error(TSIG_BADSIG)
             return dns_res
 
         # RFC 2845 § 4.2
         def sign_resp(error=0, other_data=b'', time_now=None):
             if time_now is None:
-                time_now = datetime.datetime.utcnow()
+                time_now = datetime.datetime.now(datetime.timezone.utc)
 
             if error != 0:
                 dns_res.header.rcode = RCODE.NOTAUTH
@@ -1207,7 +1149,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
                 return False
 
         # RFC 2136 § 3.4.2
-        to_update = []
         for rr in upset:
             record_name = rr.rname.stripSuffix(zone_name)
 
@@ -1365,7 +1306,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             return self.make_resp(dns_res)
 
         try:
-            dns_res = self.handle_update_query(dns_req)
+            dns_res = self.handle_update_query(dns_req, request.msg)
         except models.DNSError as e:
             print(e.message, flush=True)
             dns_res = dns_req.reply(ra=False)

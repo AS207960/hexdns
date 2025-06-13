@@ -6,12 +6,12 @@ import base64
 import hmac
 import time
 
-msg = dns.update.UpdateMessage(zone="neveripv4.com",)
+msg = dns.update.UpdateMessage(zone="pfuschwerk.de.",)
 
 
 class CTX:
     def __init__(self, key):
-        self.hmac_context = hmac.new(key, digestmod="sha256")
+        self.hmac_context = hmac.new(key, digestmod="sha512")
         self.data = bytearray()
 
     def update(self, data):
@@ -22,28 +22,27 @@ class CTX:
         digest = self.hmac_context.digest()
         return digest
 
-
-# print(base64.b64decode("DgGZeGow1ZaclAQI3yJJmUnn9EhOCDnkwOjd/DApjeG7til2/TXykRTZV9ndFGHa4dbrnezlCt52NGOc6HWHnQ=="))
-
 ctxes = []
 
 
 def get_ctx(_):
-    ctx = CTX(base64.b64decode("DgGZeGow1ZaclAQI3yJJmUnn9EhOCDnkwOjd/DApjeG7til2/TXykRTZV9ndFGHa4dbrnezlCt52NGOc6HWHnQ=="))
+    ctx = CTX(base64.b64decode(""))
     ctxes.append(ctx)
     return ctx
 
 dns.tsig.get_context = get_ctx
 
 msg.use_tsig(
-    keyname="hexdns_zoneupdatesecret_804aed5c15954913aa6fe7b3fb934710",
+    keyname="hexdns_zoneupdatesecret_3fcae682d3a549d9aea5f831ab04352b",
     keyring=dns.tsig.Key(
-        name="hexdns_zoneupdatesecret_804aed5c15954913aa6fe7b3fb934710.neveripv4.com",
-        secret="DgGZeGow1ZaclAQI3yJJmUnn9EhOCDnkwOjd/DApjeG7til2/TXykRTZV9ndFGHa4dbrnezlCt52NGOc6HWHnQ=="
+        name="hexdns_zoneupdatesecret_3fcae682d3a549d9aea5f831ab04352b.pfuschwerk.de.",
+        secret="",
     ),
+    algorithm="hmac-sha512",
 )
 
-msg.add("_acme_challenge.a.neveripv4.com", 3600, "txt", "abc")
+msg.add("gate.servers.pfuschwerk.de.", 60, "txt", "\"this is test two\"")
+msg.add("gate.servers.pfuschwerk.de.", 60, "txt", "\"this is test three\"")
 
 # print(msg.to_wire())
 
