@@ -141,6 +141,12 @@ def generate_fzone(zone: "models.DNSZone"):
                         zone_file += f"{record_name} {record.ttl} IN A {address}\n"
                     elif type(address) == ipaddress.IPv6Address:
                         zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
+                own_dynamic_records = zone.dynamicaddressrecord_set.filter(record_name=search_name)
+                for r in own_dynamic_records:
+                    if r.current_ipv4:
+                        zone_file += f"{record_name} {record.ttl} IN A {r.current_ipv4}\n"
+                    if r.current_ipv6:
+                        zone_file += f"{record_name} {record.ttl} IN AAAA {r.current_ipv6}\n"
             else:
                 for r in record.cached.all():
                     address = ipaddress.ip_address(r.address)

@@ -86,7 +86,7 @@ data:
         acl: notify
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: hexdns-knot-secondary
   labels:
@@ -94,7 +94,6 @@ metadata:
     part: knot
     role: secondary
 spec:
-  replicas: 6
   selector:
     matchLabels:
       app: hexdns
