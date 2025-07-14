@@ -1,3 +1,4 @@
+import requests.exceptions
 from django.core.management.base import BaseCommand
 from django.template.loader import render_to_string
 from django.conf import settings
@@ -74,7 +75,7 @@ class Command(BaseCommand):
                             "zone": zone
                         })
                     })
-                except keycloak.exceptions.KeycloakClientError as e:
+                except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException) as e:
                     print(f"Failed to notify user of status: {e}")
             zone.save()
 
