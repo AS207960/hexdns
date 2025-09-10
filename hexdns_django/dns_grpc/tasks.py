@@ -1,4 +1,5 @@
 from celery import shared_task
+from celery.utils.log import get_task_logger
 from django.conf import settings
 from django.utils import timezone
 from django.template.loader import render_to_string
@@ -13,6 +14,8 @@ import time
 import re
 import idna
 import string
+import socket
+import struct
 import logging
 import requests.exceptions
 import keycloak.exceptions
@@ -22,6 +25,7 @@ import django.core.files.storage
 NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net.", "ns3.as207960.net.", "ns4.as207960.net."]
 
 pika_client = apps.PikaClient()
+logger = get_task_logger(__name__)
 
 
 def make_key_tag(public_key: dnslib.DNSKEY, flags=256):
@@ -751,3 +755,121 @@ def forward_soa_email(zone_id, msg_bytes):
     }, [
         ("file", ("forwarded.eml", msg_bytes, "message/rfc822")),
     ])
+
+
+@shared_task(
+    autoretry_for=(Exception,), retry_backoff=1, retry_backoff_max=60, max_retries=None, default_retry_delay=3,
+    ignore_result=True
+)
+def sync_secondary(zone_id):
+    zone = models.SecondaryDNSZone.objects.get(id=zone_id)
+    try:
+        addrs = socket.getaddrinfo(zone.primary, 53, family=socket.AF_UNSPEC, proto=socket.IPPROTO_TCP)
+    except OSError as e:
+        logger.info(f"Can't get address of {zone.primary}: {e}")
+        zone.error = True
+        zone.error_message = f"Can't get address of {zone.primary}"
+        zone.save()
+        return
+    sock = None
+    for addr in addrs:
+        try:
+            sock = socket.socket(addr[0], addr[1])
+            sock.settimeout(15)
+            sock.connect(addr[4])
+            break
+        except OSError as e:
+            logger.info(f"Error connecting to {addr[4]}: {e}")
+            sock = None
+            pass
+
+    if sock is None:
+        logger.info(f"Can't connect to {zone.primary}")
+        zone.error = True
+        zone.error_message = f"Can't connect to {zone.primary}"
+        zone.save()
+        return
+
+    try:
+        soa_query = dnslib.DNSRecord.question(zone.zone_root, "SOA", "IN").pack()
+        sock.sendall(struct.pack("!H", len(soa_query)))
+        sock.sendall(soa_query)
+        response_len_bytes = sock.recv(2)
+        try:
+            response_len = struct.unpack("!H", response_len_bytes)[0]
+        except struct.error:
+            logger.info(f"Invalid SOA response from {zone.primary}")
+            return
+        response_bytes = sock.recv(response_len)
+        soa_response = dnslib.DNSRecord.parse(response_bytes)
+        if len(soa_response.rr) != 1:
+            logger.info(f"Invalid SOA response from {zone.primary}")
+            zone.error = True
+            zone.error_message = f"Invalid SOA response from {zone.primary}"
+            zone.save()
+            sock.close()
+            return
+        serial = soa_response.rr[0].rdata.times[0]
+        if serial == zone.serial:
+            logger.info(f"Identical serial on {zone.zone_root}, not updating")
+            zone.error = False
+            zone.save()
+            sock.close()
+            return
+    except (OSError, ValueError, dnslib.DNSError) as e:
+        logger.warning(f"Failed to sync from {zone.primary}: {e}")
+        zone.error = True
+        zone.save()
+        return
+
+    try:
+        axfr_query = dnslib.DNSRecord.question(zone.zone_root, "AXFR", "IN").pack()
+        sock.sendall(struct.pack("!H", len(axfr_query)))
+        sock.sendall(axfr_query)
+        seen_soa = 0
+        rrs = []
+        while True:
+            response_len_bytes = sock.recv(2)
+            response_len = struct.unpack("!H", response_len_bytes)[0]
+            response_bytes = sock.recv(response_len)
+            axfr_response = dnslib.DNSRecord.parse(response_bytes)
+            if axfr_response.header.rcode != dnslib.RCODE.NOERROR:
+                logger.info(f"Failed to sync from {zone.primary}: {dnslib.RCODE.get(axfr_response.header.rcode)}")
+                zone.error = True
+                zone.error_message = f"Failed to sync from {zone.primary}: " \
+                                     f"got response {dnslib.RCODE.get(axfr_response.header.rcode)}"
+                zone.save()
+                return
+            for rr in axfr_response.rr:
+                if rr.rtype == dnslib.QTYPE.SOA and rr.rname == zone.zone_root:
+                    seen_soa += 1
+                if rr.rclass == dnslib.CLASS.IN and (rr.rtype != dnslib.QTYPE.SOA or seen_soa <= 1):
+                    rrs.append(models.SecondaryDNSZoneRecord(
+                        zone=zone,
+                        record_text=rr.toZone(),
+                    ))
+            if seen_soa >= 2:
+                break
+    except (OSError, ValueError, dnslib.DNSError, struct.error) as e:
+        logger.warning(f"Failed to sync from {zone.primary}: {e}")
+        zone.error = True
+        zone.save()
+        return
+
+    if seen_soa == 2:
+        zone.secondarydnszonerecord_set.all().delete()
+        for rr in rrs:
+            rr.save()
+        zone.serial = serial
+        zone.error = False
+        zone.error_message = None
+        zone.save()
+        update_szone.delay(zone.id)
+        logger.info(f"Successfully updated from {zone.primary}")
+    else:
+        logger.info(f"Invalid number of SOAs from {zone.primary}")
+        zone.error = True
+        zone.error_message = f"Invalid number of SOAs received from {zone.primary}"
+        zone.save()
+
+    sock.close()

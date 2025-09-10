@@ -292,12 +292,12 @@ spec:
 #              mountPath: /mnt/s3
 #              mountPropagation: Bidirectional
         - name: exporter
-          image: as207960/knot-exporter:2
+          image: as207960/knot-exporter:6
           imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "sleep 60 &&
-              python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
+              python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.13"
           ]
           readinessProbe:
             tcpSocket:

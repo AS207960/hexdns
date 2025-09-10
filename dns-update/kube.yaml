@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: cache
-          image: as207960/dns-cache-update:2
+          image: as207960/dns-cache-update:3
           args:
             - "-a"
             - "::"

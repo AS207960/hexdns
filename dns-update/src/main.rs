@@ -147,7 +147,7 @@ fn main() {
             .env("DNS_ADDR")
             .help("Addresses to listen on for DNS queries")
             .action(clap::ArgAction::Append)
-			.value_parser(value_parser!(std::net::SocketAddr))
+			.value_parser(value_parser!(std::net::IpAddr))
             .default_value("::"))
         .arg(clap::Arg::new("upstream")
             .short('u')

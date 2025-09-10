@@ -15,7 +15,7 @@ from django.db.models.functions import Length
 from dnslib import CLASS, OPCODE, QTYPE, RCODE
 from dnslib.label import DNSLabel
 
-from . import models
+from . import models, tasks
 from .proto import dns_pb2, dns_pb2_grpc
 
 NAMESERVERS = ["ns1.as207960.net", "ns2.as207960.net", "ns3.as207960.net", "ns4.as207960.net"]
@@ -1260,10 +1260,29 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         return dns_res
 
     def handle_notify_query(self, dns_req: dnslib.DNSRecord):
+        dns_res = dns_req.reply(ra=False)
+
+        if dns_req.header.opcode != OPCODE.NOTIFY:
+            dns_res.header.rcode = RCODE.REFUSED
+            return dns_res
+
         for q in dns_req.questions:
-            if q.qclass != CLASS.IN:
-                continue
-            print("Got notification for zone {}".format(q.qname), flush=True)
+            if q.qclass != CLASS.IN or dns_req.q.qtype != QTYPE.SOA:
+                dns_res.header.rcode = RCODE.REFUSED
+                return dns_res
+
+            zone_name = str(DNSLabel(
+                list(map(lambda n: n.decode().lower().encode(), q.qname.label))
+            ))[:-1]
+            secondary_zone = models.SecondaryDNSZone.objects.filter(zone_root=zone_name).first()
+            if not secondary_zone:
+                dns_res.header.rcode = RCODE.NOTAUTH
+                return dns_res
+
+            print(f"Got notification for zone {secondary_zone}", flush=True)
+            tasks.sync_secondary.delay(secondary_zone.id)
+
+        return dns_res
 
     def AXFRQuery(self, request: dns_pb2.DnsPacket, context):
         try:
