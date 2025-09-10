@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import dns_pb2 as dns__pb2
+from . import dns_pb2 as dns__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
 GRPC_VERSION = grpc.__version__
