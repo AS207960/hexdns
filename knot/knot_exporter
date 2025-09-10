@@ -429,16 +429,13 @@ class KnotCollector(object):
 
         for section, section_data in global_stats.items():
             for item, item_data in section_data.items():
-                if type(item_data) == dict:
+                if isinstance(item_data, dict):
                     for kind, value in item_data.items():
                         kind_sect = kind.lower()
-                        yield GaugeMetricFamily(
-                            (f"knot_{section}_{item}_{kind_sect}").replace('-', '_'),
-                            '',
-                            value
-                        )
+                        name = f"knot_{section}_{item}_{kind_sect}".replace('-', '_')
+                        yield GaugeMetricFamily(name, '', value=value)
                 else:
-                    name = ('knot_' + section + '_' + item).replace('-', '_')
+                    name = f"knot_{section}_{item}".replace('-', '_')
                     yield GaugeMetricFamily(name, '', value=item_data)
 
         # Get zone metrics.
@@ -449,14 +446,22 @@ class KnotCollector(object):
             for zone, zone_data in zone_stats["zone"].items():
                 for section, section_data in zone_data.items():
                     for item, item_data in section_data.items():
-                        for kind, kind_data in item_data.items():
-                            if kind_data == 0:
+                        name = f"knot_{item}".replace('-', '_')
+                        if isinstance(item_data, dict):
+                            for kind, value in item_data.items():
+                                if value == 0:
+                                    continue
+
+                                kind_sect = kind.lower()
+                                m = GaugeMetricFamily(name, '', labels=['zone', 'section', 'kind'])
+                                m.add_metric([zone, section, kind_sect], value)
+                                yield m
+                        else:
+                            if item_data == 0:
                                 continue
 
-                            name = ('knot_' + item).replace('-', '_')
-                            m = GaugeMetricFamily(name, '',
-                                    labels=['zone', 'section', 'type'])
-                            m.add_metric([zone, section, kind], kind_data)
+                            m = GaugeMetricFamily(name, '', labels=['zone', 'section'])
+                            m.add_metric([zone, section], item_data)
                             yield m
 
 if __name__ == '__main__':

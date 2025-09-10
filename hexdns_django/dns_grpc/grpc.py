@@ -772,8 +772,6 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         yield dns_res
         yield soa_dns_res
 
-        # self.sign_rrset(soa_dns_res, zone, query_name, is_dnssec)
-
     def handle_update_query(self, dns_req: dnslib.DNSRecord, raw_msg: bytes):
         dns_res = dns_req.reply(ra=False)
         raw_msg = bytearray(raw_msg)
@@ -1261,6 +1259,12 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         sign_resp()
         return dns_res
 
+    def handle_notify_query(self, dns_req: dnslib.DNSRecord):
+        for q in dns_req.questions:
+            if q.qclass != CLASS.IN:
+                continue
+            print("Got notification for zone {}".format(q.qname), flush=True)
+
     def AXFRQuery(self, request: dns_pb2.DnsPacket, context):
         try:
             dns_req = self.parse_dns_record(request.msg)
@@ -1307,6 +1311,36 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
         try:
             dns_res = self.handle_update_query(dns_req, request.msg)
+        except models.DNSError as e:
+            print(e.message, flush=True)
+            dns_res = dns_req.reply(ra=False)
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return self.make_resp(dns_res)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
+            dns_res = dns_req.reply(ra=False)
+            dns_res.header.rcode = RCODE.SERVFAIL
+            return self.make_resp(dns_res)
+
+        res = self.make_resp(dns_res)
+        return res
+
+    def NotifyQuery(self, request, context):
+        try:
+            dns_req = self.parse_dns_record(request.msg)
+        except dnslib.DNSError:
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
+            dns_res = dnslib.DNSRecord()
+            dns_res.header.rcode = RCODE.FORMERR
+            return self.make_resp(dns_res)
+
+        try:
+            dns_res = self.handle_notify_query(dns_req)
         except models.DNSError as e:
             print(e.message, flush=True)
             dns_res = dns_req.reply(ra=False)

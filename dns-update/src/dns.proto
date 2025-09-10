@@ -11,6 +11,7 @@ service DnsService {
     rpc Query (DnsPacket) returns (DnsPacket);
     rpc AXFRQuery (DnsPacket) returns (stream DnsPacket);
     rpc UpdateQuery (DnsPacket) returns (DnsPacket);
+    rpc NotifyQuery (DnsPacket) returns (DnsPacket);
 }
 
 message ClearCache {

@@ -7,7 +7,7 @@ use tokio::task::JoinError;
 #[derive(Debug, Clone)]
 pub struct Request {
     pub msg: trust_dns_proto::op::Message,
-    pub query: trust_dns_client::op::LowerQuery,
+    pub query: trust_dns_proto::op::LowerQuery,
     pub raw_bytes: Vec<u8>,
 }
 
@@ -16,7 +16,7 @@ pub struct RequestContext {
     context: MessageContext,
     addr: std::net::SocketAddr,
     header: trust_dns_proto::op::Header,
-    query: trust_dns_client::op::LowerQuery,
+    query: trust_dns_proto::op::LowerQuery,
     res_tx: tokio::sync::mpsc::Sender<OutgoingMessage>
 }
 
@@ -68,7 +68,7 @@ struct OutgoingMessage {
     msg: trust_dns_proto::op::Message,
     addr: std::net::SocketAddr,
     header: trust_dns_proto::op::Header,
-    query: trust_dns_client::op::LowerQuery,
+    query: trust_dns_proto::op::LowerQuery,
     context: MessageContext,
 }
 
@@ -122,7 +122,7 @@ impl<
             match trust_dns_proto::op::Message::from_bytes(&req.msg) {
                 Ok(m) => {
                     let query = match m.queries().get(0) {
-                        Some(q) => trust_dns_client::op::LowerQuery::query(q.clone()),
+                        Some(q) => trust_dns_proto::op::LowerQuery::query(q.clone()),
                         None => {
                             continue;
                         }
@@ -135,7 +135,7 @@ impl<
                         addr = map_nat64(req.addr.ip()),
                         port = req.addr.port(),
                         message_type = m.message_type(),
-                        is_dnssec = m.edns().map_or(false, trust_dns_proto::op::Edns::dnssec_ok),
+                        is_dnssec = m.extensions().as_ref().map_or(false, trust_dns_proto::op::Edns::dnssec_ok),
                         op = m.op_code(),
                         query = query.name(),
                         qtype = query.query_type(),

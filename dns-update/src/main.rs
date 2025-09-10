@@ -13,7 +13,7 @@ struct Context {
 }
 
 async fn handle_request(mut context: Context, request_message: dns_cache::Request, request_context: dns_cache::RequestContext) {
-    if let Some(edns) = request_message.msg.edns() {
+    if let Some(edns) = request_message.msg.extensions() {
         if edns.version() > 0 {
             warn!(
                 "request edns version greater than 0: {}",
@@ -32,52 +32,86 @@ async fn handle_request(mut context: Context, request_message: dns_cache::Reques
     }
 
     match request_message.msg.message_type() {
-        trust_dns_client::op::MessageType::Query => match request_message.msg.op_code() {
-            trust_dns_client::op::OpCode::Update => {
-                debug!("update received: {}", request_message.msg.id());
-                let raw_bytes = request_message.raw_bytes.clone();
-                let val = async {
-                    let request = tonic::Request::new(dns_proto::DnsPacket {
-                        msg: raw_bytes
-                    });
-                    let rpc_response = match context.client.update_query(request).await {
-                        Ok(x) => x,
-                        Err(e) => {
-                            error!("Error communicating with upstream: {}", e);
-                            return Err(trust_dns_client::op::ResponseCode::ServFail);
-                        }
-                    };
-                    let response = rpc_response.into_inner();
-                    let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
-                        Ok(x) => x,
-                        Err(e) => {
-                            error!("Error parsing response from upstream: {}", e);
-                            return Err(trust_dns_client::op::ResponseCode::ServFail);
-                        }
-                    };
-                    Ok(response_msg)
-                }.await;
-                match val {
-                    Ok(response_msg) => {
-                        request_context.respond(response_msg).await;
-                    }
-                    Err(e) => {
-                        let response_msg = trust_dns_proto::op::Message::error_msg(
-                            request_message.msg.id(), request_message.msg.op_code(), e
-                        );
-                        request_context.respond(response_msg).await;
-                    }
-                }
-            }
-            c => {
-                warn!("unimplemented op_code: {:?}", c);
-                let response_msg = trust_dns_proto::op::Message::error_msg(
-                    request_message.msg.id(), request_message.msg.op_code(),
-                    trust_dns_client::op::ResponseCode::NotImp,
-                );
-                request_context.respond(response_msg).await;
-            }
-        },
+        trust_dns_client::op::MessageType::Query => {
+			let raw_bytes = request_message.raw_bytes.clone();
+			let request = tonic::Request::new(dns_proto::DnsPacket {
+				msg: raw_bytes
+			});
+			match request_message.msg.op_code() {
+				trust_dns_client::op::OpCode::Update => {
+					debug!("update received: {}", request_message.msg.id());
+					let val = async {
+						let rpc_response = match context.client.update_query(request).await {
+							Ok(x) => x,
+							Err(e) => {
+								error!("Error communicating with upstream: {}", e);
+								return Err(trust_dns_client::op::ResponseCode::ServFail);
+							}
+						};
+						let response = rpc_response.into_inner();
+						let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
+							Ok(x) => x,
+							Err(e) => {
+								error!("Error parsing update response from upstream: {}", e);
+								return Err(trust_dns_client::op::ResponseCode::ServFail);
+							}
+						};
+						Ok(response_msg)
+					}.await;
+					match val {
+						Ok(response_msg) => {
+							request_context.respond(response_msg).await;
+						}
+						Err(e) => {
+							let response_msg = trust_dns_proto::op::Message::error_msg(
+								request_message.msg.id(), request_message.msg.op_code(), e
+							);
+							request_context.respond(response_msg).await;
+						}
+					}
+				}
+				trust_dns_client::op::OpCode::Notify => {
+					debug!("notify received: {}", request_message.msg.id());
+					let val = async {
+						let rpc_response = match context.client.notify_query(request).await {
+							Ok(x) => x,
+							Err(e) => {
+								error!("Error communicating with upstream: {}", e);
+								return Err(trust_dns_client::op::ResponseCode::ServFail);
+							}
+						};
+						let response = rpc_response.into_inner();
+						let response_msg = match trust_dns_proto::op::message::Message::from_bytes(&response.msg) {
+							Ok(x) => x,
+							Err(e) => {
+								error!("Error parsing notify response from upstream: {}", e);
+								return Err(trust_dns_client::op::ResponseCode::ServFail);
+							}
+						};
+						Ok(response_msg)
+					}.await;
+					match val {
+						Ok(response_msg) => {
+							request_context.respond(response_msg).await;
+						}
+						Err(e) => {
+							let response_msg = trust_dns_proto::op::Message::error_msg(
+								request_message.msg.id(), request_message.msg.op_code(), e
+							);
+							request_context.respond(response_msg).await;
+						}
+					}
+				}
+				c => {
+					warn!("unimplemented op_code: {:?}", c);
+					let response_msg = trust_dns_proto::op::Message::error_msg(
+						request_message.msg.id(), request_message.msg.op_code(),
+						trust_dns_client::op::ResponseCode::NotImp,
+					);
+					request_context.respond(response_msg).await;
+				}
+			}
+		},
         trust_dns_client::op::MessageType::Response => {
             warn!(
                 "got a response as a request from id: {}",
@@ -95,39 +129,40 @@ async fn handle_request(mut context: Context, request_message: dns_cache::Reques
 fn main() {
     pretty_env_logger::init();
 
-    let args = clap::App::new(clap::crate_name!())
+    let args = clap::Command::new(clap::crate_name!())
         .about(clap::crate_description!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!(", "))
-        .arg(clap::Arg::with_name("port")
-            .short("p")
+        .arg(clap::Arg::new("port")
+            .short('p')
             .long("port")
             .env("DNS_PORT")
             .help("Port to listen on for DNS queries")
-            .takes_value(true)
+			.value_parser(value_parser!(u16))
+			.action(clap::ArgAction::Set)
             .default_value("53"))
-        .arg(clap::Arg::with_name("addr")
-            .short("a")
+        .arg(clap::Arg::new("addr")
+            .short('a')
             .long("addr")
             .env("DNS_ADDR")
             .help("Addresses to listen on for DNS queries")
-            .takes_value(true)
-            .multiple(true)
+            .action(clap::ArgAction::Append)
+			.value_parser(value_parser!(std::net::SocketAddr))
             .default_value("::"))
-        .arg(clap::Arg::with_name("upstream")
-            .short("u")
+        .arg(clap::Arg::new("upstream")
+            .short('u')
             .long("upstream")
             .env("DNS_UPSTREAM")
             .required(true)
             .help("gRPC upstream server (e.g. http://[::1]:50051)")
-            .takes_value(true))
+			.action(clap::ArgAction::Set))
         .get_matches();
 
-    let ip_addrs = clap::values_t_or_exit!(args, "addr", std::net::IpAddr);
-    let port = clap::value_t_or_exit!(args, "port", u16);
+    let ip_addrs = args.get_many::<std::net::IpAddr>("addr").unwrap();
+    let port = args.get_one::<u16>("port").unwrap();
 
     let sockaddrs: Vec<std::net::SocketAddr> = ip_addrs.into_iter()
-        .map(|a| std::net::SocketAddr::new(a, port)).collect();
+        .map(|a| std::net::SocketAddr::new(*a, *port)).collect();
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(1024)
@@ -138,7 +173,7 @@ fn main() {
         .expect("failed to initialize Tokio Runtime");
 
     let client = runtime.block_on(
-        dns_proto::dns_service_client::DnsServiceClient::connect(args.value_of("upstream").unwrap().to_string())
+        dns_proto::dns_service_client::DnsServiceClient::connect(args.get_one::<String>("upstream").unwrap().to_string())
     ).expect("Unable to connect to upstream server");
 
     let server = dns_cache::Server {

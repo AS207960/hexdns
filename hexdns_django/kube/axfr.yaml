@@ -98,7 +98,7 @@ spec:
             secretName: hexdns-signal-privkey
       containers:
         - name: knot
-          image: as207960/knotd:7
+          image: as207960/knotd:9
           imagePullPolicy: Always
           command: [
             "sh", "-c",

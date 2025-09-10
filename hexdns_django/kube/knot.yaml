@@ -203,7 +203,7 @@ spec:
           emptyDir: {}
       containers:
         - name: knot
-          image: as207960/knotd:6
+          image: as207960/knotd:9
           imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",

@@ -8,6 +8,8 @@ data:
         identity: "HexDNS"
         listen: 0.0.0.0@53
         listen: ::@53
+        listen-tls: 0.0.0.0@853
+        listen-tls: ::@853
         nsid: (nsid)
         key-file: /quic/tls.key
         cert-file: /quic/tls.crt
@@ -129,7 +131,7 @@ spec:
               secretName: hexdns-quic
       containers:
         - name: knot
-          image: as207960/knotd:7
+          image: as207960/knotd:9
           imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
@@ -169,12 +171,12 @@ spec:
             - secretRef:
                 name: hexdns-rpc
         - name: exporter
-          image: as207960/knot-exporter:2
+          image: as207960/knot-exporter:6
           imagePullPolicy: IfNotPresent
           command: [
             "sh", "-c",
             "sleep 20 && 
-            python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.11"
+            python3 /app/knot_exporter --web-listen-addr :: --knot-socket-path /rundir/knot.sock --knot-library-path /usr/lib/x86_64-linux-gnu/libknot.so.13"
           ]
           readinessProbe:
             tcpSocket:
@@ -203,6 +205,8 @@ spec:
           port: 53
         - protocol: UDP
           port: 53
+        - protocol: TCP
+          port: 853
         - protocol: UDP
           port: 853
 ---

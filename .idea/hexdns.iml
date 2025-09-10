@@ -29,6 +29,9 @@
     <orderEntry type="module" module-name="hexdns_django" />
     <orderEntry type="module" module-name="knot" />
   </component>
+  <component name="PackageRequirementsSettings">
+    <option name="requirementsPath" value="" />
+  </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_CONFIGURATION" value="Django" />
     <option name="TEMPLATE_FOLDERS">
