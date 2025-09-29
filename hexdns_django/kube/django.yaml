@@ -332,7 +332,7 @@ spec:
   template:
     metadata:
       annotations:
-        cni.projectcalico.org/ipv6pools: "[\"default-ipv6-ippool\"]"
+        cni.projectcalico.org/ipv6pools: "[\"axfr-ip6-ippool\"]"
       labels:
         app: hexdns
         part: celery
@@ -349,11 +349,18 @@ spec:
             secretName: hexdns-signal-privkey
         - name: celery-state
           emptyDir: {}
+        - name: tmp-pod
+          emptyDir: { }
       containers:
         - name: celery
           image: as207960/hexdns-django:(version)
           imagePullPolicy: Always
-          command: ["celery",  "-A", "hexdns_django", "worker", "--loglevel=INFO", "-c", "4"]
+          command: [ "/bin/bash", "-c" ]
+          args:
+            - |
+              trap "touch /tmp/pod/main-terminated" EXIT
+              sleep 15
+              celery -A hexdns_django worker --loglevel=INFO -c 4
           livenessProbe:
             exec:
               command: [
@@ -373,6 +380,8 @@ spec:
               name: signal-privkey
             - mountPath: "/celery-state/"
               name: celery-state
+            - mountPath: /tmp/pod
+              name: tmp-pod
           envFrom:
             - configMapRef:
                 name: hexdns-django-conf
@@ -397,6 +406,22 @@ spec:
                 name: hexdns-rpc
             - secretRef:
                 name: hexdns-s3
+        - name: clatd
+          image: as207960/clatd
+          command: [ "/bin/bash", "-c" ]
+          args:
+            - |
+              /clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' &
+              CHILD_PID=$!
+              (while true; do if [[ -f "/tmp/pod/main-terminated" ]]; then kill -9 $CHILD_PID; fi; sleep 1; done) &
+              wait $CHILD_PID
+              if [[ -f "/tmp/pod/main-terminated" ]]; then exit 0; fi
+          volumeMounts:
+            - mountPath: /tmp/pod
+              name: tmp-pod
+              readOnly: true
+          securityContext:
+            privileged: true
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -644,7 +669,7 @@ spec:
       template:
         metadata:
           annotations:
-            cni.projectcalico.org/ipv6pools: "[\"axfr-ip6-ippool\"]"
+            cni.projectcalico.org/ipv6pools: "[\"default-ip6-ippool\"]"
           labels:
             app: hexdns
             part: transfer-secondary
@@ -658,8 +683,6 @@ spec:
             - name: domains-pubkey
               configMap:
                 name: domains-jwt-pub
-            - name: tmp-pod
-              emptyDir: {}
             - name: signal-privkey
               secret:
                 secretName: hexdns-signal-privkey
@@ -670,12 +693,8 @@ spec:
               command: ["/bin/bash", "-c"]
               args:
                 - |
-                  trap "touch /tmp/pod/main-terminated" EXIT
-                  sleep 15
                   python3 manage.py transfer-secondary
               volumeMounts:
-                - mountPath: /tmp/pod
-                  name: tmp-pod
                 - mountPath: "/pubkey/"
                   name: pubkey
                 - mountPath: "/domains-pubkey/"
@@ -706,22 +725,6 @@ spec:
                     name: hexdns-rpc
                 - secretRef:
                     name: hexdns-s3
-            - name: clatd
-              image: as207960/clatd
-              command: ["/bin/bash", "-c"]
-              args:
-                - |
-                  /clatd/clatd clat-v6-addr=fd2e:ae7d:58e3:f6ab::1 v4-conncheck-enable=no 'script-up=ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' &
-                  CHILD_PID=$!
-                  (while true; do if [[ -f "/tmp/pod/main-terminated" ]]; then kill -9 $CHILD_PID; fi; sleep 1; done) &
-                  wait $CHILD_PID
-                  if [[ -f "/tmp/pod/main-terminated" ]]; then exit 0; fi
-              volumeMounts:
-                - mountPath: /tmp/pod
-                  name: tmp-pod
-                  readOnly: true
-              securityContext:
-                privileged: true
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1
