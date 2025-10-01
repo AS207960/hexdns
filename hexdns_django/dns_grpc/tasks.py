@@ -181,7 +181,7 @@ def generate_fzone(zone: "models.DNSZone"):
                 try:
                     alias = dnslib.DNSLabel(idna.encode(record.alias, uts46=True))
                 except idna.IDNAError:
-                    if all((ord(c) < 127 and c in string.printable) for c in record.alias):
+                    if all(c in models.DNS_ALPHABET for c in record.alias):
                         alias = dnslib.DNSLabel(record.alias)
                     else:
                         continue
