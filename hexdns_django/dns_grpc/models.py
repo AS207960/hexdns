@@ -56,9 +56,9 @@ def idna_encode(value: str):
     except ValueError:
         pass
 
-    allowed_chars = string.ascii_letters + string.digits + "-_ *."
+    allowed_chars = string.ascii_letters + string.digits + "-_*."
     if all(c in allowed_chars for c in value):
-        return value.replace(" ", "\\040")
+        return value
 
     return None
 
