@@ -30,7 +30,7 @@ if settings.KUBE_IN_CLUSTER:
 else:
     kubernetes.config.load_kube_config()
 
-DNS_ALPHABET = string.ascii_lowercase + string.digits + "-."
+DNS_ALPHABET = string.ascii_lowercase + string.digits + "-._"
 
 def idna_old_encode(value: str):
     allowed_chars = string.ascii_letters + string.digits + "-_*"
