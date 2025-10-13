@@ -14,7 +14,7 @@ psl = publicsuffixlist.PublicSuffixList()
 
 
 def get_priv_key_bytes():
-    priv_key = ec.generate_private_key(curve=ec.SECP256R1, backend=default_backend())
+    priv_key = ec.generate_private_key(curve=ec.SECP256R1(), backend=default_backend())
     priv_key_bytes = priv_key.private_bytes(
         encoding=Encoding.PEM,
         format=PrivateFormat.PKCS8,
