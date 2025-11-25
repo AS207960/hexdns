@@ -358,6 +358,7 @@ spec:
           command: [ "/bin/bash", "-c" ]
           args:
             - |
+              rm /tmp/pod/main-terminated || true
               trap "touch /tmp/pod/main-terminated" EXIT
               sleep 15
               celery -A hexdns_django worker --loglevel=INFO -c 4

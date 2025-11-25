@@ -36,11 +36,7 @@ def edit_rzone(request, zone_id):
 
     dnssec = {}
     for label in user_zone.dns_labels:
-        dnssec_digest, dnssec_tag = utils.make_zone_digest(label)
-        dnssec[label] = {
-            "digest": dnssec_digest,
-            "tag": dnssec_tag
-        }
+        dnssec[label] = utils.make_zone_digests(label)
 
 
     if user_zone.get_user() == request.user:
