@@ -208,7 +208,7 @@ def edit_r_ns_record(request, record_id):
 @login_required
 def copy_r_ns_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
-    user_record = get_object_or_404(models.NSRecord, id=record_id)
+    user_record = get_object_or_404(models.ReverseNSRecord, id=record_id)
 
     if not user_record.zone.has_scope(access_token, 'edit'):
         raise PermissionDenied
@@ -242,4 +242,97 @@ def delete_r_ns_record(request, record_id):
         request,
         "dns_grpc/rzone/delete_rrecord.html",
         {"title": "Delete NS record", "record": user_record},
+    )
+
+
+
+@login_required
+def create_r_ds_record(request, zone_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_zone = get_object_or_404(models.ReverseDNSZone, id=zone_id)
+
+    if not user_zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ReverseDSRecordForm(
+            request.POST, instance=models.ReverseDSRecord(zone=user_zone)
+        )
+        if record_form.is_valid():
+            record_form.save()
+            user_zone.last_modified = timezone.now()
+            user_zone.save()
+            return redirect("edit_rzone", user_zone.id)
+    else:
+        record_form = forms.ReverseDSRecordForm()
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create DS record", "form": record_form},
+    )
+
+
+@login_required
+def edit_r_ds_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.ReverseDSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        record_form = forms.ReverseDSRecordForm(request.POST, instance=user_record)
+        if record_form.is_valid():
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            record_form.save()
+            return redirect("edit_rzone", user_record.zone.id)
+    else:
+        record_form = forms.ReverseDSRecordForm(instance=user_record)
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Edit DS record", "form": record_form, },
+    )
+
+
+@login_required
+def copy_r_ns_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.ReverseDSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    record_form = forms.ReverseDSRecordForm(instance=user_record)
+    record_form.helper.form_action = reverse("create_r_ds_record", kwargs={"zone_id": user_record.zone.id})
+
+    return render(
+        request,
+        "dns_grpc/fzone/edit_record.html",
+        {"title": "Create DS record", "form": record_form, },
+    )
+
+
+@login_required
+def delete_r_ds_record(request, record_id):
+    access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
+    user_record = get_object_or_404(models.ReverseDSRecord, id=record_id)
+
+    if not user_record.zone.has_scope(access_token, 'edit'):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        if request.POST.get("delete") == "true":
+            user_record.zone.last_modified = timezone.now()
+            user_record.zone.save()
+            user_record.delete()
+            return redirect("edit_rzone", user_record.zone.id)
+
+    return render(
+        request,
+        "dns_grpc/rzone/delete_rrecord.html",
+        {"title": "Delete DS record", "record": user_record},
     )
