@@ -345,13 +345,17 @@ def generate_rzone(zone: "models.ReverseDNSZone", network: typing.Union[ipaddres
             zone_file += f"{models.address_to_arpa(addr)} {record.ttl} IN PTR {record.pointer_label}\n"
 
     for record in zone.reversensrecord_set.all():
-        ns_network = ipaddress.ip_network((record.record_address, record.record_prefix))
-        if ns_network.subnet_of(network):
+        if record.network.subnet_of(network):
             zone_file += f"; NS record {record.id}\n"
-            ns_networks = models.reverse_zone_networks(ns_network)
-            for ns_network in ns_networks:
-                zone_file += f"{models.network_to_arpa(ns_network)} {record.ttl} IN NS " \
-                             f"{dnslib.DNSLabel(record.nameserver)}\n"
+            for label in record.dns_labels:
+                zone_file += f"{label} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
+
+    for record in zone.reversedsrecord_set.all():
+        if record.network.subnet_of(network):
+            zone_file += f"; DS record {record.id}\n"
+            for label in record.dns_labels:
+                zone_file += f"{label} {record.ttl} IN DS {record.key_tag} {record.algorithm} " \
+                         f"{record.digest_type} {record.digest}\n"
 
     zones = {}
     for record in models.AddressRecord.objects.raw(

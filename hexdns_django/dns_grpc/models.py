@@ -1584,16 +1584,15 @@ DNSSEC_ALGORITHMS = (
     (15, "Ed25519 (15)"),
     (16, "Ed448 (16)"),
 )
+DIGEST_TYPES = (
+    (1, "SHA-1 (1) INSECURE"),
+    (2, "SHA-256 (2)"),
+    (3, "GOST R 34.11-94 (3)"),
+    (4, "SHA-384 (4)"),
+)
 
 class DSRecord(DNSZoneRecord):
     id = as207960_utils.models.TypedUUIDField(f"hexdns_zonedsrecord", primary_key=True)
-
-    DIGEST_TYPES = (
-        (1, "SHA-1 (1) INSECURE"),
-        (2, "SHA-256 (2)"),
-        (3, "GOST R 34.11-94 (3)"),
-        (4, "SHA-384 (4)"),
-    )
 
     key_tag = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
     algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
@@ -2589,6 +2588,56 @@ class ReverseNSRecord(ReverseDNSZoneRecord):
         verbose_name = "NS record"
         verbose_name_plural = "NS records"
         indexes = [models.Index(fields=['record_address', 'zone'])]
+
+
+class ReverseDSRecord(ReverseDNSZoneRecord):
+    id = as207960_utils.models.TypedUUIDField(f"hexdns_rzonedsrecord", primary_key=True)
+    record_prefix = models.PositiveIntegerField(validators=[MaxValueValidator(128)])
+
+    key_tag = models.PositiveIntegerField(validators=[MaxValueValidator(65535)])
+    algorithm = models.PositiveSmallIntegerField(choices=DNSSEC_ALGORITHMS)
+    digest_type = models.PositiveSmallIntegerField(choices=DIGEST_TYPES)
+    digest = models.TextField(validators=[hex_validator])
+
+    @property
+    def digest_bin(self):
+        try:
+            return bytearray.fromhex(self.digest)
+        except ValueError:
+            try:
+                return base64.b64decode(self.digest)
+            except binascii.Error:
+                return None
+
+    @property
+    def network(self):
+        try:
+            return ipaddress.ip_network(
+                (self.record_address, self.record_prefix)
+            )
+        except ValueError:
+            return None
+
+    @property
+    def zone_networks(self) -> typing.List[typing.Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        return reverse_zone_networks(self.network)
+
+    @property
+    def dns_labels(self) -> typing.List[dnslib.DNSLabel]:
+        return [network_to_arpa(n) for n in self.zone_networks]
+
+    class Meta(ReverseDNSZoneRecord.Meta):
+        verbose_name = "DS record"
+        verbose_name_plural = "DS records"
+        indexes = [models.Index(fields=['record_address', 'zone'])]
+
+    def save(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.zone.id)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_rzone.delay(self.zone.id)
+        return super().delete(*args, **kwargs)
 
 
 class GoogleState(models.Model):
