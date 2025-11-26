@@ -299,7 +299,7 @@ def edit_r_ds_record(request, record_id):
 
 
 @login_required
-def copy_r_ns_record(request, record_id):
+def copy_r_ds_record(request, record_id):
     access_token = django_keycloak_auth.clients.get_active_access_token(oidc_profile=request.user.oidc_profile)
     user_record = get_object_or_404(models.ReverseDSRecord, id=record_id)
 
