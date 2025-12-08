@@ -842,11 +842,11 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
         for i in range(h.q):
             dnslib.DNSQuestion.parse(b)
         for i in range(h.a):
-            dnslib.RR.parse(b)
+            self.parse_rr(b)
         for i in range(h.auth):
-            dnslib.RR.parse(b)
+            self.parse_rr(b)
         for i in range(h.ar):
-            dnslib.RR.parse(b)
+            self.parse_rr(b)
         d = raw_msg[:b.offset]
         temp_buffer = dnslib.DNSBuffer()
         temp_buffer.encode_name_nocompress(req_tsig.rname)
@@ -897,7 +897,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
             ))
 
         # RFC 2845 § 4.5.2
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         min_time = incoming_tsig.time_signed - datetime.timedelta(seconds=incoming_tsig.fudge)
         max_time = incoming_tsig.time_signed + datetime.timedelta(seconds=incoming_tsig.fudge)
         if now < min_time or now > max_time:
@@ -946,7 +946,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
             # RFC 2136 § 3.2.1
             if rr.rclass == getattr(CLASS, "*"):
-                if rr.rdata != '':
+                if not isinstance(rr.rdata, dnslib.RD) or rr.rdata.data != b"":
                     dns_res.header.rcode = RCODE.FORMERR
                     sign_resp()
                     return dns_res
@@ -964,7 +964,7 @@ class DnsServiceServicer(dns_pb2_grpc.DnsServiceServicer):
 
             # RFC 2136 § 3.2.2
             elif rr.rclass == getattr(CLASS, "None"):
-                if rr.rdata != '':
+                if not isinstance(rr.rdata, dnslib.RD) or rr.rdata.data != b"":
                     dns_res.header.rcode = RCODE.FORMERR
                     sign_resp()
                     return dns_res
