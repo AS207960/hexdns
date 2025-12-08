@@ -78,7 +78,7 @@ class TSIG:
 
         fudge = timestamp & 0xFFFF
         time_signed_stamp = timestamp >> 16
-        time_signed = datetime.datetime.utcfromtimestamp(time_signed_stamp)
+        time_signed = datetime.datetime.fromtimestamp(time_signed_stamp, datetime.timezone.utc)
 
         return cls(
             alg_name=alg_name,
