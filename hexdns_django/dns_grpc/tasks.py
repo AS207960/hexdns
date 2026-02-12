@@ -804,7 +804,10 @@ def sync_secondary(zone_id):
         except struct.error:
             logger.info(f"Invalid SOA response from {zone.primary}")
             return
-        response_bytes = sock.recv(response_len)
+        response_bytes = bytearray()
+        while len(response_bytes) < response_len:
+            response_bytes.extend(sock.recv(response_len - len(response_bytes)))
+        response_bytes = bytes(response_bytes)
         soa_response = dnslib.DNSRecord.parse(response_bytes)
         if len(soa_response.rr) != 1:
             logger.info(f"Invalid SOA response from {zone.primary}")
@@ -835,7 +838,10 @@ def sync_secondary(zone_id):
         while True:
             response_len_bytes = sock.recv(2)
             response_len = struct.unpack("!H", response_len_bytes)[0]
-            response_bytes = sock.recv(response_len)
+            response_bytes = bytearray()
+            while len(response_bytes) < response_len:
+                response_bytes.extend(sock.recv(response_len - len(response_bytes)))
+            response_bytes = bytes(response_bytes)
             axfr_response = dnslib.DNSRecord.parse(response_bytes)
             if axfr_response.header.rcode != dnslib.RCODE.NOERROR:
                 logger.info(f"Failed to sync from {zone.primary}: {dnslib.RCODE.get(axfr_response.header.rcode)}")

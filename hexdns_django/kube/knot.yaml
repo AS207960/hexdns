@@ -155,8 +155,8 @@ data:
         template: zone
         file: /zones/cds-delete.dns.as207960.ltd.uk.zone
     
-      - domain: kube-cluster.as207960.net
-        template: zone-k8s
+    #  - domain: kube-cluster.as207960.net
+    #    template: zone-k8s
 ---
 apiVersion: apps/v1
 kind: Deployment
