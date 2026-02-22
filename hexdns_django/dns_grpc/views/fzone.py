@@ -102,8 +102,9 @@ def create_domains_zone(request):
 
     try:
         domain_token = jwt.decode(
-            request.GET.get("domain_token"), settings.DOMAINS_JWT_PUB, issuer='urn:as207960:domains',
-            audience='urn:as207960:hexdns', options={'require': ['exp', 'iss', 'sub', 'domain']}, algorithms='ES384'
+            request.GET.get("domain_token"), settings.DOMAINS_JWT_PUB, issuer="urn:as207960:domains",
+            audience="urn:as207960:hexdns", options={"require": ["exp", "iss", "sub", "domain"]},
+            algorithms=["ES256", "ES384"]
         )
     except jwt.exceptions.InvalidTokenError as e:
         return render(request, "dns_grpc/error.html", {
@@ -127,8 +128,6 @@ def create_domains_zone(request):
 
     existing_zone = models.DNSZone.objects.filter(zone_root=domain_token["domain"]).first()
     if existing_zone:
-        existing_zone.active = True
-        existing_zone.save()
         request.session["zone_notice"] = "We've updated the DNS servers for your domain to point to HexDNS. " \
                                          "It may take up to 24 hours for the updates to propagate."
         return redirect('edit_zone', existing_zone.id)
