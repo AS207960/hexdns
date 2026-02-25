@@ -773,6 +773,7 @@ def sync_secondary(zone_id):
         logger.info(f"Can't get address of {zone.primary}: {e}")
         zone.error = True
         zone.error_message = f"Can't get address of {zone.primary}"
+        zone.error_timestamp = timezone.now()
         zone.save()
         return
     sock = None
@@ -791,6 +792,7 @@ def sync_secondary(zone_id):
         logger.info(f"Can't connect to {zone.primary}")
         zone.error = True
         zone.error_message = f"Can't connect to {zone.primary}"
+        zone.error_timestamp = timezone.now()
         zone.save()
         return
 
@@ -813,6 +815,7 @@ def sync_secondary(zone_id):
             logger.info(f"Invalid SOA response from {zone.primary}")
             zone.error = True
             zone.error_message = f"Invalid SOA response from {zone.primary}"
+            zone.error_timestamp = timezone.now()
             zone.save()
             sock.close()
             return
@@ -820,12 +823,16 @@ def sync_secondary(zone_id):
         if serial == zone.serial:
             logger.info(f"Identical serial on {zone.zone_root}, not updating")
             zone.error = False
+            zone.error_message = None
+            zone.error_timestamp = None
             zone.save()
             sock.close()
             return
     except (OSError, ValueError, dnslib.DNSError) as e:
         logger.warning(f"Failed to sync from {zone.primary}: {e}")
         zone.error = True
+        zone.error_message = f"Failed to sync from {zone.primary}: {e}"
+        zone.error_timestamp = timezone.now()
         zone.save()
         return
 
@@ -848,6 +855,7 @@ def sync_secondary(zone_id):
                 zone.error = True
                 zone.error_message = f"Failed to sync from {zone.primary}: " \
                                      f"got response {dnslib.RCODE.get(axfr_response.header.rcode)}"
+                zone.error_timestamp = timezone.now()
                 zone.save()
                 return
             for rr in axfr_response.rr:
@@ -863,6 +871,8 @@ def sync_secondary(zone_id):
     except (OSError, ValueError, dnslib.DNSError, struct.error) as e:
         logger.warning(f"Failed to sync from {zone.primary}: {e}")
         zone.error = True
+        zone.error_message = f"Failed to sync from {zone.primary}: {e}"
+        zone.error_timestamp = timezone.now()
         zone.save()
         return
 
@@ -873,6 +883,7 @@ def sync_secondary(zone_id):
         zone.serial = serial
         zone.error = False
         zone.error_message = None
+        zone.error_timestamp = None
         zone.save()
         update_szone.delay(zone.id)
         logger.info(f"Successfully updated from {zone.primary}")
@@ -880,6 +891,7 @@ def sync_secondary(zone_id):
         logger.info(f"Invalid number of SOAs from {zone.primary}")
         zone.error = True
         zone.error_message = f"Invalid number of SOAs received from {zone.primary}"
+        zone.error_timestamp = timezone.now()
         zone.save()
 
     sock.close()

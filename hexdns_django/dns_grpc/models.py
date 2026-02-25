@@ -634,6 +634,7 @@ class SecondaryDNSZone(models.Model):
     active = models.BooleanField(default=False, blank=True)
     error = models.BooleanField(default=False, blank=True)
     error_message = models.CharField(max_length=255, blank=True, null=True)
+    error_timestamp = models.DateTimeField(null=True, blank=True)
     num_check_fails = models.PositiveIntegerField(default=0)
     resource_id = models.UUIDField(null=True, db_index=True)
     cds_disable = models.BooleanField(default=False, blank=True)

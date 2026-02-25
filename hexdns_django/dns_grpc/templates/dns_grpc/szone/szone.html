@@ -31,6 +31,9 @@
                 <p>On our last attempt to sync the zone there was an error.</p>
                 {% if zone.error_message %}
                     <p>{{ zone.error_message }}</p>
+                    <p>
+                        <b>Last error date:</b> {{ zone.error_timestamp|date:"N jS Y P" }}
+                    </p>
                 {% endif %}
                 <hr>
                 <p class="mb-0">
