@@ -2,7 +2,7 @@ import requests.exceptions
 from django.core.management.base import BaseCommand
 from django.template.loader import render_to_string
 from django.conf import settings
-from dns_grpc import models, emails, utils
+from dns_grpc import models, emails, utils, tasks
 import keycloak.exceptions
 import random
 import retry
@@ -68,6 +68,8 @@ class Command(BaseCommand):
             if zone.num_check_fails >= 5:
                 print(f"Setting {zone} to inactive")
                 zone.active = False
+                zone.save()
+                tasks.update_fzone.delay(zone.id)
                 try:
                     emails.send_email(zone.get_user(), {
                         "subject": "HexDNS Zone Inactive",
@@ -77,7 +79,8 @@ class Command(BaseCommand):
                     })
                 except (keycloak.exceptions.KeycloakClientError, requests.exceptions.RequestException) as e:
                     print(f"Failed to notify user of status: {e}")
-            zone.save()
+            else:
+                zone.save()
 
     def handle(self, *args, **options):
         for zone in list(models.DNSZone.objects.all()) + list(models.SecondaryDNSZone.objects.all()):
@@ -106,6 +109,7 @@ class Command(BaseCommand):
                     zone.active = True
                     zone.num_check_fails = 0
                     zone.save()
+                    tasks.update_fzone.delay(zone.id)
 
                     feedback_url = utils.get_feedback_url(
                         f"HexDNS for {zone.zone_root}", zone.id

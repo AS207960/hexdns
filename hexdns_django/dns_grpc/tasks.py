@@ -23,6 +23,7 @@ import django.core.files.base
 import django.core.files.storage
 
 NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net.", "ns3.as207960.net.", "ns4.as207960.net."]
+INACTIVE_NAMESERVERS = ["ns1.as207960.net.", "ns2.as207960.net."]
 
 pika_client = apps.PikaClient()
 logger = get_task_logger(__name__)
@@ -67,8 +68,12 @@ def generate_zone_header(zone, zone_root):
         for ns in zone.custom_ns.all():
             zone_file += f"@ 86400 IN NS {dnslib.DNSLabel(ns.nameserver)}\n"
     else:
-        for ns in NAMESERVERS:
-            zone_file += f"@ 86400 IN NS {ns}\n"
+        if zone.active:
+            for ns in NAMESERVERS:
+                zone_file += f"@ 86400 IN NS {ns}\n"
+        else:
+            for ns in INACTIVE_NAMESERVERS:
+                zone_file += f"@ 86400 IN NS {ns}\n"
 
     if zone.cds_disable:
         zone_file += "@ 86400 IN CDS 0 0 0 00\n"
