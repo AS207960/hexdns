@@ -389,6 +389,11 @@ fn output_record(record: &trust_dns_proto::rr::Record) -> String {
                     format!("\"{}\"", txt)
                 }).join(" ")
             }
+            trust_dns_proto::rr::record_data::RData::HINFO(hinfo) => {
+				let cpu = encode_byte_string(hinfo.cpu()).replace("\"", "\\\"");
+				let os = encode_byte_string(hinfo.os()).replace("\"", "\\\"");
+				format!("\"{}\" \"{}\"", cpu, os)
+            }
             trust_dns_proto::rr::record_data::RData::CNAME(name) => {
                 name.to_ascii()
             }
