@@ -177,6 +177,8 @@ class DNSZone(models.Model):
         )
 
     def delete(self, *args, **kwargs):
+        for r in self.redirectrecord_set.all():
+            r.delete_ingress()
         super().delete(*args, *kwargs)
         as207960_utils.models.delete_resource(self.resource_id)
 
@@ -1060,10 +1062,17 @@ class RedirectRecord(DNSZoneRecord):
 
     def save(self, *args, **kwargs):
         tasks.update_fzone.delay(self.zone.id)
+        self.create_ingress()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        tasks.update_fzone.delay(self.zone.id)
+        self.delete_ingress()
+        return super().delete(*args, **kwargs)
+
+    def create_ingress(self):
         api_client = kubernetes.client.NetworkingV1Api()
         dns_name = ".".join(l.decode() for l in self.dns_label.label)
-        ingress_name = str(self.id).replace("_", "-")
-
         spec = kubernetes.client.models.V1IngressSpec(
             rules=[kubernetes.client.models.V1IngressRule(
                 host=dns_name,
@@ -1084,21 +1093,18 @@ class RedirectRecord(DNSZoneRecord):
             )],
             tls=[kubernetes.client.models.V1IngressTLS(
                 hosts=[dns_name],
-                secret_name=f"{ingress_name}-tls"
+                secret_name=f"{self.ingress_name}-tls"
             )]
         )
 
         try:
-            api_client.read_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
-            api_client.patch_namespaced_ingress(
-                ingress_name, settings.KUBE_NAMESPACE, kubernetes.client.models.V1Ingress(spec=spec)
-            )
+            api_client.read_namespaced_ingress(self.ingress_name, settings.KUBE_NAMESPACE)
         except kubernetes.client.ApiException as e:
             if e.status == 404:
                 api_client.create_namespaced_ingress(
                     settings.KUBE_NAMESPACE, kubernetes.client.models.V1Ingress(
                         metadata=kubernetes.client.models.V1ObjectMeta(
-                            name=ingress_name,
+                            name=self.ingress_name,
                             annotations={
                                 "cert-manager.io/cluster-issuer": "letsencrypt"
                             }
@@ -1108,15 +1114,24 @@ class RedirectRecord(DNSZoneRecord):
                 )
             else:
                 raise e
+        else:
+            api_client.patch_namespaced_ingress(
+                self.ingress_name, settings.KUBE_NAMESPACE, kubernetes.client.models.V1Ingress(spec=spec)
+            )
 
-        return super().save(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        tasks.update_fzone.delay(self.zone.id)
+    def delete_ingress(self):
         api_client = kubernetes.client.NetworkingV1Api()
-        ingress_name = str(self.id).replace("_", "-")
-        api_client.delete_namespaced_ingress(ingress_name, settings.KUBE_NAMESPACE)
-        return super().delete(*args, **kwargs)
+        try:
+            api_client.delete_namespaced_ingress(self.ingress_name, settings.KUBE_NAMESPACE)
+        except kubernetes.client.ApiException as e:
+            if e.status == 404:
+                pass
+            else:
+                raise e
+
+    @property
+    def ingress_name(self):
+        return str(self.id).replace("_", "-")
 
     def to_rr_v4(self, query_name):
         return dnslib.RR(

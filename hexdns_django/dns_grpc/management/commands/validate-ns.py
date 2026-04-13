@@ -70,6 +70,9 @@ class Command(BaseCommand):
                 zone.active = False
                 zone.save()
                 tasks.update_fzone.delay(zone.id)
+                if record_set := getattr(zone, "redirectrecord_set", None):
+                    for redirect in record_set.all():
+                        redirect.delete_ingress()
                 try:
                     emails.send_email(zone.get_user(), {
                         "subject": "HexDNS Zone Inactive",
@@ -110,6 +113,9 @@ class Command(BaseCommand):
                     zone.num_check_fails = 0
                     zone.save()
                     tasks.update_fzone.delay(zone.id)
+                    if record_set := getattr(zone, "redirectrecord_set", None):
+                        for redirect in record_set.all():
+                            redirect.create_ingress()
 
                     feedback_url = utils.get_feedback_url(
                         f"HexDNS for {zone.zone_root}", zone.id
