@@ -58,6 +58,7 @@ pub fn sign_zone(
 
     let default_ttl = std::cmp::min(soa_rrset.ttl(), soa.minimum());
     let mut out_zone = zone_file.clone();
+    out_zone.retain(|k, _| origin.zone_of(&trust_dns_proto::rr::domain::Name::from(&k.name)));
 
     out_zone.remove(&trust_dns_client::rr::RrKey {
         name: origin.clone().into(),
