@@ -2259,7 +2259,10 @@ class SVCBBaseRecord(DNSZoneRecord):
             if self.record_name.strip() == "@" or self.record_name.strip() == '':
                 return f"_{self.port}._{self.scheme}"
             else:
-                return f"_{self.port}._{self.scheme}.{self.idna_label}"
+                if label := self.idna_label:
+                    return f"_{self.port}._{self.scheme}.{self.idna_label}"
+                else:
+                    return None
 
     @property
     def dns_label(self):
@@ -2310,7 +2313,10 @@ class SVCBBaseRecord(DNSZoneRecord):
         data, mandatory = self.svcb_data
         if mandatory:
             data.params.append(svcb.SVCBParam("mandatory", svcb.MandatoryData(mandatory)))
-        return svcb.SVCB(self.priority, self.target, data)
+        if target := idna_encode(self.target):
+            return svcb.SVCB(self.priority, dnslib.DNSLabel(target), data)
+        else:
+            return None
 
     class Meta(DNSZoneRecord.Meta):
         abstract = True

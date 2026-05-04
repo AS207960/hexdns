@@ -103,8 +103,7 @@ def generate_fzone(zone: "models.DNSZone"):
 
     rzones = set()
     for record in zone.addressrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; Address record {record.id}\n"
             address = ipaddress.ip_address(record.address)
             if type(address) == ipaddress.IPv4Address:
@@ -126,8 +125,7 @@ def generate_fzone(zone: "models.DNSZone"):
         update_rzone.delay(rzone)
 
     for record in zone.dynamicaddressrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; Dynamic address record {record.id}\n"
             if record.current_ipv4:
                 zone_file += f"{record_name} {record.ttl} IN A {record.current_ipv4}\n"
@@ -135,8 +133,7 @@ def generate_fzone(zone: "models.DNSZone"):
                 zone_file += f"{record_name} {record.ttl} IN AAAA {record.current_ipv6}\n"
 
     for record in zone.anamerecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; ANAME record {record.id}\n"
             alias_label = dnslib.DNSLabel(record.alias)
 
@@ -165,8 +162,7 @@ def generate_fzone(zone: "models.DNSZone"):
                         zone_file += f"{record_name} {record.ttl} IN AAAA {address}\n"
 
     for record in zone.githubpagesrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; Github pages record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN A 185.199.108.153\n"
             zone_file += f"{record_name} {record.ttl} IN A 185.199.109.153\n"
@@ -178,8 +174,7 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record_name} {record.ttl} IN AAAA 2606:50c0:8003::153\n"
 
     for record in zone.cnamerecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             if record.alias == "@":
                 alias = zone_root
             else:
@@ -195,8 +190,7 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record_name} {record.ttl} IN CNAME {alias}\n"
 
     for record in zone.redirectrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; Redirect record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN A 45.129.95.254\n"
             zone_file += f"{record_name} {record.ttl} IN AAAA 2a0e:1cc1:1::1:7\n"
@@ -204,20 +198,17 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += f"{record_name} {record.ttl} IN CAA 128 issue \"letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/85247630\"\n"
 
     for record in zone.mxrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; MX record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN MX {record.priority} {dnslib.DNSLabel(record.exchange)}\n"
 
     for record in zone.nsrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; NS record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN NS {dnslib.DNSLabel(record.nameserver)}\n"
 
     for record in zone.txtrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             if record_name == "_domainconnect":
                 continue
 
@@ -230,22 +221,19 @@ def generate_fzone(zone: "models.DNSZone"):
             zone_file += "\n"
 
     for record in zone.srvrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; SRV record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN SRV {record.priority} {record.weight} {record.port} " \
                          f"{dnslib.DNSLabel(record.target)}\n"
 
     for record in zone.caarecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; CAA record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN CAA {record.flag} \"{encode_str(record.tag)}\" " \
                          f"\"{encode_str(record.value)}\"\n"
 
     for record in zone.naptrrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; NAPTR record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN NAPTR {record.order} {record.preference} " \
                          f"\"{encode_str(record.flags)}\" \"{encode_str(record.service)}\" " \
@@ -253,8 +241,7 @@ def generate_fzone(zone: "models.DNSZone"):
                          f"{dnslib.DNSLabel(record.replacement)}\n"
 
     for record in zone.sshfprecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             pubkey = record.key
             if pubkey.key_type == b"ssh-rsa":
                 algo_num = 1
@@ -274,22 +261,19 @@ def generate_fzone(zone: "models.DNSZone"):
                          f"{hashlib.sha256(pubkey._decoded_key).hexdigest()}\n"
 
     for record in zone.dsrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; DS record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN DS {record.key_tag} {record.algorithm} " \
                          f"{record.digest_type} {record.digest}\n"
 
     for record in zone.dnskeyrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; DNSKEY record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN DNSKEY {record.flags} {record.protocol} " \
                          f"{record.algorithm} {record.public_key}\n"
 
     for record in zone.locrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             d1, m1, s1 = dd_to_dms(record.latitude)
             d2, m2, s2 = dd_to_dms(record.longitude)
             ns = "S" if record.latitude < 0 else "N"
@@ -300,36 +284,33 @@ def generate_fzone(zone: "models.DNSZone"):
                          f"{record.altitude}m {record.size}m {record.hp}m {record.vp}m\n"
 
     for record in zone.hinforecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; HINFO record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN HINFO \"{encode_str(record.cpu)}\" " \
                          f"\"{encode_str(record.os)}\"\n"
 
     for record in zone.rprecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; RP record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN RP {dnslib.DNSLabel(record.mailbox)} " \
                          f"{dnslib.DNSLabel(record.txt)}\n"
 
     for record in zone.httpsrecord_set.all():
-        svcb_record = record.svcb_record
-        buf = dnslib.DNSBuffer()
-        svcb_record.pack(buf)
-        data = bytes(buf.data)
-        zone_file += f"; HTTPS record {record.id}\n"
-        zone_file += f"{record.svcb_record_name} {record.ttl} IN TYPE65 \\# {len(data)} {data.hex()}\n"
+        if record_name := record.svcb_record_name:
+            if svcb_record := record.svcb_record:
+                buf = dnslib.DNSBuffer()
+                svcb_record.pack(buf)
+                data = bytes(buf.data)
+                zone_file += f"; HTTPS record {record.id}\n"
+                zone_file += f"{record_name} {record.ttl} IN TYPE65 \\# {len(data)} {data.hex()}\n"
 
     for record in zone.dhcidrecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; DHCID record {record.id}\n"
             zone_file += f"{record_name} {record.ttl} IN DHCID {base64.b64encode(record.data).decode()}\n"
 
     for record in zone.tlsarecord_set.all():
-        record_name = record.idna_label
-        if record_name:
+        if record_name := record.idna_label:
             zone_file += f"; TLSA record {record.id}\n"
             zone_file += (f"{record_name} {record.ttl} IN TLSA {record.certificate_usage} {record.selector} "
                           f"{record.matching_type} {record.certificate_data.hex()}\n")
