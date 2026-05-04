@@ -48,12 +48,12 @@ def idna_encode(value: str):
 
     try:
         return idna.encode(value, uts46=True).decode()
-    except idna.IDNAError:
+    except (idna.IDNAError, UnicodeError):
         pass
 
     try:
         return idna_old_encode(value)
-    except ValueError:
+    except (ValueError, UnicodeError):
         pass
 
     allowed_chars = string.ascii_letters + string.digits + "-_*."
