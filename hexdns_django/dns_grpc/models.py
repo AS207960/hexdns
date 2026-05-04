@@ -726,7 +726,13 @@ class DNSZoneRecord(models.Model):
         if self.record_name == "@":
             return dnslib.DNSLabel(self.zone.idna_label)
         else:
-            return dnslib.DNSLabel(f"{self.idna_label}.{self.zone.idna_label}")
+            if label := self.idna_label:
+                try:
+                    return dnslib.DNSLabel(f"{label}.{self.zone.idna_label}")
+                except UnicodeError:
+                    return None
+            else:
+                return None
 
     @property
     def record_label(self):
@@ -899,7 +905,13 @@ class ANAMERecord(DNSZoneRecord):
         return super().delete(*args, **kwargs)
 
     def to_rrs(self, qtype, query_name):
-        alias_label = dnslib.DNSLabel(self.alias)
+        alias = idna_encode(self.alias)
+        if not alias:
+            return []
+        try:
+            alias_label = dnslib.DNSLabel(self.alias)
+        except UnicodeError:
+            return []
         zone_label = dnslib.DNSLabel(self.zone.zone_root)
 
         out = []
@@ -2260,7 +2272,7 @@ class SVCBBaseRecord(DNSZoneRecord):
                 return f"_{self.port}._{self.scheme}"
             else:
                 if label := self.idna_label:
-                    return f"_{self.port}._{self.scheme}.{self.idna_label}"
+                    return f"_{self.port}._{self.scheme}.{label}"
                 else:
                     return None
 
@@ -2269,8 +2281,10 @@ class SVCBBaseRecord(DNSZoneRecord):
         record_name = self.svcb_record_name
         if record_name == "@":
             return dnslib.DNSLabel(self.zone.zone_root)
-        else:
+        elif record_name:
             return dnslib.DNSLabel(f"{record_name}.{self.zone.zone_root}")
+        else:
+            return None
 
     @property
     def record_label(self):
@@ -2314,7 +2328,10 @@ class SVCBBaseRecord(DNSZoneRecord):
         if mandatory:
             data.params.append(svcb.SVCBParam("mandatory", svcb.MandatoryData(mandatory)))
         if target := idna_encode(self.target):
-            return svcb.SVCB(self.priority, dnslib.DNSLabel(target), data)
+            try:
+                return svcb.SVCB(self.priority, dnslib.DNSLabel(target), data)
+            except UnicodeError:
+                return None
         else:
             return None
 
@@ -2572,7 +2589,13 @@ class PTRRecord(ReverseDNSZoneRecord):
 
     @property
     def pointer_label(self):
-        return dnslib.DNSLabel(idna_encode(self.pointer))
+        if target := idna_encode(self.pointer):
+            try:
+                return dnslib.DNSLabel(target)
+            except UnicodeError:
+                return None
+        else:
+            return None
 
 
 class ReverseNSRecord(ReverseDNSZoneRecord):
